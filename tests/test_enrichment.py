@@ -9,25 +9,29 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
+
 import sqlalchemy as sa
 from sqlalchemy import text
 
-from database import create_db, load_fund_metadata, load_positions
-from enrichment import (
+from src.database import create_db, load_fund_metadata, load_positions
+from src.enrichment import (
     enrich_positions,
     enrich_all_funds,
     query_enriched,
     get_risk_ready_df,
     _save_enriched,
 )
-from mock_bloomberg import MockBloomberg
+from src.mock_bloomberg import MockBloomberg
 
 
 # ----------------------------------------------------------------
 # Fixtures
 # ----------------------------------------------------------------
 
-TEST_DB  = 'data/test_enrichment.db'
+ROOT_DIR = Path(__file__).parent.parent
+TEST_DB  = str(ROOT_DIR / 'data' / 'test_enrichment.db')
+
 TEST_DATE = '2026-05-13'
 
 

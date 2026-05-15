@@ -9,8 +9,9 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
 import sqlalchemy as sa
-from database import (
+from src.database import (
     create_db,
     load_fund_metadata,
     load_positions,
@@ -27,8 +28,9 @@ from database import (
 # Fixtures
 # ----------------------------------------------------------------
 
-TEST_DB = 'data/test_risk_management.db'
 
+ROOT_DIR = Path(__file__).parent.parent  # tests/ -> project root
+TEST_DB  = str(ROOT_DIR / 'data' / 'test_risk_management.db')
 
 @pytest.fixture(scope='module')
 def engine():

@@ -8,7 +8,7 @@ Run with: python3 -m pytest tests/test_risk_utils.py -v
 import pytest
 import numpy as np
 import pandas as pd
-from risk_utils import (
+from src.risk_utils import (
     var_historical, var_parametric, var_scale,
     es_historical, es_parametric, es_scale,
     kupiec_test, christoffersen_test,

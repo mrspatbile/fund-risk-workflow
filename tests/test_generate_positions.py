@@ -7,9 +7,8 @@ Run with: python3 -m pytest tests/test_generate_positions.py -v
 
 import pytest
 import pandas as pd
-import numpy as np
 import os
-from generate_positions import (
+from src.generate_positions import (
     generate_hedge_fund,
     generate_private_debt,
     generate_real_estate,
