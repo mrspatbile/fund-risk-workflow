@@ -28,12 +28,17 @@ from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy.orm import mapped_column, Mapped
 from sqlalchemy import String, Float, Integer, Date, Boolean
 from datetime import date as date_type
+from pathlib import Path
+
 
 # ----------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------
-DB_PATH    = 'data/risk_management.db'
-DATA_DIR   = 'data'
+
+ROOT_DIR = Path(__file__).parent.parent  # src/ -> project root
+DATA_DIR = str(ROOT_DIR / 'data')
+DB_PATH  = str(ROOT_DIR / 'data' / 'risk_management.db')
+
 FUND_FILES = {
     'AIFM_HedgeFund'  : 'fund_positions_AIFM_HedgeFund.xlsx',
     'AIFM_PrivateDebt': 'fund_positions_AIFM_PrivateDebt.xlsx',
