@@ -1,0 +1,307 @@
+"""
+tests/test_database.py
+======================
+Unit tests for database.py
+Run with: python3 -m pytest tests/test_database.py -v
+"""
+
+import pytest
+import pandas as pd
+import numpy as np
+import os
+import sqlalchemy as sa
+from database import (
+    create_db,
+    load_fund_metadata,
+    load_positions,
+    load_instruments,
+    query_positions,
+    query_nav_history,
+    query_asset_class_breakdown,
+    query_largest_positions,
+    FUND_METADATA,
+)
+
+# ----------------------------------------------------------------
+# Fixtures
+# ----------------------------------------------------------------
+
+TEST_DB = 'data/test_risk_management.db'
+
+
+@pytest.fixture(scope='module')
+def engine():
+    """Create a test database loaded with all fund data."""
+    engine = create_db(TEST_DB)
+    load_fund_metadata(engine)
+    load_positions(engine)
+    load_instruments(engine)
+    yield engine
+    # cleanup
+    if os.path.exists(TEST_DB):
+        os.remove(TEST_DB)
+
+
+# ----------------------------------------------------------------
+# Database creation tests
+# ----------------------------------------------------------------
+
+class TestDatabaseCreation:
+
+    def test_db_file_created(self, engine):
+        assert os.path.exists(TEST_DB)
+
+    def test_tables_exist(self, engine):
+        inspector = sa.inspect(engine)
+        tables    = inspector.get_table_names()
+        assert 'positions'   in tables
+        assert 'funds'       in tables
+        assert 'instruments' in tables
+
+    def test_funds_table_has_four_funds(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(
+                sa.text('SELECT COUNT(*) as n FROM funds'), conn)
+        assert result['n'].values[0] == 4
+
+    def test_instruments_table_not_empty(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(
+                sa.text('SELECT COUNT(*) as n FROM instruments'), conn)
+        assert result['n'].values[0] > 0
+
+
+# ----------------------------------------------------------------
+# Fund metadata tests
+# ----------------------------------------------------------------
+
+class TestFundMetadata:
+
+    def test_all_four_funds_loaded(self, engine):
+        with engine.connect() as conn:
+            funds = pd.read_sql(
+                sa.text('SELECT fund_id FROM funds'), conn)
+        fund_ids = set(funds['fund_id'].values)
+        assert 'AIFM_HedgeFund'   in fund_ids
+        assert 'AIFM_PrivateDebt' in fund_ids
+        assert 'AIFM_RealEstate'  in fund_ids
+        assert 'UCITS_Balanced'   in fund_ids
+
+    def test_fund_types_correct(self, engine):
+        with engine.connect() as conn:
+            funds = pd.read_sql(
+                sa.text('SELECT fund_id, fund_type FROM funds'), conn)
+        funds = funds.set_index('fund_id')
+        assert funds.loc['AIFM_HedgeFund',   'fund_type'] == 'AIFM'
+        assert funds.loc['AIFM_PrivateDebt',  'fund_type'] == 'AIFM'
+        assert funds.loc['AIFM_RealEstate',   'fund_type'] == 'AIFM'
+        assert funds.loc['UCITS_Balanced',    'fund_type'] == 'UCITS'
+
+    def test_all_funds_luxembourg_domicile(self, engine):
+        with engine.connect() as conn:
+            funds = pd.read_sql(
+                sa.text('SELECT domicile FROM funds'), conn)
+        assert (funds['domicile'] == 'Luxembourg').all()
+
+    def test_all_funds_cssf_regulator(self, engine):
+        with engine.connect() as conn:
+            funds = pd.read_sql(
+                sa.text('SELECT regulator FROM funds'), conn)
+        assert (funds['regulator'] == 'CSSF').all()
+
+
+# ----------------------------------------------------------------
+# Positions table tests
+# ----------------------------------------------------------------
+
+class TestPositionsTable:
+
+    def test_total_row_count(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(
+                sa.text('SELECT COUNT(*) as n FROM positions'), conn)
+        assert result['n'].values[0] == 10500
+
+    def test_each_fund_has_250_dates(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT fund_id, COUNT(DISTINCT date) as dates '
+                'FROM positions GROUP BY fund_id'
+            ), conn)
+        assert (result['dates'] >= 250).all()
+
+    def test_no_null_fund_ids(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE fund_id IS NULL'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+    def test_no_null_dates(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE date IS NULL'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+    def test_no_null_isins(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE isin IS NULL'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+    def test_hedge_fund_has_short_positions(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE fund_id = "AIFM_HedgeFund" '
+                'AND market_value_eur < 0'
+            ), conn)
+        assert result['n'].values[0] > 0
+
+    def test_ucits_all_long_only(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE fund_id = "UCITS_Balanced" '
+                'AND market_value_eur < 0'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+    def test_real_estate_has_direct_properties(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE fund_id = "AIFM_RealEstate" '
+                'AND is_direct_property = 1'
+            ), conn)
+        assert result['n'].values[0] > 0
+
+    def test_direct_properties_no_bloomberg_ticker(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE is_direct_property = 1 '
+                'AND bloomberg_ticker IS NOT NULL'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+    def test_direct_properties_zero_adv(self, engine):
+        with engine.connect() as conn:
+            result = pd.read_sql(sa.text(
+                'SELECT COUNT(*) as n FROM positions '
+                'WHERE is_direct_property = 1 '
+                'AND adv_eur > 0'
+            ), conn)
+        assert result['n'].values[0] == 0
+
+
+# ----------------------------------------------------------------
+# Query function tests
+# ----------------------------------------------------------------
+
+class TestQueryPositions:
+
+    def test_returns_dataframe(self, engine):
+        result = query_positions(
+            engine, 'AIFM_HedgeFund', '2026-05-13')
+        assert isinstance(result, pd.DataFrame)
+
+    def test_correct_fund_returned(self, engine):
+        result = query_positions(
+            engine, 'AIFM_HedgeFund', '2026-05-13')
+        assert (result['fund_id'] == 'AIFM_HedgeFund').all()
+
+    def test_correct_date_returned(self, engine):
+        result = query_positions(
+            engine, 'AIFM_HedgeFund', '2026-05-13')
+        assert (result['date'] == '2026-05-13').all()
+
+    def test_no_date_returns_all_dates(self, engine):
+        result = query_positions(engine, 'AIFM_HedgeFund')
+        assert result['date'].nunique() >= 250
+
+    def test_unknown_fund_returns_empty(self, engine):
+        result = query_positions(
+            engine, 'UNKNOWN_FUND', '2026-05-13')
+        assert len(result) == 0
+
+
+class TestQueryNavHistory:
+
+    def test_returns_dataframe(self, engine):
+        result = query_nav_history(engine, 'AIFM_HedgeFund')
+        assert isinstance(result, pd.DataFrame)
+
+    def test_has_correct_columns(self, engine):
+        result = query_nav_history(engine, 'AIFM_HedgeFund')
+        assert 'nav_eur'  in result.columns
+        assert 'pnl_eur'  in result.columns
+        assert 'pnl_pct'  in result.columns
+
+    def test_nav_always_positive(self, engine):
+        result = query_nav_history(engine, 'AIFM_HedgeFund')
+        assert (result['nav_eur'] > 0).all()
+
+    def test_250_days_of_history(self, engine):
+        result = query_nav_history(engine, 'AIFM_HedgeFund')
+        assert len(result) >= 250
+
+    def test_pnl_is_diff_of_nav(self, engine):
+        result       = query_nav_history(engine, 'UCITS_Balanced')
+        computed_pnl = result['nav_eur'].diff().dropna()
+        actual_pnl   = result['pnl_eur'].dropna()
+        pd.testing.assert_series_equal(
+            computed_pnl.reset_index(drop=True),
+            actual_pnl.reset_index(drop=True),
+            check_names=False
+        )
+
+
+class TestQueryAssetClassBreakdown:
+
+    def test_returns_dataframe(self, engine):
+        result = query_asset_class_breakdown(
+            engine, 'UCITS_Balanced', '2026-05-13')
+        assert isinstance(result, pd.DataFrame)
+
+    def test_has_correct_columns(self, engine):
+        result = query_asset_class_breakdown(
+            engine, 'UCITS_Balanced', '2026-05-13')
+        assert 'asset_class'       in result.columns
+        assert 'market_value_eur'  in result.columns
+        assert 'weight_pct'        in result.columns
+
+    def test_weights_sum_to_100(self, engine):
+        result = query_asset_class_breakdown(
+            engine, 'UCITS_Balanced', '2026-05-13')
+        assert abs(result['weight_pct'].sum() - 100.0) < 1.0
+
+    def test_hedge_fund_has_negative_weights(self, engine):
+        result = query_asset_class_breakdown(
+            engine, 'AIFM_HedgeFund', '2026-05-13')
+        assert (result['weight_pct'] < 0).any()
+
+
+class TestQueryLargestPositions:
+
+    def test_returns_correct_number(self, engine):
+        result = query_largest_positions(
+            engine, 'AIFM_HedgeFund', '2026-05-13', n=5)
+        assert len(result) == 5
+
+    def test_ordered_by_absolute_value(self, engine):
+        result = query_largest_positions(
+            engine, 'AIFM_HedgeFund', '2026-05-13', n=10)
+        abs_vals = result['market_value_eur'].abs().values
+        assert all(abs_vals[i] >= abs_vals[i+1]
+                   for i in range(len(abs_vals)-1))
+
+    def test_returns_dataframe(self, engine):
+        result = query_largest_positions(
+            engine, 'UCITS_Balanced', '2026-05-13')
+        assert isinstance(result, pd.DataFrame)
