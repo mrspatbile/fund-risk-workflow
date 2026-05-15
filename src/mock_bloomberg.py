@@ -255,6 +255,26 @@ class MockBloomberg:
             'EQY_DVD_YLD_IND' : 3.12,
         },
 
+        'TSLA US Equity': {
+            'NAME'            : 'Tesla Inc',
+            'CRNCY'           : 'USD',
+            'ASSET_CLASS'     : 'Equity',
+            'PX_LAST'         : 175.34,
+            'BETA'            : 2.12,
+            'VOLUME_AVG_20D'  : 95e6,
+            'EQY_DVD_YLD_IND' : 0.0,
+        },
+        
+        'NVDA US Equity': {
+            'NAME'            : 'Nvidia Corp',
+            'CRNCY'           : 'USD',
+            'ASSET_CLASS'     : 'Equity',
+            'PX_LAST'         : 892.54,
+            'BETA'            : 1.85,
+            'VOLUME_AVG_20D'  : 280e6,
+            'EQY_DVD_YLD_IND' : 0.03,
+        },
+
         # ---- Listed REITs ----
         'VNA GY Equity': {
             'NAME'            : 'Vonovia SE',
