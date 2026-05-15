@@ -71,10 +71,21 @@ def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
                                      vol=vol, seed=i)
         quantities = row['quantity']
 
+        asset_class = row.get('asset_class', 'Equity')
+
         for j, dt in enumerate(dates):
-            price           = prices[j]
-            mv_local        = price * quantities
-            mv_eur          = mv_local * row.get('fx_rate', 1.0)
+            price    = prices[j]
+
+            # bonds, loans, CLOs: price is per 100 face value
+            if asset_class in ('Bond', 'Loan', 'CLO'):
+                mv_local = quantities * price / 100
+            # options: price is per share, contract size = 100
+            elif asset_class == 'Derivative':
+                mv_local = quantities * price * 100
+            else:
+                mv_local = price * quantities
+
+            mv_eur = mv_local * row.get('fx_rate', 1.0)
 
             position = {
                 'fund_id'         : row['fund_id'],

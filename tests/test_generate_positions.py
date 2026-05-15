@@ -319,3 +319,67 @@ class TestExcelOutput:
             df = pd.read_excel(path)
             for col in STANDARD_COLS:
                 assert col in df.columns
+
+class TestMarketValueComputation:
+
+    def test_bond_market_value_uses_price_per_100(
+            self, hedge_fund):
+        bonds = hedge_fund[
+            (hedge_fund['asset_class'] == 'Bond') &
+            (hedge_fund['date'] == hedge_fund['date'].max())
+        ].iloc[0]
+        expected = bonds['quantity'] * bonds['price'] / 100
+        assert abs(bonds['market_value_local'] - expected) < 1.0
+
+    def test_loan_market_value_uses_price_per_100(
+            self, private_debt):
+        loans = private_debt[
+            (private_debt['asset_class'] == 'Loan') &
+            (private_debt['date'] == private_debt['date'].max())
+        ].iloc[0]
+        expected = loans['quantity'] * loans['price'] / 100
+        assert abs(loans['market_value_local'] - expected) < 1.0
+
+    def test_clo_market_value_uses_price_per_100(
+            self, private_debt):
+        clos = private_debt[
+            (private_debt['asset_class'] == 'CLO') &
+            (private_debt['date'] == private_debt['date'].max())
+        ].iloc[0]
+        expected = clos['quantity'] * clos['price'] / 100
+        assert abs(clos['market_value_local'] - expected) < 1.0
+
+    def test_equity_market_value_uses_price_per_share(
+            self, hedge_fund):
+        equities = hedge_fund[
+            (hedge_fund['asset_class'] == 'Equity') &
+            (hedge_fund['quantity'] > 0) &
+            (hedge_fund['date'] == hedge_fund['date'].max())
+        ].iloc[0]
+        expected = equities['quantity'] * equities['price']
+        assert abs(equities['market_value_local'] - expected) < 1.0
+
+    def test_derivative_market_value_uses_lot_size_100(
+            self, hedge_fund):
+        derivs = hedge_fund[
+            (hedge_fund['asset_class'] == 'Derivative') &
+            (hedge_fund['date'] == hedge_fund['date'].max())
+        ].iloc[0]
+        expected = derivs['quantity'] * derivs['price'] * 100
+        assert abs(derivs['market_value_local'] - expected) < 1.0
+
+    def test_cash_market_value_equals_quantity(
+            self, hedge_fund):
+        cash = hedge_fund[
+            (hedge_fund['asset_class'] == 'Cash') &
+            (hedge_fund['date'] == hedge_fund['date'].max())
+        ].iloc[0]
+        assert abs(cash['market_value_local'] - cash['quantity']) < 1.0
+
+    def test_real_estate_market_value_equals_price(
+            self, real_estate):
+        direct = real_estate[
+            (real_estate['is_direct_property'] == True) &
+            (real_estate['date'] == real_estate['date'].max())
+        ].iloc[0]
+        assert abs(direct['market_value_local'] - direct['price']) < 1.0
