@@ -254,7 +254,7 @@ def generate_hedge_fund() -> pd.DataFrame:
 
         # --- Listed options (SPX puts - tail hedge) ---
         dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',
-             isin='OPT_SPX_PUT_001', bloomberg_ticker='SPX Index',
+             isin='OPT_SPX_PUT_001', bloomberg_ticker='SPXW 260619P05500 Index',
              instrument_name='SPX Put 5500 Jun26',
              asset_class='Derivative', sub_asset_class='Listed Option',
              currency='USD', quantity=-100, price=45.20,
