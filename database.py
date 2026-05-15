@@ -123,6 +123,16 @@ class Position(Base):
     Primary key: (fund_id, date, isin)
     """
     __tablename__ = 'positions'
+    __table_args__ = (
+        # composite index for joining positions to positions_enriched
+        # and for looking up a specific instrument on a specific date
+        sa.Index('ix_positions_fund_date_isin',
+                 'fund_id', 'date', 'isin'),
+        # composite index for the most common query:
+        # all positions for a fund on a given date (daily snapshot)
+        sa.Index('ix_positions_fund_date',
+                 'fund_id', 'date'),
+    )
 
     id                  : Mapped[int]   = mapped_column(Integer, primary_key=True, autoincrement=True)
     fund_id             : Mapped[str]   = mapped_column(String, sa.ForeignKey('funds.fund_id'))
@@ -230,9 +240,15 @@ def load_positions(
 
     if all_positions:
         combined = pd.concat(all_positions, ignore_index=True)
+
+        # truncate without dropping table to preserve ORM indexes
+        with engine.connect() as conn:
+            conn.execute(text('DELETE FROM positions'))
+            conn.commit()
+
         combined.to_sql(
             'positions', con=engine,
-            if_exists='replace', index=False
+            if_exists='append', index=False
         )
         print(f'Total: {len(combined):,} rows loaded into positions table.')
 
@@ -428,6 +444,23 @@ def get_db_summary(engine: sa.Engine) -> None:
         print(f'Total unique instruments: '
               f'{instruments["total"].values[0]}')
 
+# def create_indexes(engine: sa.Engine) -> None:
+#     """
+#     Create indexes on positions table explicitly.
+#     Required because to_sql replace drops ORM-defined indexes.
+#     """
+#     with engine.connect() as conn:
+#         conn.execute(text(
+#             'CREATE INDEX IF NOT EXISTS ix_positions_fund_date_isin '
+#             'ON positions (fund_id, date, isin)'
+#         ))
+#         conn.execute(text(
+#             'CREATE INDEX IF NOT EXISTS ix_positions_fund_date '
+#             'ON positions (fund_id, date)'
+#         ))
+#         conn.commit()
+#     print('Indexes created on positions table.')
+
 
 # ----------------------------------------------------------------
 # Main
@@ -443,6 +476,9 @@ if __name__ == '__main__':
 
     print('\nLoading positions...')
     load_positions(engine)
+
+    # print('\nCreating indexes...')
+    # create_indexes(engine)
 
     print('\nLoading instruments...')
     load_instruments(engine)

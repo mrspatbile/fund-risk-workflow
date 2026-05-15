@@ -15,6 +15,7 @@ from database import (
     load_fund_metadata,
     load_positions,
     load_instruments,
+    # create_indexes,   
     query_positions,
     query_nav_history,
     query_asset_class_breakdown,
@@ -32,14 +33,23 @@ TEST_DB = 'data/test_risk_management.db'
 @pytest.fixture(scope='module')
 def engine():
     """Create a test database loaded with all fund data."""
+
+    # always start fresh
+    if os.path.exists(TEST_DB):
+        os.remove(TEST_DB)
+
     engine = create_db(TEST_DB)
     load_fund_metadata(engine)
     load_positions(engine)
+    # create_indexes(engine)   
     load_instruments(engine)
     yield engine
     # cleanup
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
+
+
+
 
 
 # ----------------------------------------------------------------
@@ -305,3 +315,27 @@ class TestQueryLargestPositions:
         result = query_largest_positions(
             engine, 'UCITS_Balanced', '2026-05-13')
         assert isinstance(result, pd.DataFrame)
+
+
+class TestIndexes:
+
+    def test_fund_date_isin_index_exists(self, engine):
+        inspector   = sa.inspect(engine)
+        indexes     = inspector.get_indexes('positions')
+        index_names = [idx['name'] for idx in indexes]
+        assert 'ix_positions_fund_date_isin' in index_names
+
+    def test_fund_date_index_exists(self, engine):
+        inspector   = sa.inspect(engine)
+        indexes     = inspector.get_indexes('positions')
+        index_names = [idx['name'] for idx in indexes]
+        assert 'ix_positions_fund_date' in index_names
+
+    def test_index_covers_correct_columns(self, engine):
+        inspector = sa.inspect(engine)
+        indexes   = inspector.get_indexes('positions')
+        ix = next(idx for idx in indexes
+                  if idx['name'] == 'ix_positions_fund_date_isin')
+        assert 'fund_id' in ix['column_names']
+        assert 'date'    in ix['column_names']
+        assert 'isin'    in ix['column_names']
