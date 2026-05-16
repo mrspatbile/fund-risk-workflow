@@ -18,6 +18,7 @@ from src.setup_db import run, table_exists, positions_loaded, enriched_exists
 from src.database import get_engine
 
 
+@pytest.mark.skip(reason="integration test - run manually with: pytest tests/test_setup_db.py -v")
 class TestSetupDb:
 
     def test_tables_created(self):
