@@ -110,7 +110,8 @@ def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
                 'rating'          : row.get('rating', ''),
                 'maturity'        : row.get('maturity', ''),
                 'sector'          : row.get('sector', ''),
-                'adv_eur'         : row.get('adv_eur', 0),
+                'adv_eur'  : row.get('adv_eur', 0),
+                'is_hedge' : row.get('is_hedge', False),
             }
 
             # real estate extra columns
@@ -189,14 +190,34 @@ def generate_hedge_fund() -> pd.DataFrame:
              price_vol=0.013, fx_rate=1.0, country='EU',
              sector='Diversified', adv_eur=500e6),
 
-        # --- Short equities (negative quantity) ---
+        # --- Short equities: index hedge (commitment method eligible) ---
+        dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',
+             isin='FUT_SPY_SHORT_001', bloomberg_ticker='SPY US Equity',
+             instrument_name='S&P 500 Future (Short Hedge)',
+             asset_class='Equity', sub_asset_class='Future',
+             currency='USD', quantity=-30000, price=523.42,
+             price_vol=0.012, fx_rate=0.89, country='US',
+             sector='Diversified', adv_eur=75e6,
+             is_hedge=True),
+
+        dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',
+             isin='FUT_SX5E_SHORT_001', bloomberg_ticker='SX5E Index',
+             instrument_name='Euro Stoxx 50 Future (Short Hedge)',
+             asset_class='Equity', sub_asset_class='Future',
+             currency='EUR', quantity=-100, price=5124.87,
+             price_vol=0.013, fx_rate=1.0, country='EU',
+             sector='Diversified', adv_eur=500e6,
+             is_hedge=True),
+
+        # --- Short equities: speculative (not commitment method eligible) ---
         dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',
              isin='US88160R1014', bloomberg_ticker='TSLA US Equity',
              instrument_name='Tesla Inc (Short)',
              asset_class='Equity', sub_asset_class='Large Cap',
              currency='USD', quantity=-15000, price=175.34,
              price_vol=0.025, fx_rate=0.89, country='US',
-             sector='Consumer Discretionary', adv_eur=30e6),
+             sector='Consumer Discretionary', adv_eur=30e6,
+             is_hedge=False),
 
         dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',
              isin='US67066G1040', bloomberg_ticker='NVDA US Equity',
@@ -204,7 +225,8 @@ def generate_hedge_fund() -> pd.DataFrame:
              asset_class='Equity', sub_asset_class='Large Cap',
              currency='USD', quantity=-10000, price=892.54,
              price_vol=0.022, fx_rate=0.89, country='US',
-             sector='Technology', adv_eur=40e6),
+             sector='Technology', adv_eur=40e6,
+             is_hedge=False),
 
         # --- Government bonds ---
         dict(fund_id='AIFM_HedgeFund', fund_name='AIFM Hedge Fund',

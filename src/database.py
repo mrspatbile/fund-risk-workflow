@@ -166,7 +166,7 @@ class Position(Base):
     property_type       : Mapped[str]   = mapped_column(String, nullable=True)
     valuation_date      : Mapped[str]   = mapped_column(String, nullable=True)
     is_direct_property  : Mapped[bool]  = mapped_column(Boolean, nullable=True)
-
+    is_hedge            : Mapped[bool]  = mapped_column(Boolean, nullable=True)
 
 # ----------------------------------------------------------------
 # Database functions

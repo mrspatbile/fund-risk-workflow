@@ -102,7 +102,7 @@ class TestEnrichPositions:
         assert isinstance(hedge_fund_enriched, pd.DataFrame)
 
     def test_correct_number_of_positions(self, hedge_fund_enriched):
-        assert len(hedge_fund_enriched) == 14
+        assert len(hedge_fund_enriched) == 16
 
     def test_enrichment_source_column_exists(self, hedge_fund_enriched):
         assert 'enrichment_source' in hedge_fund_enriched.columns
@@ -226,7 +226,7 @@ class TestEnrichedTable:
             result = pd.read_sql(
                 text('SELECT COUNT(*) as n FROM positions'),
                 conn)
-        assert result['n'].values[0] == 84000
+        assert result['n'].values[0] == 88000
 
     def test_no_duplicate_enriched_rows(self, engine,
                                          hedge_fund_enriched):
@@ -264,7 +264,7 @@ class TestQueryEnriched:
                                            hedge_fund_enriched):
         result = query_enriched(
             engine, 'AIFM_HedgeFund', TEST_DATE)
-        assert len(result) == 14
+        assert len(result) == 16
 
 
 # ----------------------------------------------------------------
