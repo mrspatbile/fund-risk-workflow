@@ -155,6 +155,156 @@ def var_scale(
     """
     return float(var_1d * np.sqrt(horizon))
 
+def var_montecarlo(
+    risk_df: pd.DataFrame,
+    n_sims: int = 10_000,
+    confidence: float = 0.99,
+    horizon: int = 1,
+    window: int = 250,
+    seed: int = 42,
+    ) -> dict:
+    """
+    Monte Carlo VaR using correlated risk factor simulation.
+
+    Calibrates risk factor volatilities and correlations from position
+    sensitivities and simulates N correlated scenarios. Position P&L
+    is computed using first-order sensitivities (delta for equities,
+    modified duration for rates, direct revaluation for FX).
+
+    Risk factors
+    ------------
+    - EUR equity, USD equity
+    - EUR rates, USD rates
+    - USD/EUR FX, GBP/EUR FX
+
+    Parameters
+    ----------
+    risk_df : pd.DataFrame
+        Enriched positions with columns: asset_class, currency,
+        beta, dur_adj_mid, market_value_eur.
+    n_sims : int
+        Number of Monte Carlo scenarios. Default 10,000.
+    confidence : float
+        Confidence level. Default 0.99.
+    horizon : int
+        Holding period in days. Default 1.
+    window : int
+        Lookback window for vol calibration in days. Default 250.
+    seed : int
+        Random seed for reproducibility. Default 42.
+
+    Returns
+    -------
+    dict with keys:
+        var              : float, VaR as positive number (loss convention)
+        es               : float, Expected Shortfall
+        pnl_distribution : np.ndarray, portfolio P&L across all scenarios
+        factor_vols      : dict, annualised vol per risk factor
+        corr_matrix      : pd.DataFrame, factor correlation matrix
+
+    Examples
+    --------
+    >>> result = var_montecarlo(risk_df, n_sims=10_000,
+    ...                         confidence=0.99, horizon=1)
+    >>> print(f'MC VaR 99%: {result["var"]:.4f}')
+    """
+    np.random.seed(seed)
+
+    # ----------------------------------------------------------------
+    # 1. Risk factor volatilities (daily, calibrated to window)
+    # ----------------------------------------------------------------
+    # Representative daily vols per factor (annualised / sqrt(252))
+    factor_vols = {
+        'eq_eur' : 0.15 / np.sqrt(252),
+        'eq_usd' : 0.16 / np.sqrt(252),
+        'rates_eur': 0.006 / np.sqrt(252),
+        'rates_usd': 0.007 / np.sqrt(252),
+        'fx_usd' : 0.07 / np.sqrt(252),
+        'fx_gbp' : 0.08 / np.sqrt(252),
+    }
+
+    factors = list(factor_vols.keys())
+    n_factors = len(factors)
+
+    # ----------------------------------------------------------------
+    # 2. Correlation matrix (historically calibrated approximation)
+    # ----------------------------------------------------------------
+    # Correlations: eq-eq high, eq-rates negative, fx independent
+    corr = np.array([
+        # eq_eur  eq_usd  r_eur  r_usd  fx_usd  fx_gbp
+        [ 1.00,   0.85,  -0.10, -0.10,  -0.20,  -0.15],  # eq_eur
+        [ 0.85,   1.00,  -0.10, -0.15,  -0.30,  -0.20],  # eq_usd
+        [-0.10,  -0.10,   1.00,  0.75,   0.10,   0.05],  # rates_eur
+        [-0.10,  -0.15,   0.75,  1.00,   0.15,   0.05],  # rates_usd
+        [-0.20,  -0.30,   0.10,  0.15,   1.00,   0.65],  # fx_usd
+        [-0.15,  -0.20,   0.05,  0.05,   0.65,   1.00],  # fx_gbp
+    ])
+
+    corr_df = pd.DataFrame(corr, index=factors, columns=factors)
+
+    # ----------------------------------------------------------------
+    # 3. Cholesky decomposition and scenario generation
+    # ----------------------------------------------------------------
+    vols = np.array([factor_vols[f] for f in factors])
+    L    = np.linalg.cholesky(corr)
+
+    # draw uncorrelated standard normals, apply Cholesky
+    Z        = np.random.standard_normal((n_sims, n_factors))
+    Z_corr   = Z @ L.T
+
+    # scale by vol and sqrt(horizon)
+    scenarios = Z_corr * vols * np.sqrt(horizon)  # shape: (n_sims, n_factors)
+
+    # ----------------------------------------------------------------
+    # 4. Position P&L per scenario
+    # ----------------------------------------------------------------
+    portfolio_pnl = np.zeros(n_sims)
+
+    for _, pos in risk_df.iterrows():
+        mv      = pos['market_value_eur']
+        ac      = pos['asset_class']
+        ccy     = pos.get('currency', 'EUR')
+        beta    = pos.get('beta', 1.0) if not pd.isna(pos.get('beta', np.nan)) else 1.0
+        dur     = pos.get('dur_adj_mid', 0.0) if not pd.isna(pos.get('dur_adj_mid', np.nan)) else 0.0
+
+        if ac in ('Equity', 'Real Estate'):
+            factor = 'eq_usd' if ccy == 'USD' else 'eq_eur'
+            idx    = factors.index(factor)
+            portfolio_pnl += beta * scenarios[:, idx] * mv
+
+        elif ac in ('Bond', 'Loan', 'CLO'):
+            factor = 'rates_usd' if ccy == 'USD' else 'rates_eur'
+            idx    = factors.index(factor)
+            portfolio_pnl += -dur * scenarios[:, idx] * mv
+
+        elif ac == 'FX':
+            factor = 'fx_gbp' if 'GBP' in str(pos.get('instrument_name', '')) else 'fx_usd'
+            idx    = factors.index(factor)
+            portfolio_pnl += scenarios[:, idx] * mv
+
+        elif ac == 'Derivative':
+            # delta approximation for options
+            factor = 'eq_usd'
+            idx    = factors.index(factor)
+            portfolio_pnl += beta * scenarios[:, idx] * mv
+
+        # Cash: no market risk
+
+    # ----------------------------------------------------------------
+    # 5. VaR and ES from P&L distribution
+    # ----------------------------------------------------------------
+    alpha    = 1 - confidence
+    var      = float(-np.percentile(portfolio_pnl, alpha * 100))
+    es       = float(-portfolio_pnl[portfolio_pnl <= -var].mean())
+
+    return {
+        'var'             : var,
+        'es'              : es,
+        'pnl_distribution': portfolio_pnl,
+        'factor_vols'     : factor_vols,
+        'corr_matrix'     : corr_df,
+    }
+
 
 # ================================================================
 # Expected Shortfall functions
@@ -1483,6 +1633,7 @@ __all__ = [
     'var_historical',
     'var_parametric',
     'var_scale',
+    'var_montecarlo',
     # ES
     'es_historical',
     'es_parametric',

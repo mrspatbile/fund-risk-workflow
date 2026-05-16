@@ -18,7 +18,7 @@ from src.risk_utils import (
     stress_property, stress_rental, stress_ltv,
     days_to_liquidate, liquidity_buckets,
     redemption_stress, investor_concentration,
-    liquidity_adjusted_var,
+    liquidity_adjusted_var, var_montecarlo,
 )
 
 
@@ -733,3 +733,49 @@ class TestLiquidityAdjustedVar:
     def test_liquidity_cost_nonnegative(self, sample_positions):
         result = liquidity_adjusted_var(0.025, sample_positions)
         assert result['liquidity_cost'] >= 0
+
+class TestVarMonteCarlo:
+    def test_returns_dict(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        assert isinstance(result, dict)
+
+    def test_required_keys(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        for key in ['var', 'es', 'pnl_distribution',
+                    'factor_vols', 'corr_matrix']:
+            assert key in result
+
+    def test_var_positive(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        assert result['var'] > 0
+
+    def test_es_greater_than_var(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        assert result['es'] >= result['var']
+
+    def test_pnl_distribution_shape(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        assert len(result['pnl_distribution']) == 1000
+
+    def test_higher_confidence_higher_var(self, sample_positions):
+        r99 = var_montecarlo(sample_positions, n_sims=1000,
+                             confidence=0.99, seed=42)
+        r95 = var_montecarlo(sample_positions, n_sims=1000,
+                             confidence=0.95, seed=42)
+        assert r99['var'] >= r95['var']
+
+    def test_longer_horizon_higher_var(self, sample_positions):
+        r1  = var_montecarlo(sample_positions, n_sims=1000,
+                             horizon=1, seed=42)
+        r20 = var_montecarlo(sample_positions, n_sims=1000,
+                             horizon=20, seed=42)
+        assert r20['var'] > r1['var']
+
+    def test_corr_matrix_shape(self, sample_positions):
+        result = var_montecarlo(sample_positions, n_sims=1000)
+        assert result['corr_matrix'].shape == (6, 6)
+
+    def test_reproducible_with_seed(self, sample_positions):
+        r1 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
+        r2 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
+        assert r1['var'] == r2['var']
