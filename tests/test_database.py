@@ -132,7 +132,7 @@ class TestPositionsTable:
         with engine.connect() as conn:
             result = pd.read_sql(
                 sa.text('SELECT COUNT(*) as n FROM positions'), conn)
-        assert result['n'].values[0] == 10500
+        assert result['n'].values[0] == 84000
 
     def test_each_fund_has_250_dates(self, engine):
         with engine.connect() as conn:

@@ -33,7 +33,7 @@ from pathlib import Path
 ROOT_DIR   = Path(__file__).parent.parent
 OUTPUT_DIR = str(ROOT_DIR / 'data')
 
-TRADING_DAYS  = 250
+TRADING_DAYS  = 2000
 END_DATE      = pd.Timestamp('2026-05-13')
 DATES         = pd.bdate_range(end=END_DATE, periods=TRADING_DAYS)
 np.random.seed(42)

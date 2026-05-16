@@ -226,7 +226,7 @@ class TestEnrichedTable:
             result = pd.read_sql(
                 text('SELECT COUNT(*) as n FROM positions'),
                 conn)
-        assert result['n'].values[0] == 10500
+        assert result['n'].values[0] == 84000
 
     def test_no_duplicate_enriched_rows(self, engine,
                                          hedge_fund_enriched):
