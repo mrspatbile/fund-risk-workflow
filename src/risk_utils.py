@@ -155,6 +155,11 @@ def var_scale(
     """
     return float(var_1d * np.sqrt(horizon))
 
+# Monte Carlo VaR approximation.
+# In production this is produced by a third-party risk system (Bloomberg PORT,
+# Aladdin, Axioma). The covariance matrix and volatilities are hardcoded here;
+# in production they would be calibrated daily from market data.
+# Position P&L uses first-order sensitivities, not full revaluation.
 def var_montecarlo(
     risk_df: pd.DataFrame,
     n_sims: int = 10_000,
