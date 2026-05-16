@@ -18,6 +18,9 @@ dependencies = [
     "sqlalchemy",
     "openpyxl",
     "yfinance",
+    "ipykernel",
+    "jupyterlab",
+    "pytest",
 ]
 
 [tool.setuptools.packages.find]
