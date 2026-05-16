@@ -186,6 +186,7 @@ class MockBloomberg:
             'EQY_DVD_YLD_IND' : 1.32,
             'PE_RATIO'        : 22.4,
         },
+        
         'AAPL US Equity': {
             'NAME'            : 'Apple Inc',
             'CRNCY'           : 'USD',
@@ -196,6 +197,7 @@ class MockBloomberg:
             'EQY_DVD_YLD_IND' : 0.48,
             'PE_RATIO'        : 31.2,
         },
+
         'MSFT US Equity': {
             'NAME'            : 'Microsoft Corp',
             'CRNCY'           : 'USD',
@@ -206,6 +208,7 @@ class MockBloomberg:
             'EQY_DVD_YLD_IND' : 0.72,
             'PE_RATIO'        : 35.8,
         },
+
         'JPM US Equity': {
             'NAME'            : 'JPMorgan Chase',
             'CRNCY'           : 'USD',
@@ -216,6 +219,7 @@ class MockBloomberg:
             'EQY_DVD_YLD_IND' : 2.11,
             'PE_RATIO'        : 12.4,
         },
+
         'GLD US Equity': {
             'NAME'            : 'SPDR Gold Shares',
             'CRNCY'           : 'USD',
@@ -225,6 +229,7 @@ class MockBloomberg:
             'VOLUME_AVG_20D'  : 12e6,
             'EQY_DVD_YLD_IND' : 0.0,
         },
+
         'TLT US Equity': {
             'NAME'            : 'iShares 20+ Year Treasury',
             'CRNCY'           : 'USD',
@@ -235,6 +240,29 @@ class MockBloomberg:
             'VOLUME_AVG_20D'  : 38e6,
             'EQY_DVD_YLD_IND' : 4.12,
         },
+
+        'IEAG LN Equity': {
+            'NAME'            : 'iShares Core EUR Govt Bond ETF',
+            'CRNCY'           : 'EUR',
+            'ASSET_CLASS'     : 'Equity',
+            'PX_LAST'         : 112.45,
+            'BETA'            : -0.15,
+            'DUR_ADJ_MID'     : 7.82,
+            'VOLUME_AVG_20D'  : 25e6,
+            'EQY_DVD_YLD_IND' : 2.84,
+        },
+
+        'EXHE GY Equity': {
+            'NAME'            : 'iShares Euro High Yield Corp Bond ETF',
+            'CRNCY'           : 'EUR',
+            'ASSET_CLASS'     : 'Equity',
+            'PX_LAST'         : 89.32,
+            'BETA'            : 0.45,
+            'DUR_ADJ_MID'     : 3.24,
+            'VOLUME_AVG_20D'  : 8e6,
+            'EQY_DVD_YLD_IND' : 5.82,
+        },
+
         'HYG US Equity': {
             'NAME'            : 'iShares HY Corp Bond ETF',
             'CRNCY'           : 'USD',
@@ -245,6 +273,7 @@ class MockBloomberg:
             'VOLUME_AVG_20D'  : 28e6,
             'EQY_DVD_YLD_IND' : 5.84,
         },
+
         'SX5E Index': {
             'NAME'            : 'Euro Stoxx 50',
             'CRNCY'           : 'EUR',
@@ -264,7 +293,7 @@ class MockBloomberg:
             'VOLUME_AVG_20D'  : 95e6,
             'EQY_DVD_YLD_IND' : 0.0,
         },
-        
+
         'NVDA US Equity': {
             'NAME'            : 'Nvidia Corp',
             'CRNCY'           : 'USD',
