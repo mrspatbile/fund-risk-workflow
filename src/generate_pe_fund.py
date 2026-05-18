@@ -44,8 +44,19 @@ FUND_NAME = 'AIFM PE Buyout Fund I'
 VINTAGE   = 2018
 FUND_LIFE = 10
 INV_PERIOD_END = '2023-12-31'
-TARGET_SIZE    = 200_000_000
-COMMITTED      = 180_000_000  # 90% called over investment period
+
+TARGET_SIZE = 400_000_000
+COMMITTED   = 350_000_000
+
+HOLD_AT_COST_QUARTERS = 6  # 1.5 years
+
+# ----------------------------------------------------------------
+# Fund economics
+# ----------------------------------------------------------------
+MGMT_FEE_RATE    = 0.0175        # 1.75% of committed p.a.
+HURDLE_RATE      = 0.08          # 8% preferred return to LPs
+CARRY_RATE       = 0.20          # 20% carried interest to GP
+CATCHUP_RATE     = 1.00          # 100% GP catch-up
 
 # ----------------------------------------------------------------
 # Portfolio companies
@@ -54,118 +65,262 @@ COMPANIES = [
     dict(company_id='PE_001', company_name='TechCo Solutions',
          sector='Technology', country='DE',
          investment_stage='Buyout', status='Active',
-         investment_date='2018-06-15', entry_multiple=11.5,
-         cost_basis_eur=28_000_000, ownership_pct=65.0),
+         investment_date='2018-06-15', entry_ev_ebitda=11.5, entry_ev_sales=None,
+         ownership_pct=65.0),
 
     dict(company_id='PE_002', company_name='MedDevice AG',
          sector='Healthcare', country='CH',
          investment_stage='Buyout', status='Active',
-         investment_date='2019-03-20', entry_multiple=13.2,
-         cost_basis_eur=22_000_000, ownership_pct=55.0),
+         investment_date='2019-03-20', entry_ev_ebitda=13.2, entry_ev_sales=None,
+         ownership_pct=55.0),
 
     dict(company_id='PE_003', company_name='Logistics Plus',
          sector='Industrials', country='NL',
          investment_stage='Buyout', status='Exited',
-         investment_date='2018-11-01', entry_multiple=9.8,
-         cost_basis_eur=18_000_000, ownership_pct=70.0,
-         exit_date='2023-06-30', exit_price_eur=42_000_000,
-         exit_multiple=2.33),
+         investment_date='2018-11-01', entry_ev_ebitda=9.8, entry_ev_sales=None,
+         ownership_pct=70.0,
+         exit_date='2023-06-30',
+        ),
 
     dict(company_id='PE_004', company_name='RetailGroup France',
          sector='Consumer', country='FR',
          investment_stage='Buyout', status='Active',
-         investment_date='2019-09-15', entry_multiple=8.5,
-         cost_basis_eur=15_000_000, ownership_pct=80.0),
+         investment_date='2019-09-15', entry_ev_ebitda=8.5, entry_ev_sales=None,
+         ownership_pct=80.0),
 
     dict(company_id='PE_005', company_name='EnergyTrans GmbH',
          sector='Energy Transition', country='DE',
          investment_stage='Growth', status='Active',
-         investment_date='2020-04-01', entry_multiple=12.0,
-         cost_basis_eur=20_000_000, ownership_pct=45.0),
+         investment_date='2020-04-01', entry_ev_ebitda=12.0, entry_ev_sales=None,
+         ownership_pct=45.0),
 
     dict(company_id='PE_006', company_name='FinTech Nordic',
          sector='Financial Services', country='SE',
          investment_stage='Growth', status='Active',
-         investment_date='2021-01-15', entry_multiple=15.5,
-         cost_basis_eur=25_000_000, ownership_pct=40.0),
+         investment_date='2021-01-15', entry_ev_ebitda=None, entry_ev_sales=2.5,
+         ownership_pct=40.0),
 
     dict(company_id='PE_007', company_name='FoodCo Benelux',
          sector='Consumer', country='BE',
          investment_stage='Buyout', status='Exited',
-         investment_date='2019-06-01', entry_multiple=9.2,
-         cost_basis_eur=16_000_000, ownership_pct=75.0,
-         exit_date='2024-03-31', exit_price_eur=35_000_000,
-         exit_multiple=2.19),
+         investment_date='2019-06-01', entry_ev_ebitda=9.2, entry_ev_sales=None,
+         ownership_pct=75.0,
+         exit_date='2024-03-31',),
 
     dict(company_id='PE_008', company_name='SoftwareHub UK',
          sector='Technology', country='GB',
          investment_stage='Buyout', status='Active',
-         investment_date='2022-03-01', entry_multiple=14.8,
-         cost_basis_eur=24_000_000, ownership_pct=60.0),
+         investment_date='2022-03-01', entry_ev_ebitda=14.8, entry_ev_sales=None,
+         ownership_pct=60.0),
 ]
+
+
+def compute_entry_equity_check(company_id: str) -> float:
+    """
+    Derive the equity check written at entry from first principles.
+
+    Equity Check = (Entry EV - Net Debt at entry) * Ownership %
+
+    For EBITDA-positive companies:  Entry EV = EBITDA * EV/EBITDA multiple
+    For pre-profit companies:       Entry EV = Revenue * EV/Sales multiple
+    """
+    c = next(x for x in COMPANIES if x['company_id'] == company_id)
+    p = COMPANY_PROFILES[company_id]
+
+    ebitda = p['revenue_start'] * p['ebitda_margin_start']
+    if c['entry_ev_ebitda'] is not None:
+        ev = ebitda * c['entry_ev_ebitda']
+    else:
+        ev = p['revenue_start'] * c['entry_ev_sales']
+
+    equity_check = ev - p['net_debt_start']
+    return round(equity_check * c['ownership_pct'] / 100, 0)
 
 # ----------------------------------------------------------------
 # Cash flow generation
 # ----------------------------------------------------------------
-def generate_cash_flows() -> list:
-    """Generate realistic capital calls and distributions."""
+def generate_cash_flows(valuation_reports: list = None) -> list:
+    """
+    Generate PE fund cash flows from first principles.
+
+    Capital calls: derived from compute_entry_equity_check()
+    Management fees: 1.75% of committed p.a., charged semi-annually
+    Distributions: exit proceeds derived from appraisal NAV at exit date,
+                   run through European waterfall
+
+    European waterfall order:
+        1. Return of contributed capital to LPs
+        2. Preferred return: 8% p.a. on contributed capital
+        3. GP catch-up: 100% to GP until GP has 20% of total profits
+        4. Carried interest: 80% LP / 20% GP on remaining profits
+    """
+    if valuation_reports is None:
+        valuation_reports = generate_valuation_reports()
+
     flows = []
 
-    # Capital calls: irregular over investment period 2018-2023
-    calls = [
-        # (date, company_id, amount, description)
-        ('2018-06-15', 'PE_001', -28_000_000, 'Initial investment TechCo'),
-        ('2018-11-01', 'PE_003', -18_000_000, 'Initial investment Logistics Plus'),
-        ('2018-12-15', None,     -2_000_000,  'Management fee 2018'),
-        ('2019-03-20', 'PE_002', -22_000_000, 'Initial investment MedDevice'),
-        ('2019-06-01', 'PE_007', -16_000_000, 'Initial investment FoodCo'),
-        ('2019-09-15', 'PE_004', -15_000_000, 'Initial investment RetailGroup'),
-        ('2019-12-15', None,     -3_600_000,  'Management fee 2019'),
-        ('2020-04-01', 'PE_005', -20_000_000, 'Initial investment EnergyTrans'),
-        ('2020-12-15', None,     -3_600_000,  'Management fee 2020'),
-        ('2021-01-15', 'PE_006', -25_000_000, 'Initial investment FinTech Nordic'),
-        ('2021-12-15', None,     -3_600_000,  'Management fee 2021'),
-        ('2022-03-01', 'PE_008', -24_000_000, 'Initial investment SoftwareHub'),
-        ('2022-12-15', None,     -3_600_000,  'Management fee 2022'),
-        ('2023-06-15', 'PE_001',  -3_000_000, 'Follow-on TechCo'),
-        ('2023-12-15', None,     -3_600_000,  'Management fee 2023'),
+    # ── 1. Capital calls ─────────────────────────────────────────────────────
+    capital_events = [
+        ('2018-06-15', 'PE_001', 'Initial investment TechCo'),
+        ('2018-11-01', 'PE_003', 'Initial investment Logistics Plus'),
+        ('2019-03-20', 'PE_002', 'Initial investment MedDevice'),
+        ('2019-06-01', 'PE_007', 'Initial investment FoodCo'),
+        ('2019-09-15', 'PE_004', 'Initial investment RetailGroup'),
+        ('2020-04-01', 'PE_005', 'Initial investment EnergyTrans'),
+        ('2021-01-15', 'PE_006', 'Initial investment FinTech Nordic'),
+        ('2022-03-01', 'PE_008', 'Initial investment SoftwareHub'),
+        ('2023-06-15', 'PE_001', 'Follow-on TechCo'),
     ]
 
-    # Distributions and exits
-    distributions = [
+    follow_ons = {'2023-06-15_PE_001': 5_000_000}
+
+    for date, company_id, desc in capital_events:
+        key    = f"{date}_{company_id}"
+        amount = follow_ons.get(key, compute_entry_equity_check(company_id))
+        flows.append(dict(
+            fund_id    = FUND_ID,
+            company_id = company_id,
+            date       = date,
+            flow_type  = 'capital_call',
+            amount_eur = -amount,
+            description= desc,
+        ))
+
+    # ── 2. Management fees: 1.75% of committed p.a., semi-annual ────────────
+    mgmt_fee_semi = round(COMMITTED * MGMT_FEE_RATE / 2, 0)
+    fee_dates = pd.date_range(start='2018-06-30', end='2026-03-31', freq='6ME')
+    for fee_date in fee_dates:
+        flows.append(dict(
+            fund_id    = FUND_ID,
+            company_id = None,
+            date       = fee_date.strftime('%Y-%m-%d'),
+            flow_type  = 'management_fee',
+            amount_eur = -mgmt_fee_semi,
+            description= f'Management fee {fee_date.strftime("%b %Y")}',
+        ))
+
+    # ── 3. Exit proceeds derived from appraisal, run through waterfall ───────
+    call_flows = [f for f in flows if f['flow_type'] == 'capital_call']
+
+    # build exit NAV lookup from valuation reports
+    exit_nav_lookup = {}
+    for c in COMPANIES:
+        if not c.get('exit_date'):
+            continue
+        cid       = c['company_id']
+        exit_date = c['exit_date']
+        company_reports = [
+            r for r in valuation_reports
+            if r['company_id'] == cid and r['date'] <= exit_date
+        ]
+        if company_reports:
+            latest = max(company_reports, key=lambda r: r['date'])
+            exit_nav_lookup[cid] = latest['appraised_nav_eur']
+
+    exits = [c for c in COMPANIES if c.get('exit_date')]
+
+    for ex in exits:
+        cid       = ex['company_id']
+        exit_date = ex['exit_date']
+        gross_exit = exit_nav_lookup.get(cid, 0)
+
+        if gross_exit <= 0:
+            continue
+
+        # contributed capital for this company only
+        contributed = sum(
+            abs(f['amount_eur']) for f in call_flows
+            if f['company_id'] == cid
+        )
+
+        # pro-rata management fees
+        n_active = len([c for c in COMPANIES
+                        if pd.Timestamp(c['investment_date']) <= pd.Timestamp(exit_date)])
+        fees_paid = sum(
+            abs(f['amount_eur']) / n_active
+            for f in flows
+            if f['flow_type'] == 'management_fee' and f['date'] <= exit_date
+        )
+
+        total_contributed = contributed + fees_paid
+
+        # preferred return: years from this company's first call to exit
+        company_first_call = min(
+            f['date'] for f in call_flows if f['company_id'] == cid
+        )
+        years = (pd.Timestamp(exit_date) - pd.Timestamp(company_first_call)).days / 365
+        preferred_return = round(total_contributed * ((1 + HURDLE_RATE) ** years - 1), 0)
+
+        # waterfall
+        remaining       = gross_exit
+        lp_distribution = 0
+        gp_distribution = 0
+
+        # step 1: return of capital
+        roc = min(remaining, total_contributed)
+        lp_distribution += roc
+        remaining -= roc
+
+        # step 2: preferred return
+        if remaining > 0:
+            pref = min(remaining, preferred_return)
+            lp_distribution += pref
+            remaining -= pref
+
+        # step 3: GP catch-up
+        if remaining > 0:
+            total_profit = gross_exit - total_contributed
+            gp_target    = total_profit * CARRY_RATE
+            catchup      = min(remaining, gp_target)
+            gp_distribution += catchup
+            remaining -= catchup
+
+        # step 4: 80/20 split
+        if remaining > 0:
+            gp_distribution += remaining * CARRY_RATE
+            lp_distribution += remaining * (1 - CARRY_RATE)
+
+        if lp_distribution > 0:
+            flows.append(dict(
+                fund_id    = FUND_ID,
+                company_id = cid,
+                date       = exit_date,
+                flow_type  = 'exit_proceeds',
+                amount_eur = round(lp_distribution, 0),
+                description= f"Exit proceeds {ex['company_name']} (LP share)",
+            ))
+
+        if gp_distribution > 0:
+            flows.append(dict(
+                fund_id    = FUND_ID,
+                company_id = cid,
+                date       = exit_date,
+                flow_type  = 'carried_interest',
+                amount_eur = round(gp_distribution, 0),
+                description= f"Carried interest {ex['company_name']} (GP share)",
+            ))
+
+    # ── 4. Interim distributions from active companies ───────────────────────
+    interim_distributions = [
         ('2021-06-30', 'PE_003',  8_000_000, 'Interim distribution Logistics Plus'),
         ('2022-06-30', 'PE_003',  6_000_000, 'Interim distribution Logistics Plus'),
-        ('2023-06-30', 'PE_003', 42_000_000, 'Exit proceeds Logistics Plus'),
-        ('2023-12-15', 'PE_003',  5_000_000, 'Carried interest distribution'),
-        ('2024-03-31', 'PE_007', 35_000_000, 'Exit proceeds FoodCo'),
         ('2024-06-30', 'PE_002',  4_000_000, 'Interim distribution MedDevice'),
-        ('2024-12-15', None,      2_000_000,  'Dividend recapitalisation'),
+        ('2024-12-15', None,      2_000_000, 'Dividend recapitalisation'),
         ('2025-06-30', 'PE_001',  6_000_000, 'Interim distribution TechCo'),
         ('2025-12-15', 'PE_005',  5_000_000, 'Interim distribution EnergyTrans'),
     ]
 
-    for date, company_id, amount, desc in calls:
+    for date, company_id, amount, desc in interim_distributions:
         flows.append(dict(
             fund_id    = FUND_ID,
             company_id = company_id,
             date       = date,
-            flow_type  = 'management_fee' if company_id is None else 'capital_call',
-            amount_eur = amount,
-            description= desc,
-        ))
-
-    for date, company_id, amount, desc in distributions:
-        flows.append(dict(
-            fund_id    = FUND_ID,
-            company_id = company_id,
-            date       = date,
-            flow_type  = 'exit_proceeds' if 'Exit' in desc else 'distribution',
+            flow_type  = 'distribution',
             amount_eur = amount,
             description= desc,
         ))
 
     return sorted(flows, key=lambda x: x['date'])
-
 
 # ----------------------------------------------------------------
 # NAV history generation (quarterly)
@@ -194,14 +349,11 @@ def generate_nav_history(valuation_reports: list) -> list:
             company_id     = vr['company_id'],
             date           = vr['date'],
             nav_eur        = vr['appraised_nav_eur'],
-            gross_multiple = round(vr['appraised_nav_eur'] / 
-                            next(c['cost_basis_eur'] for c in COMPANIES 
-                                 if c['company_id'] == vr['company_id']), 3),
-            unrealised_gain= round(vr['appraised_nav_eur'] - 
-                            next(c['cost_basis_eur'] for c in COMPANIES 
-                                 if c['company_id'] == vr['company_id']), 2),
-            cost_basis_eur = next(c['cost_basis_eur'] for c in COMPANIES 
-                                  if c['company_id'] == vr['company_id']),
+            gross_multiple = round(vr['appraised_nav_eur'] /
+                        compute_entry_equity_check(vr['company_id']), 3),
+            unrealised_gain= round(vr['appraised_nav_eur'] -
+                        compute_entry_equity_check(vr['company_id']), 2),
+            cost_basis_eur = compute_entry_equity_check(vr['company_id']),
         ))
 
     # fund-level: sum of company NAVs per quarter
@@ -245,8 +397,8 @@ COMPANY_PROFILES = {
         'net_debt_start': 35_000_000, 'debt_repayment_pa': 3_000_000,
         'interest_rate': 0.055,
         # EV/EBITDA: entry 11.5x, peak 13x in 2021, compressed to 10x by 2023, recovery to 11x
-        'ev_multiple_path': {2018: 11.5, 2019: 12.0, 2020: 11.5, 2021: 13.0,
-                             2022: 11.5, 2023: 10.0, 2024: 10.5, 2025: 11.0, 2026: 11.0},
+        'ev_multiple_path': {2018: 10.0, 2019: 10.5, 2020: 10.0, 2021: 11.0,
+                     2022: 10.0, 2023: 9.0, 2024: 9.5, 2025: 10.0, 2026: 10.0},
         'key_risks': 'Technology disruption, key person dependency, customer concentration',
     },
     'PE_002': {
@@ -273,8 +425,8 @@ COMPANY_PROFILES = {
         'ebitda_margin_start': 0.18, 'ebitda_margin_end': 0.21,
         'net_debt_start': 22_000_000, 'debt_repayment_pa': 2_000_000,
         'interest_rate': 0.058,
-        'ev_multiple_path': {2018: 9.8, 2019: 10.5, 2020: 9.5, 2021: 12.0,
-                             2022: 10.5, 2023: 11.0},
+        'ev_multiple_path': {2018: 7.5, 2019: 8.0, 2020: 7.5, 2021: 9.0,
+                            2022: 8.0, 2023: 8.5},
         'key_risks': 'E-commerce disruption, fuel cost exposure, driver shortage',
         'exit_date': '2023-06-30',
     },
@@ -288,8 +440,8 @@ COMPANY_PROFILES = {
         'ebitda_margin_start': 0.14, 'ebitda_margin_end': -0.04,
         'net_debt_start': 18_000_000, 'debt_repayment_pa': 300_000,
         'interest_rate': 0.068,
-        'ev_multiple_path': {2019: 8.5, 2020: 7.0, 2021: 8.0,
-                             2022: 6.0, 2023: 4.5, 2024: 3.0, 2025: 2.5, 2026: 2.0},
+        'ev_multiple_path': {2019: 6.0, 2020: 5.0, 2021: 5.5,
+                            2022: 4.0, 2023: 3.0, 2024: 2.0, 2025: 1.5, 2026: 1.0},
         'key_risks': 'Structural decline of physical retail, rising vacancy rates, '
                      'e-commerce competition, covenant breach risk from 2024',
     },
@@ -299,12 +451,12 @@ COMPANY_PROFILES = {
         'covenant_type': 'revenue',
         'leverage_covenant': 7.0, 'coverage_covenant': 1.8,
         'discount_rate': 0.13,
-        'revenue_start': 28_000_000, 'revenue_cagr': 0.15,
-        'ebitda_margin_start': 0.16, 'ebitda_margin_end': 0.22,
+        'revenue_start': 28_000_000, 'revenue_cagr': 0.08,
+        'ebitda_margin_start': 0.16, 'ebitda_margin_end': 0.18,
         'net_debt_start': 24_000_000, 'debt_repayment_pa': 1_500_000,
         'interest_rate': 0.060,
-        'ev_multiple_path': {2020: 12.0, 2021: 15.0, 2022: 13.0,
-                             2023: 11.0, 2024: 12.0, 2025: 12.5, 2026: 13.0},
+        'ev_multiple_path': {2020: 9.0, 2021: 11.0, 2022: 8.0,
+                     2023: 7.5, 2024: 8.0, 2025: 8.5, 2026: 9.0},
         'revenue_covenant_eur': 25_000_000,
         'key_risks': 'Energy transition policy risk, technology obsolescence, capex intensity',
     },
@@ -314,7 +466,7 @@ COMPANY_PROFILES = {
         'covenant_type': 'liquidity',
         'leverage_covenant': None, 'coverage_covenant': None,
         'discount_rate': 0.18,
-        'revenue_start': 12_000_000, 'revenue_cagr': 0.30,
+        'revenue_start': 12_000_000, 'revenue_cagr': 0.12,
         'ebitda_margin_start': -0.20, 'ebitda_margin_end': 0.15,
         'net_debt_start': 8_000_000, 'debt_repayment_pa': 0,
         'interest_rate': 0.075,
@@ -335,8 +487,8 @@ COMPANY_PROFILES = {
         'ebitda_margin_start': 0.16, 'ebitda_margin_end': 0.19,
         'net_debt_start': 20_000_000, 'debt_repayment_pa': 2_000_000,
         'interest_rate': 0.055,
-        'ev_multiple_path': {2019: 9.2, 2020: 8.5, 2021: 10.5,
-                             2022: 9.0, 2023: 8.5, 2024: 9.0},
+        'ev_multiple_path': {2019: 7.5, 2020: 7.0, 2021: 8.5,
+                            2022: 7.5, 2023: 7.0, 2024: 7.5},
         'key_risks': 'Consumer spending slowdown, private label competition, raw material costs',
         'exit_date': '2024-03-31',
     },
@@ -356,6 +508,17 @@ COMPANY_PROFILES = {
     },
 }
 
+LIQUIDATION_VALUE = {
+    'PE_001': 8_000_000,   # TechCo: IP, equipment
+    'PE_002': 12_000_000,  # MedDevice: patents, machinery
+    'PE_003': 5_000_000,   # Logistics Plus: fleet, warehouse
+    'PE_004': 6_000_000,   # RetailGroup: property, fixtures
+    'PE_005': 10_000_000,  # EnergyTrans: physical assets, permits
+    'PE_006': 1_000_000,   # FinTech: mostly intangibles, very low
+    'PE_007': 4_000_000,   # FoodCo: brand, equipment
+    'PE_008': 5_000_000,   # SoftwareHub: IP, customer contracts
+}
+
 
 def generate_valuation_reports() -> list:
     """Generate quarterly independent appraisal reports for all companies."""
@@ -365,7 +528,7 @@ def generate_valuation_reports() -> list:
         profile      = COMPANY_PROFILES[company_id]
         start_date   = pd.Timestamp(inv['investment_date'])
         exit_date    = pd.Timestamp(profile['exit_date']) if 'exit_date' in profile else None
-        cost_basis   = inv['cost_basis_eur']
+        cost_basis   = compute_entry_equity_check(company_id)
         nav_data     = {
             n['company_id']: n
             for n in [dict(
@@ -407,15 +570,46 @@ def generate_valuation_reports() -> list:
             interest_exp = net_debt_q * interest_rate
 
             # EV and NAV
-            if ebitda_ltm > 0:
-                # use entry multiple as base, slight compression/expansion
-                ev_ebitda = inv['entry_multiple'] * (1 + t * 0.1)
-                ev_eur    = ebitda_ltm * ev_ebitda
-            else:
-                ev_ebitda = None
-                ev_eur    = revenue_ltm * 1.5  # revenue multiple for pre-profit
+            # EV and NAV
+            year = quarter.year
+            ev_multiple_path = profile['ev_multiple_path']
 
-            appraised_nav = max(0, ev_eur - net_debt_q)
+            # interpolate between the two nearest path years
+            path_years = sorted(ev_multiple_path.keys())
+            if year <= path_years[0]:
+                ev_ebitda = ev_multiple_path[path_years[0]]
+            elif year >= path_years[-1]:
+                ev_ebitda = ev_multiple_path[path_years[-1]]
+            else:
+                # linear interpolation between surrounding years
+                y_lo = max(y for y in path_years if y <= year)
+                y_hi = min(y for y in path_years if y >= year)
+                if y_lo == y_hi:
+                    ev_ebitda = ev_multiple_path[y_lo]
+                else:
+                    frac = (quarter.month / 12 + quarter.year - y_lo) / (y_hi - y_lo)
+                    ev_ebitda = ev_multiple_path[y_lo] + frac * (ev_multiple_path[y_hi] - ev_multiple_path[y_lo])
+
+
+            if ebitda_ltm > 0:
+                ev_eur = ebitda_ltm * ev_ebitda
+            else:
+                # pre-profit or loss-making: use entry_ev_sales if available,
+                # otherwise fall back to 1.5x revenue
+                ev_ebitda = None
+                if inv.get('entry_ev_sales') is not None:
+                    ev_eur = revenue_ltm * inv['entry_ev_sales']
+                else:
+                    ev_eur = revenue_ltm * 1.5
+
+            equity_value      = ev_eur - net_debt_q
+            liquidation_floor = LIQUIDATION_VALUE[company_id]
+            market_nav        = max(liquidation_floor, equity_value)
+            if i < HOLD_AT_COST_QUARTERS:
+                appraised_nav = cost_basis
+            else:
+                appraised_nav = market_nav
+
 
             # covenant ratios
             leverage_ratio  = net_debt_q / ebitda_ltm if ebitda_ltm > 0 else None
@@ -503,8 +697,9 @@ def generate_pe_fund(engine=None) -> None:
                 fund_id         = FUND_ID,
                 company_id      = c['company_id'],
                 investment_date = c['investment_date'],
-                entry_multiple  = c['entry_multiple'],
-                cost_basis_eur  = c['cost_basis_eur'],
+                entry_ev_ebitda = c['entry_ev_ebitda'],
+                entry_ev_sales  = c['entry_ev_sales'],
+                cost_basis_eur  = compute_entry_equity_check(c['company_id']),
                 ownership_pct   = c['ownership_pct'],
                 exit_date       = c.get('exit_date'),
                 exit_price_eur  = c.get('exit_price_eur'),
@@ -519,6 +714,9 @@ def generate_pe_fund(engine=None) -> None:
         val_reports = generate_valuation_reports()
         for vr in val_reports:
             session.add(PEValuationReport(**vr))
+
+        for cf in generate_cash_flows(val_reports):
+            session.add(PECashFlow(**cf))
 
         # NAV history derived from appraisal reports
         for nav in generate_nav_history(val_reports):
