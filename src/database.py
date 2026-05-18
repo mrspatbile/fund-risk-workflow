@@ -237,6 +237,8 @@ class PEFundInvestment(Base):
     exit_date       : Mapped[str]   = mapped_column(String, nullable=True)
     exit_price_eur  : Mapped[float] = mapped_column(Float, nullable=True)
     exit_multiple   : Mapped[float] = mapped_column(Float, nullable=True)
+    exit_ev_ebitda  : Mapped[float] = mapped_column(Float, nullable=True)
+
 
 
 class PECashFlow(Base):
@@ -271,6 +273,71 @@ class PENavHistory(Base):
     gross_multiple  : Mapped[float] = mapped_column(Float, nullable=True)
     unrealised_gain : Mapped[float] = mapped_column(Float, nullable=True)
     cost_basis_eur  : Mapped[float] = mapped_column(Float, nullable=True)
+
+class PEValuationReport(Base):
+    """
+    Quarterly independent appraisal data per portfolio company.
+    External input from valuation firm (KPMG, Duff & Phelps, etc).
+    Not computed by the ManCo.
+    """
+    __tablename__ = 'pe_valuation_report'
+    __table_args__ = (
+        sa.UniqueConstraint('fund_id', 'company_id', 'date',
+                            name='uq_valuation_report'),
+    )
+
+    id                  : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id             : Mapped[str]   = mapped_column(String, nullable=False)
+    company_id          : Mapped[str]   = mapped_column(String, nullable=False)
+    date                : Mapped[str]   = mapped_column(String, nullable=False)
+    appraised_nav_eur   : Mapped[float] = mapped_column(Float, nullable=False)
+    ebitda_ltm_eur      : Mapped[float] = mapped_column(Float, nullable=True)
+    revenue_ltm_eur     : Mapped[float] = mapped_column(Float, nullable=True)
+    ebitda_margin       : Mapped[float] = mapped_column(Float, nullable=True)
+    net_debt_eur        : Mapped[float] = mapped_column(Float, nullable=True)
+    ev_eur              : Mapped[float] = mapped_column(Float, nullable=True)
+    ev_ebitda           : Mapped[float] = mapped_column(Float, nullable=True)
+    interest_expense_eur: Mapped[float] = mapped_column(Float, nullable=True)
+    discount_rate       : Mapped[float] = mapped_column(Float, nullable=True)
+    valuation_basis     : Mapped[str]   = mapped_column(String, nullable=True)
+    appraiser           : Mapped[str]   = mapped_column(String, nullable=True)
+    key_risks           : Mapped[str]   = mapped_column(String, nullable=True)
+    # covenant fields
+    covenant_type       : Mapped[str]   = mapped_column(String, nullable=True)
+    leverage_covenant   : Mapped[float] = mapped_column(Float, nullable=True)
+    leverage_ratio      : Mapped[float] = mapped_column(Float, nullable=True)
+    coverage_covenant   : Mapped[float] = mapped_column(Float, nullable=True)
+    coverage_ratio      : Mapped[float] = mapped_column(Float, nullable=True)
+    revenue_covenant_eur: Mapped[float] = mapped_column(Float, nullable=True)
+    cash_covenant_eur   : Mapped[float] = mapped_column(Float, nullable=True)
+    arr_eur             : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class PECompanyMetrics(Base):
+    """
+    Quarterly operational metrics per portfolio company.
+    Used for performance attribution (value bridge) and monitoring.
+    LTM metrics remove seasonality for comparison purposes.
+    """
+    __tablename__ = 'pe_company_metrics'
+    __table_args__ = (
+        sa.UniqueConstraint('fund_id', 'company_id', 'date',
+                            name='uq_company_metrics'),
+    )
+
+    id              : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id         : Mapped[str]   = mapped_column(String, nullable=False)
+    company_id      : Mapped[str]   = mapped_column(String, nullable=False)
+    date            : Mapped[str]   = mapped_column(String, nullable=False)
+    revenue_eur     : Mapped[float] = mapped_column(Float, nullable=True)
+    ebitda_eur      : Mapped[float] = mapped_column(Float, nullable=True)
+    ebitda_margin   : Mapped[float] = mapped_column(Float, nullable=True)
+    net_debt_eur    : Mapped[float] = mapped_column(Float, nullable=True)
+    ev_eur          : Mapped[float] = mapped_column(Float, nullable=True)
+    ev_ebitda       : Mapped[float] = mapped_column(Float, nullable=True)
+    leverage_ratio  : Mapped[float] = mapped_column(Float, nullable=True)
+    ltm_ebitda_eur  : Mapped[float] = mapped_column(Float, nullable=True)
+    ltm_revenue_eur : Mapped[float] = mapped_column(Float, nullable=True)
 
 # ----------------------------------------------------------------
 # Database functions
