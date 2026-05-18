@@ -52,6 +52,7 @@ class MockBloomberg:
     #         CRNCY, ASSET_CLASS, RTG_SP, RTG_MOODY,
     #         CPN, MATURITY, AMT_OUTSTANDING, Z_SPRD_MID
     # ----------------------------------------------------------------
+
     _reference_data = {
 
     # ---- US Treasuries ----
@@ -69,6 +70,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 850e6,
         'RTG_MOODY'       : 'Aaa',
         'RTG_SP'          : 'AA+',
+        'ESG_SCORE'       : 72, 'ENV_SCORE': 68, 'SOC_SCORE': 74, 'GOV_SCORE': 74,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
     'US912810TM79 Govt': {
         'NAME'            : 'T 4.25 02/15/54',
@@ -84,6 +87,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 420e6,
         'RTG_MOODY'       : 'Aaa',
         'RTG_SP'          : 'AA+',
+        'ESG_SCORE'       : 72, 'ENV_SCORE': 68, 'SOC_SCORE': 74, 'GOV_SCORE': 74,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- European Government Bond ----
@@ -101,6 +106,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 310e6,
         'RTG_MOODY'       : 'Aaa',
         'RTG_SP'          : 'AAA',
+        'ESG_SCORE'       : 82, 'ENV_SCORE': 85, 'SOC_SCORE': 81, 'GOV_SCORE': 80,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- IG Corporate Bond ----
@@ -119,6 +126,8 @@ class MockBloomberg:
         'RTG_MOODY'       : 'A1',
         'RTG_SP'          : 'A+',
         'Z_SPRD_MID'      : 58,
+        'ESG_SCORE'       : 74, 'ENV_SCORE': 76, 'SOC_SCORE': 73, 'GOV_SCORE': 73,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 52.4, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- HY Corporate Bond ----
@@ -137,6 +146,8 @@ class MockBloomberg:
         'RTG_MOODY'       : 'B1',
         'RTG_SP'          : 'B+',
         'Z_SPRD_MID'      : 382,
+        'ESG_SCORE'       : 54, 'ENV_SCORE': 51, 'SOC_SCORE': 56, 'GOV_SCORE': 55,
+        'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 189.7, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- Senior Secured Loan ----
@@ -155,6 +166,8 @@ class MockBloomberg:
         'RTG_MOODY'       : 'B2',
         'RTG_SP'          : 'B',
         'Z_SPRD_MID'      : 482,
+        'ESG_SCORE'       : 38, 'ENV_SCORE': 35, 'SOC_SCORE': 40, 'GOV_SCORE': 39,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- CLO Tranche ----
@@ -173,6 +186,8 @@ class MockBloomberg:
         'RTG_MOODY'       : 'Aaa',
         'RTG_SP'          : 'AAA',
         'Z_SPRD_MID'      : 145,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- Equities ----
@@ -185,6 +200,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 85e6,
         'EQY_DVD_YLD_IND' : 1.32,
         'PE_RATIO'        : 22.4,
+        'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': None,
     },
     'AAPL US Equity': {
         'NAME'            : 'Apple Inc',
@@ -195,6 +212,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 52e6,
         'EQY_DVD_YLD_IND' : 0.48,
         'PE_RATIO'        : 31.2,
+        'ESG_SCORE'       : 78, 'ENV_SCORE': 82, 'SOC_SCORE': 75, 'GOV_SCORE': 77,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 28.4, 'ESG_LOOK_THROUGH': None,
     },
     'MSFT US Equity': {
         'NAME'            : 'Microsoft Corp',
@@ -205,6 +224,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 21e6,
         'EQY_DVD_YLD_IND' : 0.72,
         'PE_RATIO'        : 35.8,
+        'ESG_SCORE'       : 81, 'ENV_SCORE': 85, 'SOC_SCORE': 79, 'GOV_SCORE': 79,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 15.2, 'ESG_LOOK_THROUGH': None,
     },
     'JPM US Equity': {
         'NAME'            : 'JPMorgan Chase',
@@ -215,6 +236,8 @@ class MockBloomberg:
         'VOLUME_AVG_20D'  : 8e6,
         'EQY_DVD_YLD_IND' : 2.11,
         'PE_RATIO'        : 12.4,
+        'ESG_SCORE'       : 58, 'ENV_SCORE': 52, 'SOC_SCORE': 61, 'GOV_SCORE': 61,
+        'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 312.5, 'ESG_LOOK_THROUGH': None,
     },
     'GLD US Equity': {
         'NAME'            : 'SPDR Gold Shares',
@@ -224,6 +247,8 @@ class MockBloomberg:
         'BETA'            : 0.08,
         'VOLUME_AVG_20D'  : 12e6,
         'EQY_DVD_YLD_IND' : 0.0,
+        'ESG_SCORE'       : 42, 'ENV_SCORE': 35, 'SOC_SCORE': 48, 'GOV_SCORE': 43,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 89.3, 'ESG_LOOK_THROUGH': None,
     },
     'TLT US Equity': {
         'NAME'            : 'iShares 20+ Year Treasury',
@@ -234,6 +259,8 @@ class MockBloomberg:
         'DUR_ADJ_MID'     : 16.4,
         'VOLUME_AVG_20D'  : 38e6,
         'EQY_DVD_YLD_IND' : 4.12,
+        'ESG_SCORE'       : 68, 'ENV_SCORE': 65, 'SOC_SCORE': 70, 'GOV_SCORE': 69,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
     'IEAG LN Equity': {
         'NAME'            : 'iShares Core EUR Govt Bond ETF',
@@ -244,6 +271,8 @@ class MockBloomberg:
         'DUR_ADJ_MID'     : 7.82,
         'VOLUME_AVG_20D'  : 25e6,
         'EQY_DVD_YLD_IND' : 2.84,
+        'ESG_SCORE'       : 72, 'ENV_SCORE': 70, 'SOC_SCORE': 74, 'GOV_SCORE': 72,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
     'EXHE GY Equity': {
         'NAME'            : 'iShares Euro High Yield Corp Bond ETF',
@@ -254,6 +283,8 @@ class MockBloomberg:
         'DUR_ADJ_MID'     : 3.24,
         'VOLUME_AVG_20D'  : 8e6,
         'EQY_DVD_YLD_IND' : 5.82,
+        'ESG_SCORE'       : 55, 'ENV_SCORE': 50, 'SOC_SCORE': 58, 'GOV_SCORE': 57,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
     'HYG US Equity': {
         'NAME'            : 'iShares HY Corp Bond ETF',
@@ -264,6 +295,8 @@ class MockBloomberg:
         'DUR_ADJ_MID'     : 3.82,
         'VOLUME_AVG_20D'  : 28e6,
         'EQY_DVD_YLD_IND' : 5.84,
+        'ESG_SCORE'       : 52, 'ENV_SCORE': 48, 'SOC_SCORE': 54, 'GOV_SCORE': 54,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
     'SX5E Index': {
         'NAME'            : 'Euro Stoxx 50',
@@ -273,6 +306,8 @@ class MockBloomberg:
         'BETA'            : 1.0,
         'VOLUME_AVG_20D'  : 2e9,
         'EQY_DVD_YLD_IND' : 3.12,
+        'ESG_SCORE'       : 64, 'ENV_SCORE': 61, 'SOC_SCORE': 66, 'GOV_SCORE': 65,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 168.4, 'ESG_LOOK_THROUGH': None,
     },
     'TSLA US Equity': {
         'NAME'            : 'Tesla Inc',
@@ -282,6 +317,8 @@ class MockBloomberg:
         'BETA'            : 2.12,
         'VOLUME_AVG_20D'  : 95e6,
         'EQY_DVD_YLD_IND' : 0.0,
+        'ESG_SCORE'       : 45, 'ENV_SCORE': 62, 'SOC_SCORE': 32, 'GOV_SCORE': 41,
+        'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
     'NVDA US Equity': {
         'NAME'            : 'Nvidia Corp',
@@ -291,6 +328,8 @@ class MockBloomberg:
         'BETA'            : 1.85,
         'VOLUME_AVG_20D'  : 280e6,
         'EQY_DVD_YLD_IND' : 0.03,
+        'ESG_SCORE'       : 71, 'ENV_SCORE': 68, 'SOC_SCORE': 73, 'GOV_SCORE': 72,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 8.9, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- Listed REITs ----
@@ -302,6 +341,8 @@ class MockBloomberg:
         'BETA'            : 0.72,
         'VOLUME_AVG_20D'  : 4e6,
         'EQY_DVD_YLD_IND' : 4.82,
+        'ESG_SCORE'       : 69, 'ENV_SCORE': 74, 'SOC_SCORE': 67, 'GOV_SCORE': 66,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 42.1, 'ESG_LOOK_THROUGH': None,
     },
     'URI FP Equity': {
         'NAME'            : 'Unibail-Rodamco-Westfield',
@@ -311,6 +352,8 @@ class MockBloomberg:
         'BETA'            : 1.12,
         'VOLUME_AVG_20D'  : 1.5e6,
         'EQY_DVD_YLD_IND' : 7.24,
+        'ESG_SCORE'       : 61, 'ENV_SCORE': 58, 'SOC_SCORE': 63, 'GOV_SCORE': 62,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 78.3, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- FX ----
@@ -319,24 +362,32 @@ class MockBloomberg:
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'FX',
         'PX_LAST'         : 1.1234,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
     'GBPUSD Curncy': {
         'NAME'            : 'British Pound / US Dollar',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'FX',
         'PX_LAST'         : 1.3312,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
     'USDJPY Curncy': {
         'NAME'            : 'US Dollar / Japanese Yen',
         'CRNCY'           : 'JPY',
         'ASSET_CLASS'     : 'FX',
         'PX_LAST'         : 148.23,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
     'USDEUR Curncy': {
         'NAME'            : 'US Dollar / Euro',
         'CRNCY'           : 'EUR',
         'ASSET_CLASS'     : 'FX',
         'PX_LAST'         : 0.8902,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- Indices and Vol ----
@@ -345,6 +396,8 @@ class MockBloomberg:
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Index',
         'PX_LAST'         : 18.42,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
     'SPX Index': {
         'NAME'            : 'S&P 500 Index',
@@ -352,23 +405,27 @@ class MockBloomberg:
         'ASSET_CLASS'     : 'Index',
         'PX_LAST'         : 5842.31,
         'BETA'            : 1.0,
+        'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': None,
     },
 
     # ---- Listed Options ----
     'SPXW 260619P05500 Index': {
-        'NAME'          : 'SPX Put 5500 Jun26',
-        'CRNCY'         : 'USD',
-        'ASSET_CLASS'   : 'Derivative',
-        'PX_LAST'       : 45.20,
-        'DELTA'         : -0.28,
-        'GAMMA'         : 0.0012,
-        'VEGA'          : 2.85,
-        'THETA'         : -1.24,
-        'OPT_UNDL_PX'   : 5842.31,
-        'CONTRACT_SIZE' : 100,
-        'IMPLIED_VOL'   : 0.182,
+        'NAME'            : 'SPX Put 5500 Jun26',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Derivative',
+        'PX_LAST'         : 45.20,
+        'DELTA'           : -0.28,
+        'GAMMA'           : 0.0012,
+        'VEGA'            : 2.85,
+        'THETA'           : -1.24,
+        'OPT_UNDL_PX'     : 5842.31,
+        'CONTRACT_SIZE'   : 100,
+        'IMPLIED_VOL'     : 0.182,
+        'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': 'SPX Index',
     },
-    }
+}
 
     def __init__(self, seed: int = 42):
         np.random.seed(seed)

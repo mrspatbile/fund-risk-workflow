@@ -238,3 +238,60 @@ class TestGetPortfolioData:
         result = bbg.get_portfolio_data(sample_positions)
         assert (result['market_value_eur'] ==
                 sample_positions['market_value_eur']).all()
+
+
+class TestMockBloombergESG:
+
+    def test_equity_has_esg_score(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('AAPL US Equity', ['ESG_SCORE'])
+        assert result.loc['AAPL US Equity', 'ESG_SCORE'] == 78
+
+    def test_bond_has_esg_score(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('DBR 0 08/15/29 Govt', ['ESG_SCORE'])
+        assert result.loc['DBR 0 08/15/29 Govt', 'ESG_SCORE'] == 82
+
+    def test_fx_has_no_esg(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('EURUSD Curncy', ['ESG_SCORE'])
+        assert result.loc['EURUSD Curncy', 'ESG_SCORE'] is None
+
+    def test_vix_has_no_esg(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('VIX Index', ['ESG_SCORE'])
+        assert result.loc['VIX Index', 'ESG_SCORE'] is None
+
+    def test_controversy_flag_jpm(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('JPM US Equity', ['CONTROVERSY_FLAG'])
+        assert result.loc['JPM US Equity', 'CONTROVERSY_FLAG'] == True
+
+    def test_controversy_flag_msft(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('MSFT US Equity', ['CONTROVERSY_FLAG'])
+        assert result.loc['MSFT US Equity', 'CONTROVERSY_FLAG'] == False
+
+    def test_derivative_look_through(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('SPXW 260619P05500 Index', ['ESG_LOOK_THROUGH', 'ESG_SCORE'])
+        assert result.loc['SPXW 260619P05500 Index', 'ESG_LOOK_THROUGH'] == 'SPX Index'
+        assert result.loc['SPXW 260619P05500 Index', 'ESG_SCORE'] == 62
+
+    def test_clo_has_no_esg(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('XS1122334455 CLO', ['ESG_SCORE'])
+        assert result.loc['XS1122334455 CLO', 'ESG_SCORE'] is None
+
+    def test_carbon_intensity_present(self):
+        bbg = MockBloomberg()
+        result = bbg.bdp('JPM US Equity', ['CARBON_INTENSITY'])
+        assert result.loc['JPM US Equity', 'CARBON_INTENSITY'] == 312.5
+
+    def test_all_esg_fields_present(self):
+        bbg = MockBloomberg()
+        fields = ['ESG_SCORE', 'ENV_SCORE', 'SOC_SCORE', 'GOV_SCORE',
+                  'CONTROVERSY_FLAG', 'CARBON_INTENSITY', 'ESG_LOOK_THROUGH']
+        result = bbg.bdp('AAPL US Equity', fields)
+        for f in fields:
+            assert f in result.columns
