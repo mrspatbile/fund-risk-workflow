@@ -88,6 +88,17 @@ def run(force: bool = False) -> None:
     else:
         print('positions_enriched exists. Skipping enrichment.')
 
+
+    # step 4: generate PE fund data if tables empty
+    from src.generate_pe_fund import generate_pe_fund
+    with engine.connect() as conn:
+        n_pe = conn.execute(sa.text('SELECT COUNT(*) FROM pe_funds')).scalar()
+    if n_pe == 0:
+        print('Generating PE fund data...')
+        generate_pe_fund(engine)
+    else:
+        print(f'PE fund data exists. Skipping.')
+
     print('\nDatabase ready.')
 
 
