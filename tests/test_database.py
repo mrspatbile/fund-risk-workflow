@@ -341,3 +341,33 @@ class TestIndexes:
         assert 'fund_id' in ix['column_names']
         assert 'date'    in ix['column_names']
         assert 'isin'    in ix['column_names']
+
+
+class TestPETables:
+
+    def test_pe_funds_table_exists(self, engine):
+        assert sa.inspect(engine).has_table('pe_funds')
+
+    def test_pe_portfolio_companies_table_exists(self, engine):
+        assert sa.inspect(engine).has_table('pe_portfolio_companies')
+
+    def test_pe_fund_investments_table_exists(self, engine):
+        assert sa.inspect(engine).has_table('pe_fund_investments')
+
+    def test_pe_cash_flows_table_exists(self, engine):
+        assert sa.inspect(engine).has_table('pe_cash_flows')
+
+    def test_pe_nav_history_table_exists(self, engine):
+        assert sa.inspect(engine).has_table('pe_nav_history')
+
+    def test_pe_fund_investments_unique_constraint(self, engine):
+        indexes = sa.inspect(engine).get_unique_constraints('pe_fund_investments')
+        names   = [idx['name'] for idx in indexes]
+        assert 'uq_fund_company' in names
+
+    def test_pe_fund_investment_unique_per_fund_company(self, engine):
+        with engine.connect() as conn:
+            result = conn.execute(sa.text(
+                'SELECT COUNT(*) FROM pe_fund_investments'
+            )).scalar()
+        assert result == 8

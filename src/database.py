@@ -175,6 +175,103 @@ class Position(Base):
     controversy_flag    : Mapped[bool]  = mapped_column(Boolean, nullable=True)
     carbon_intensity    : Mapped[float] = mapped_column(Float, nullable=True)
 
+
+
+# ----------------------------------------------------------------
+# PE Fund Tables
+# ----------------------------------------------------------------
+
+class PEFund(Base):
+    """PE fund metadata."""
+    __tablename__ = 'pe_funds'
+
+    id                    : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id               : Mapped[str]   = mapped_column(String, nullable=False, unique=True)
+    fund_name             : Mapped[str]   = mapped_column(String, nullable=False)
+    vintage_year          : Mapped[int]   = mapped_column(Integer, nullable=False)
+    target_size_eur       : Mapped[float] = mapped_column(Float, nullable=False)
+    investment_period_end : Mapped[str]   = mapped_column(String, nullable=True)
+    fund_life_years       : Mapped[int]   = mapped_column(Integer, nullable=True)
+    currency              : Mapped[str]   = mapped_column(String, nullable=True)
+    domicile              : Mapped[str]   = mapped_column(String, nullable=True)
+    strategy              : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class PEPortfolioCompany(Base):
+    """
+    PE portfolio company master data.
+    Independent of any fund - a company can be invested by multiple funds.
+    Fund-specific investment data lives in PEFundInvestment.
+    """
+    __tablename__ = 'pe_portfolio_companies'
+
+    id               : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    company_id       : Mapped[str]   = mapped_column(String, nullable=False, unique=True)
+    company_name     : Mapped[str]   = mapped_column(String, nullable=False)
+    sector           : Mapped[str]   = mapped_column(String, nullable=True)
+    country          : Mapped[str]   = mapped_column(String, nullable=True)
+    investment_stage : Mapped[str]   = mapped_column(String, nullable=True)
+    status           : Mapped[str]   = mapped_column(String, nullable=True)
+    description      : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class PEFundInvestment(Base):
+    """
+    Link between a PE fund and a portfolio company.
+    Stores fund-specific investment data: entry, ownership, exit.
+    A company can appear in multiple funds at different terms.
+    """
+    __tablename__ = 'pe_fund_investments'
+    __table_args__ = (
+        sa.UniqueConstraint('fund_id', 'company_id',
+                            name='uq_fund_company'),
+    )
+
+    id              : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id         : Mapped[str]   = mapped_column(String, nullable=False)
+    company_id      : Mapped[str]   = mapped_column(String, nullable=False)
+    investment_date : Mapped[str]   = mapped_column(String, nullable=False)
+    entry_multiple  : Mapped[float] = mapped_column(Float, nullable=True)
+    cost_basis_eur  : Mapped[float] = mapped_column(Float, nullable=False)
+    ownership_pct   : Mapped[float] = mapped_column(Float, nullable=True)
+    exit_date       : Mapped[str]   = mapped_column(String, nullable=True)
+    exit_price_eur  : Mapped[float] = mapped_column(Float, nullable=True)
+    exit_multiple   : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class PECashFlow(Base):
+    """
+    PE capital calls, distributions, fees and exit proceeds.
+    Negative amounts: capital calls, fees.
+    Positive amounts: distributions, exit proceeds.
+    """
+    __tablename__ = 'pe_cash_flows'
+
+    id          : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id     : Mapped[str]   = mapped_column(String, nullable=False)
+    company_id  : Mapped[str]   = mapped_column(String, nullable=True)
+    date        : Mapped[str]   = mapped_column(String, nullable=False)
+    flow_type   : Mapped[str]   = mapped_column(String, nullable=False)
+    amount_eur  : Mapped[float] = mapped_column(Float, nullable=False)
+    description : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class PENavHistory(Base):
+    """
+    Quarterly NAV per fund per portfolio company.
+    Reflects independent appraisal valuation each quarter.
+    """
+    __tablename__ = 'pe_nav_history'
+
+    id              : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id         : Mapped[str]   = mapped_column(String, nullable=False)
+    company_id      : Mapped[str]   = mapped_column(String, nullable=True)
+    date            : Mapped[str]   = mapped_column(String, nullable=False)
+    nav_eur         : Mapped[float] = mapped_column(Float, nullable=False)
+    gross_multiple  : Mapped[float] = mapped_column(Float, nullable=True)
+    unrealised_gain : Mapped[float] = mapped_column(Float, nullable=True)
+    cost_basis_eur  : Mapped[float] = mapped_column(Float, nullable=True)
+
 # ----------------------------------------------------------------
 # Database functions
 # ----------------------------------------------------------------
@@ -456,22 +553,7 @@ def get_db_summary(engine: sa.Engine) -> None:
         print(f'Total unique instruments: '
               f'{instruments["total"].values[0]}')
 
-# def create_indexes(engine: sa.Engine) -> None:
-#     """
-#     Create indexes on positions table explicitly.
-#     Required because to_sql replace drops ORM-defined indexes.
-#     """
-#     with engine.connect() as conn:
-#         conn.execute(text(
-#             'CREATE INDEX IF NOT EXISTS ix_positions_fund_date_isin '
-#             'ON positions (fund_id, date, isin)'
-#         ))
-#         conn.execute(text(
-#             'CREATE INDEX IF NOT EXISTS ix_positions_fund_date '
-#             'ON positions (fund_id, date)'
-#         ))
-#         conn.commit()
-#     print('Indexes created on positions table.')
+
 
 
 # ----------------------------------------------------------------
