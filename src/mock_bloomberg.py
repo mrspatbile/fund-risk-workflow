@@ -30,10 +30,13 @@ MRS-47: bdh returns real cached prices for instruments in YF_MAP.
         reused on all subsequent calls. Delete cache file to refresh.
 """
 
+import json
 import numpy as np
 import pandas as pd
 import requests
 from pathlib import Path
+
+_REF_DIR = Path(__file__).parent.parent / 'reference_data'
 
 
 class MockBloomberg:
@@ -55,21 +58,7 @@ class MockBloomberg:
     # ----------------------------------------------------------------
     VALUATION_DATE = pd.Timestamp('2026-05-13')
 
-    YF_MAP = {
-        'SPY US Equity'  : 'SPY',
-        'AAPL US Equity' : 'AAPL',
-        'MSFT US Equity' : 'MSFT',
-        'JPM US Equity'  : 'JPM',
-        'TSLA US Equity' : 'TSLA',
-        'NVDA US Equity' : 'NVDA',
-        'GLD US Equity'  : 'GLD',
-        'TLT US Equity'  : 'TLT',
-        'HYG US Equity'  : 'HYG',
-        'SX5E Index'     : '^STOXX50E',
-        'VIX Index'      : '^VIX',
-        'EURUSD Curncy'  : 'EURUSD=X',
-        'GBPUSD Curncy'  : 'GBPUSD=X',
-    }
+    YF_MAP = json.loads((_REF_DIR / 'ticker_map.json').read_text())
 
     # Betas fixed by definition — never overridden by yfinance
     BETA_OVERRIDE = {
@@ -733,7 +722,6 @@ class MockBloomberg:
         Fields returned: PX_LAST, BETA, EQY_DVD_YLD_IND,
                          VOLUME_AVG_20D, PE_RATIO.
         """
-        import json
         self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         safe_name  = yf_ticker.replace('^', '').replace('=', '_')
         cache_path = self.YF_CACHE_DIR / f'{safe_name}_info.json'

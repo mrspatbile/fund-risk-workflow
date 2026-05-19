@@ -1,0 +1,15 @@
+{
+    "XS9876543210": {"esg_score": 38, "env_score": 35, "soc_score": 40, "gov_score": 39, "controversy_flag": false, "carbon_intensity": 45.2},
+    "XS9876543211": {"esg_score": 45, "env_score": 42, "soc_score": 47, "gov_score": 46, "controversy_flag": false, "carbon_intensity": 98.3},
+    "XS9876543212": {"esg_score": 32, "env_score": 28, "soc_score": 35, "gov_score": 33, "controversy_flag": true,  "carbon_intensity": 892.5},
+    "XS2341234568": {"esg_score": 41, "env_score": 38, "soc_score": 43, "gov_score": 42, "controversy_flag": false, "carbon_intensity": 245.6},
+    "US345370AK28": {"esg_score": 48, "env_score": 44, "soc_score": 51, "gov_score": 49, "controversy_flag": true,  "carbon_intensity": 285.4},
+    "XS2543791471": {"esg_score": 76, "env_score": 78, "soc_score": 75, "gov_score": 75, "controversy_flag": false, "carbon_intensity": 32.1},
+    "PROP_LU_001"  : {"esg_score": 72, "env_score": 78, "soc_score": 70, "gov_score": 68, "controversy_flag": false, "carbon_intensity": 85.2},
+    "PROP_DE_001"  : {"esg_score": 65, "env_score": 70, "soc_score": 63, "gov_score": 62, "controversy_flag": false, "carbon_intensity": 125.8},
+    "PROP_FR_001"  : {"esg_score": 51, "env_score": 48, "soc_score": 53, "gov_score": 52, "controversy_flag": false, "carbon_intensity": 118.3},
+    "PROP_NL_001"  : {"esg_score": 68, "env_score": 74, "soc_score": 66, "gov_score": 64, "controversy_flag": false, "carbon_intensity": 38.1},
+    "XS1122334455" : {"controversy_flag": false},
+    "XS1122334456" : {"controversy_flag": false},
+    "XS1122334457" : {"controversy_flag": false}
+}

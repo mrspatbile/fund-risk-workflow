@@ -19,6 +19,7 @@ Usage
     from database import create_db, load_positions, query_positions
 """
 
+import json
 import pandas as pd
 import numpy as np
 import os
@@ -38,52 +39,13 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent  # src/ -> project root
 DATA_DIR = str(ROOT_DIR / 'data')
 DB_PATH  = str(ROOT_DIR / 'data' / 'risk_management.db')
+_REF_DIR = ROOT_DIR / 'reference_data'
 
-FUND_FILES = {
-    'AIFM_HedgeFund'  : 'fund_positions_AIFM_HedgeFund.xlsx',
-    'AIFM_PrivateDebt': 'fund_positions_AIFM_PrivateDebt.xlsx',
-    'AIFM_RealEstate' : 'fund_positions_AIFM_RealEstate.xlsx',
-    'UCITS_Balanced'  : 'fund_positions_UCITS_Balanced.xlsx',
-}
+with open(_REF_DIR / 'fund_master.json') as _f:
+    FUND_METADATA = json.load(_f)
 
-FUND_METADATA = {
-    'AIFM_HedgeFund': {
-        'fund_name'     : 'AIFM Hedge Fund',
-        'fund_type'     : 'AIFM',
-        'currency'      : 'EUR',
-        'inception_date': '2018-01-15',
-        'domicile'      : 'Luxembourg',
-        'regulator'     : 'CSSF',
-        'target_nav_eur': 250_000_000,
-    },
-    'AIFM_PrivateDebt': {
-        'fund_name'     : 'AIFM Private Debt',
-        'fund_type'     : 'AIFM',
-        'currency'      : 'EUR',
-        'inception_date': '2019-06-01',
-        'domicile'      : 'Luxembourg',
-        'regulator'     : 'CSSF',
-        'target_nav_eur': 150_000_000,
-    },
-    'AIFM_RealEstate': {
-        'fund_name'     : 'AIFM Real Estate',
-        'fund_type'     : 'AIFM',
-        'currency'      : 'EUR',
-        'inception_date': '2017-03-01',
-        'domicile'      : 'Luxembourg',
-        'regulator'     : 'CSSF',
-        'target_nav_eur': 200_000_000,
-    },
-    'UCITS_Balanced': {
-        'fund_name'     : 'UCITS Balanced',
-        'fund_type'     : 'UCITS',
-        'currency'      : 'EUR',
-        'inception_date': '2015-09-01',
-        'domicile'      : 'Luxembourg',
-        'regulator'     : 'CSSF',
-        'target_nav_eur': 500_000_000,
-    },
-}
+with open(_REF_DIR / 'fund_file_map.json') as _f:
+    FUND_FILES = json.load(_f)
 
 
 # ----------------------------------------------------------------

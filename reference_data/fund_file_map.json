@@ -1,0 +1,6 @@
+{
+    "AIFM_HedgeFund"  : "fund_positions_AIFM_HedgeFund.xlsx",
+    "AIFM_PrivateDebt": "fund_positions_AIFM_PrivateDebt.xlsx",
+    "AIFM_RealEstate" : "fund_positions_AIFM_RealEstate.xlsx",
+    "UCITS_Balanced"  : "fund_positions_UCITS_Balanced.xlsx"
+}
