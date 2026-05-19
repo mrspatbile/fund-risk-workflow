@@ -47,6 +47,8 @@ __all__ = [
     'pe_multiples',
     'pe_multiples_by_company',
     'pe_multiples_timeseries',
+    'pe_value_bridge',
+
 ]
 
 
@@ -323,3 +325,194 @@ def pe_multiples_timeseries(
         })
 
     return pd.DataFrame(rows)
+
+
+def pe_value_bridge(
+    engine: sa.Engine,
+    fund_id: str,
+    company_id: Optional[str] = None,
+    ) -> dict:
+    """
+    PE return attribution: value bridge decomposition.
+
+    Decomposes total equity value created into four sources:
+    EBITDA growth, multiple expansion, leverage effect, and
+    interim distributions.
+
+    Regulatory context
+    ------------------
+    AIFMD Annex IV and CSSF circular 18/698 expect performance
+    attribution that distinguishes operational value creation from
+    financial engineering. The value bridge is the standard LP
+    reporting methodology (ILPA guidelines) and is consistent with
+    CSSF expectations for the internal governance report (MRS-37).
+
+    Attribution formulas
+    --------------------
+
+    For exited companies all inputs are realised. Gap should be near zero.
+    For active companies inputs are current appraiser values from
+    pe_valuation_report. Attribution is partially unrealised. Gap may be
+    non-zero due to DCF assumptions, minority discounts, and other
+    appraiser inputs outside the EV/EBITDA bridge. Shown, not suppressed.
+
+    Parameters
+    ----------
+    engine : sa.Engine
+    fund_id : str
+    company_id : str or None
+        If None, returns aggregation across all companies in the fund.
+
+    Returns
+    -------
+    dict with keys:
+        fund_id         str
+        company_id      str or None
+        rows            list[dict]  one per company
+        fund_totals     dict        summed EUR and % of total value created
+    """
+    GAP_THRESHOLD = 0.05
+
+    with Session(engine) as session:
+
+        inv_query = session.query(PEFundInvestment).filter(
+            PEFundInvestment.fund_id == fund_id
+        )
+        if company_id is not None:
+            inv_query = inv_query.filter(
+                PEFundInvestment.company_id == company_id
+            )
+        investments = inv_query.all()
+
+        if not investments:
+            raise ValueError(
+                f"No investments found for fund_id={fund_id}"
+                + (f", company_id={company_id}" if company_id else "")
+            )
+
+        company_ids = [inv.company_id for inv in investments]
+
+        companies = {
+            c.company_id: c.company_name
+            for c in session.query(PEPortfolioCompany).filter(
+                PEPortfolioCompany.company_id.in_(company_ids)
+            ).all()
+        }
+
+        # All valuation reports for these companies in this fund
+        all_vr = session.query(PEValuationReport).filter(
+            PEValuationReport.fund_id    == fund_id,
+            PEValuationReport.company_id.in_(company_ids)
+        ).order_by(PEValuationReport.date).all()
+
+        # Interim distributions only — exit proceeds are captured in
+        # exit_price_eur and must not be double-counted here
+        all_cf = session.query(PECashFlow).filter(
+            PECashFlow.fund_id    == fund_id,
+            PECashFlow.company_id.in_(company_ids),
+            PECashFlow.flow_type  == 'distribution'
+        ).all()
+
+    # Build per-company valuation maps
+    entry_vr_map = {}   # company_id -> earliest valuation report
+    exit_vr_map  = {}   # company_id -> latest valuation report
+    for vr in all_vr:
+        cid = vr.company_id
+        if cid not in entry_vr_map:
+            entry_vr_map[cid] = vr
+        exit_vr_map[cid] = vr   # keeps overwriting, ends on latest
+
+    dist_map = {}
+    for cf in all_cf:
+        cid = cf.company_id
+        dist_map[cid] = dist_map.get(cid, 0.0) + cf.amount_eur
+
+    rows = []
+    for inv in investments:
+        cid       = inv.company_id
+        entry_vr  = entry_vr_map.get(cid)
+        exit_vr   = exit_vr_map.get(cid)
+        is_exited = inv.exit_date is not None
+
+        if entry_vr is None or exit_vr is None:
+            continue
+
+        ebitda_entry    = entry_vr.ebitda_ltm_eur
+        ev_ebitda_entry = entry_vr.ev_ebitda
+        net_debt_entry  = entry_vr.net_debt_eur
+        entry_equity    = entry_vr.appraised_nav_eur
+
+        if is_exited:
+            ebitda_exit    = exit_vr.ebitda_ltm_eur
+            ev_ebitda_exit = inv.exit_ev_ebitda or exit_vr.ev_ebitda
+            net_debt_exit  = exit_vr.net_debt_eur
+            exit_equity    = inv.exit_price_eur or exit_vr.appraised_nav_eur
+        else:
+            ebitda_exit    = exit_vr.ebitda_ltm_eur
+            ev_ebitda_exit = exit_vr.ev_ebitda
+            net_debt_exit  = exit_vr.net_debt_eur
+            exit_equity    = exit_vr.appraised_nav_eur
+
+        if any(v is None for v in [
+            ebitda_entry, ev_ebitda_entry, net_debt_entry, entry_equity,
+            ebitda_exit, ev_ebitda_exit, net_debt_exit, exit_equity,
+        ]):
+            continue
+
+        distributions = dist_map.get(cid, 0.0)
+
+        ebitda_growth      = (ebitda_exit - ebitda_entry) * ev_ebitda_entry
+        multiple_expansion = (ev_ebitda_exit - ev_ebitda_entry) * ebitda_exit
+        leverage_effect    = net_debt_entry - net_debt_exit
+        total_attributed   = (
+            ebitda_growth + multiple_expansion + leverage_effect + distributions
+        )
+        actual_value_created = exit_equity + distributions - entry_equity
+        reconciliation_gap   = total_attributed - actual_value_created
+        reconciliation_gap_pct = (
+            reconciliation_gap / actual_value_created
+            if actual_value_created != 0 else float('nan')
+        )
+
+        rows.append({
+            'company_id':             cid,
+            'company_name':           companies.get(cid, cid),
+            'is_realised':            is_exited,
+            'cost_basis':             inv.cost_basis_eur,
+            'entry_equity_value':     entry_equity,
+            'exit_equity_value':      exit_equity,
+            'ebitda_growth':          ebitda_growth,
+            'multiple_expansion':     multiple_expansion,
+            'leverage_effect':        leverage_effect,
+            'distributions':          distributions,
+            'total_attributed':       total_attributed,
+            'actual_value_created':   actual_value_created,
+            'reconciliation_gap':     reconciliation_gap,
+            'reconciliation_gap_pct': reconciliation_gap_pct,
+            'gap_is_material':        abs(reconciliation_gap_pct) > GAP_THRESHOLD
+                                        if not np.isnan(reconciliation_gap_pct) else False,
+        })
+       
+    # Fund-level aggregation
+    total_value_created = sum(r['actual_value_created'] for r in rows)
+    total_cost          = sum(r['cost_basis'] for r in rows)
+
+    component_cols = [
+        'ebitda_growth', 'multiple_expansion', 'leverage_effect',
+        'distributions', 'total_attributed', 'actual_value_created',
+        'reconciliation_gap',
+    ]
+    fund_totals = {'total_cost_basis': total_cost}
+    for col in component_cols:
+        eur = sum(r[col] for r in rows)
+        fund_totals[f'{col}_eur'] = eur
+        fund_totals[f'{col}_pct'] = (
+            eur / total_value_created if total_value_created != 0 else float('nan')
+        )
+
+    return {
+        'fund_id':     fund_id,
+        'company_id':  company_id,
+        'rows':        rows,
+        'fund_totals': fund_totals,
+    }
