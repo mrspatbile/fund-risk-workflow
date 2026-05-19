@@ -5,6 +5,7 @@ Unit tests for generate_pe_fund.py
 Run with: python3 -m pytest tests/test_generate_pe_fund.py -v
 """
 import pytest
+import pandas as pd
 from src.generate_pe_fund import (
     generate_cash_flows, generate_nav_history,
     generate_valuation_reports, COMPANIES
@@ -256,3 +257,116 @@ class TestGenerateCashFlowsWaterfall:
                 assert f['amount_eur'] > 0, (
                     f"{f['flow_type']} on {f['date']} has non-positive amount {f['amount_eur']}"
                 )
+
+class TestGenerateFundCashManagement:
+
+    def test_returns_list(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+    def test_all_quarters_present(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        dates = [r['date'] for r in result]
+        assert '2018-06-30' in dates
+        assert '2026-03-31' in dates
+
+    def test_cash_balance_non_negative(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        for r in result:
+            assert r['cash_balance_eur'] >= 0, \
+                f"Negative cash balance on {r['date']}: {r['cash_balance_eur']:,.0f}"
+
+    def test_sub_line_within_limit(self):
+        from src.generate_pe_fund import generate_fund_cash_management, SUB_LINE_PCT, COMMITTED
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        limit = COMMITTED * SUB_LINE_PCT
+        for r in result:
+            assert r['sub_line_drawn'] <= limit + 1.0, \
+                f"Sub line {r['sub_line_drawn']/1e6:.1f}M exceeds limit {limit/1e6:.1f}M on {r['date']}"
+
+    def test_cumulative_interest_earned_positive(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        assert result[-1]['cumulative_interest_earned'] > 0
+
+    def test_cumulative_interest_paid_positive(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        assert result[-1]['cumulative_interest_paid'] > 0
+
+    def test_all_required_fields_present(self):
+        from src.generate_pe_fund import generate_fund_cash_management
+        val_reports = generate_valuation_reports()
+        result = generate_fund_cash_management(val_reports)
+        required = {
+            'fund_id', 'date', 'cash_balance_eur', 'cash_interest_earned',
+            'cash_rate', 'sub_line_drawn', 'sub_line_limit',
+            'sub_line_interest', 'sub_line_rate', 'net_cash_position',
+            'cumulative_interest_earned', 'cumulative_interest_paid'
+        }
+        for r in result:
+            assert required.issubset(r.keys()), \
+                f"Missing fields: {required - r.keys()}"
+
+
+class TestSubLine:
+
+    def test_sub_line_draw_flows_present(self):
+        """When use_sub_line=True, sub_line_draw flows must exist."""
+        flows = generate_cash_flows(use_sub_line=True)
+        draws = [f for f in flows if f['flow_type'] == 'sub_line_draw']
+        assert len(draws) > 0, "No sub_line_draw flows found"
+
+    def test_sub_line_repay_flows_present(self):
+        """When use_sub_line=True, sub_line_repay flows must exist."""
+        flows = generate_cash_flows(use_sub_line=True)
+        repays = [f for f in flows if f['flow_type'] == 'sub_line_repay']
+        assert len(repays) > 0, "No sub_line_repay flows found"
+
+    def test_draws_and_repays_match(self):
+        """Total sub line draws must equal total repayments."""
+        flows = generate_cash_flows(use_sub_line=True)
+        total_draws  = sum(abs(f['amount_eur']) for f in flows
+                          if f['flow_type'] == 'sub_line_draw')
+        total_repays = sum(f['amount_eur'] for f in flows
+                          if f['flow_type'] == 'sub_line_repay')
+        assert abs(total_draws - total_repays) < 1.0, \
+            f"Draws {total_draws/1e6:.1f}M != repays {total_repays/1e6:.1f}M"
+
+    def test_capital_calls_delayed_90_days(self):
+        """Capital calls must be 90 days after investment date when sub line active."""
+        from src.generate_pe_fund import SUB_LINE_DAYS
+        flows_sub    = generate_cash_flows(use_sub_line=True)
+        flows_no_sub = generate_cash_flows(use_sub_line=False)
+
+        calls_sub    = {f['company_id']: pd.Timestamp(f['date'])
+                        for f in flows_sub
+                        if f['flow_type'] == 'capital_call'
+                        and 'Initial' in f['description']}
+        calls_no_sub = {f['company_id']: pd.Timestamp(f['date'])
+                        for f in flows_no_sub
+                        if f['flow_type'] == 'capital_call'
+                        and 'Initial' in f['description']}
+
+        for cid in calls_no_sub:
+            delta = (calls_sub[cid] - calls_no_sub[cid]).days
+            assert delta == SUB_LINE_DAYS, \
+                f"{cid} call delayed {delta} days, expected {SUB_LINE_DAYS}"
+
+    def test_no_sub_line_flows_when_disabled(self):
+        """When use_sub_line=False, no sub_line_draw or sub_line_repay flows."""
+        flows = generate_cash_flows(use_sub_line=False)
+        sub_flows = [f for f in flows
+                     if f['flow_type'] in ('sub_line_draw', 'sub_line_repay')]
+        assert len(sub_flows) == 0, \
+            f"Found {len(sub_flows)} sub line flows when disabled"

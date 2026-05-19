@@ -29,7 +29,8 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.database import (
     get_engine, PEFund, PEPortfolioCompany, PEFundInvestment,
-    PECashFlow, PENavHistory, PEValuationReport, PECompanyMetrics
+    PECashFlow, PENavHistory, PEValuationReport, PECompanyMetrics,
+    PEFundCashManagement,  # new
 )
 
 from sqlalchemy.orm import Session
@@ -57,6 +58,16 @@ MGMT_FEE_RATE    = 0.0175        # 1.75% of committed p.a.
 HURDLE_RATE      = 0.08          # 8% preferred return to LPs
 CARRY_RATE       = 0.20          # 20% carried interest to GP
 CATCHUP_RATE     = 1.00          # 100% GP catch-up
+
+# ----------------------------------------------------------------
+# cash management
+# ----------------------------------------------------------------
+
+CASH_RESERVE_PCT  = 0.08         # 8% of committed held as cash reserve
+CASH_RATE         = 0.035        # 3.5% p.a. EUR money market rate
+SUB_LINE_PCT      = 0.15         # 15% of committed = max sub line
+SUB_LINE_RATE     = 0.050        # EURIBOR + 150bps = 5.0% p.a.
+SUB_LINE_DAYS     = 90           # capital calls bridged for 90 days
 
 # ----------------------------------------------------------------
 # Portfolio companies
@@ -139,7 +150,8 @@ def compute_entry_equity_check(company_id: str) -> float:
 # ----------------------------------------------------------------
 # Cash flow generation
 # ----------------------------------------------------------------
-def generate_cash_flows(valuation_reports: list = None) -> list:
+def generate_cash_flows(valuation_reports: list = None, 
+                        use_sub_line: bool = True) -> list:
     """
     Generate PE fund cash flows from first principles.
 
@@ -177,13 +189,18 @@ def generate_cash_flows(valuation_reports: list = None) -> list:
     for date, company_id, desc in capital_events:
         key    = f"{date}_{company_id}"
         amount = follow_ons.get(key, compute_entry_equity_check(company_id))
+
+        # sub line: LP capital call is delayed 90 days from investment date
+        call_date = (pd.Timestamp(date) + pd.Timedelta(days=SUB_LINE_DAYS)).strftime('%Y-%m-%d') \
+                    if use_sub_line else date
+
         flows.append(dict(
             fund_id    = FUND_ID,
             company_id = company_id,
-            date       = date,
+            date       = call_date,
             flow_type  = 'capital_call',
             amount_eur = -amount,
-            description= desc,
+            description= desc + (' (sub line bridge)' if use_sub_line else ''),
         ))
 
     # ── 2. Management fees: 1.75% of committed p.a., semi-annual ────────────
@@ -320,7 +337,136 @@ def generate_cash_flows(valuation_reports: list = None) -> list:
             description= desc,
         ))
 
+        if use_sub_line:
+            flows.append(dict(
+                fund_id    = FUND_ID,
+                company_id = company_id,
+                date       = date,
+                flow_type  = 'sub_line_draw',
+                amount_eur = -amount,
+                description= f'Sub line draw -- {desc}',
+            ))
+            flows.append(dict(
+                fund_id    = FUND_ID,
+                company_id = company_id,
+                date       = call_date,
+                flow_type  = 'sub_line_repay',
+                amount_eur = amount,
+                description= f'Sub line repay -- {desc}',
+            ))
+
     return sorted(flows, key=lambda x: x['date'])
+
+def generate_fund_cash_management(valuation_reports: list = None) -> list:
+    """
+    Generate quarterly fund-level treasury snapshots.
+
+    Cash reserve: 8% of committed held at fund level, earns 3.5% p.a.
+    Sub line: drawn to bridge capital calls for 90 days, costs 5.0% p.a.
+
+    Cash reserve mechanics:
+        - Starts at CASH_RESERVE_PCT * COMMITTED at fund close (2018-Q2)
+        - Drawn down as capital calls are made
+        - Replenished from distributions and exit proceeds
+        - Interest earned quarterly on average balance
+
+    Sub line mechanics:
+        - Drawn at investment date to fund the equity check
+        - Repaid 90 days later when LP capital call is made
+        - Interest accrues daily, charged quarterly
+        - Max draw: SUB_LINE_PCT * COMMITTED
+    """
+    if valuation_reports is None:
+        valuation_reports = generate_valuation_reports()
+
+    flows       = generate_cash_flows(valuation_reports)
+    call_flows  = [f for f in flows if f['flow_type'] == 'capital_call']
+    dist_flows  = [f for f in flows if f['flow_type'] in
+                   ('distribution', 'exit_proceeds', 'carried_interest')]
+
+    # quarterly dates for the fund life
+    quarters = pd.date_range(
+        start='2018-06-30', end='2026-03-31', freq='QE'
+    )
+
+    # initial cash reserve
+    cash_balance         = COMMITTED * CASH_RESERVE_PCT
+    sub_line_limit       = COMMITTED * SUB_LINE_PCT
+    sub_line_drawn       = 0.0
+    cum_interest_earned  = 0.0
+    cum_interest_paid    = 0.0
+
+    # build lookup of cash flow events by quarter
+    def flows_in_quarter(q_start, q_end, flow_types):
+        return [
+            f for f in flows
+            if f['flow_type'] in flow_types
+            and q_start <= pd.Timestamp(f['date']) <= q_end
+        ]
+
+    records = []
+
+    for i, quarter in enumerate(quarters):
+        q_start = quarters[i - 1] + pd.Timedelta(days=1) if i > 0 else pd.Timestamp('2018-04-01')
+        q_end   = quarter
+
+        # sub line draws and repayments from explicit flow types
+        draws_q   = flows_in_quarter(q_start, q_end, ['sub_line_draw'])
+        repays_q  = flows_in_quarter(q_start, q_end, ['sub_line_repay'])
+        total_draws   = sum(abs(f['amount_eur']) for f in draws_q)
+        total_repays  = sum(f['amount_eur'] for f in repays_q)
+
+        sub_line_drawn = max(0, sub_line_drawn + total_draws - total_repays)
+
+        # capital calls this quarter (delayed LP funding, not investment date)
+        calls_q     = flows_in_quarter(q_start, q_end, ['capital_call'])
+        total_calls = sum(abs(f['amount_eur']) for f in calls_q)
+
+        # distributions received this quarter -- increase cash
+        dists_q = flows_in_quarter(q_start, q_end,
+                                   ['distribution', 'exit_proceeds'])
+        total_dists = sum(f['amount_eur'] for f in dists_q)
+
+        # management fees paid this quarter
+        fees_q = flows_in_quarter(q_start, q_end, ['management_fee'])
+        total_fees = sum(abs(f['amount_eur']) for f in fees_q)
+
+        # update cash balance
+        cash_balance = (
+            cash_balance
+            - total_calls        # equity checks paid
+            - total_fees         # management fees paid
+            + total_dists        # distributions received
+            + total_calls        # LP capital arriving to repay sub line
+        )
+        cash_balance = max(0, cash_balance)
+
+        # interest earned on average cash balance (quarterly)
+        interest_earned = cash_balance * CASH_RATE / 4
+        cum_interest_earned += interest_earned
+
+        # interest paid on sub line (quarterly)
+        interest_paid = sub_line_drawn * SUB_LINE_RATE / 4
+        cum_interest_paid += interest_paid
+
+        net_cash = cash_balance - sub_line_drawn
+
+        records.append(dict(
+            fund_id                  = FUND_ID,
+            date                     = quarter.strftime('%Y-%m-%d'),
+            cash_balance_eur         = round(cash_balance, 2),
+            cash_interest_earned     = round(interest_earned, 2),
+            cash_rate                = CASH_RATE,
+            sub_line_drawn           = round(sub_line_drawn, 2),
+            sub_line_limit           = round(sub_line_limit, 2),
+            sub_line_interest        = round(interest_paid, 2),
+            sub_line_rate            = SUB_LINE_RATE,
+            net_cash_position        = round(net_cash, 2),
+            cumulative_interest_earned = round(cum_interest_earned, 2),
+            cumulative_interest_paid   = round(cum_interest_paid, 2),
+        ))
+
+    return records
 
 # ----------------------------------------------------------------
 # NAV history generation (quarterly)
@@ -665,6 +811,8 @@ def generate_pe_fund(engine=None) -> None:
         session.query(PECashFlow).filter_by(fund_id=FUND_ID).delete()
         session.query(PEFundInvestment).filter_by(fund_id=FUND_ID).delete()
         session.query(PEFund).filter_by(fund_id=FUND_ID).delete()
+        session.query(PEFundCashManagement).filter_by(fund_id=FUND_ID).delete()
+
         for c in COMPANIES:
             session.query(PEPortfolioCompany).filter_by(
                 company_id=c['company_id']).delete()
@@ -706,21 +854,22 @@ def generate_pe_fund(engine=None) -> None:
                 exit_multiple   = c.get('exit_multiple'),
             ))
 
-        # cash flows
-        for cf in generate_cash_flows():
-            session.add(PECashFlow(**cf))
 
         # valuation reports first - source of truth for NAV
         val_reports = generate_valuation_reports()
         for vr in val_reports:
             session.add(PEValuationReport(**vr))
 
-        for cf in generate_cash_flows(val_reports):
+        for cf in generate_cash_flows(val_reports, use_sub_line=True):
             session.add(PECashFlow(**cf))
 
         # NAV history derived from appraisal reports
         for nav in generate_nav_history(val_reports):
             session.add(PENavHistory(**nav))
+
+        # fund-level cash management and sub line
+        for cm in generate_fund_cash_management(val_reports):
+            session.add(PEFundCashManagement(**cm))
 
         session.commit()
 

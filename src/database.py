@@ -340,6 +340,35 @@ class PECompanyMetrics(Base):
     ltm_ebitda_eur  : Mapped[float] = mapped_column(Float, nullable=True)
     ltm_revenue_eur : Mapped[float] = mapped_column(Float, nullable=True)
 
+
+class PEFundCashManagement(Base):
+    """
+    Quarterly fund-level treasury snapshot.
+    Tracks cash reserve, subscription credit facility, and net interest.
+    Distinct from pe_cash_flows which tracks company-level transactions.
+    """
+    __tablename__ = 'pe_fund_cash_management'
+
+    id                    : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id               : Mapped[str]   = mapped_column(String, nullable=False)
+    date                  : Mapped[str]   = mapped_column(String, nullable=False)
+
+    # cash reserve
+    cash_balance_eur      : Mapped[float] = mapped_column(Float, nullable=True)
+    cash_interest_earned  : Mapped[float] = mapped_column(Float, nullable=True)
+    cash_rate             : Mapped[float] = mapped_column(Float, nullable=True)
+
+    # subscription credit facility
+    sub_line_drawn        : Mapped[float] = mapped_column(Float, nullable=True)
+    sub_line_limit        : Mapped[float] = mapped_column(Float, nullable=True)
+    sub_line_interest     : Mapped[float] = mapped_column(Float, nullable=True)
+    sub_line_rate         : Mapped[float] = mapped_column(Float, nullable=True)
+
+    # net position
+    net_cash_position     : Mapped[float] = mapped_column(Float, nullable=True)
+    cumulative_interest_earned  : Mapped[float] = mapped_column(Float, nullable=True)
+    cumulative_interest_paid    : Mapped[float] = mapped_column(Float, nullable=True)
+
 # ----------------------------------------------------------------
 # Database functions
 # ----------------------------------------------------------------
