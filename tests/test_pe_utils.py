@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 from src.pe_utils import (
     xirr, fund_irr, pe_multiples,
-    pe_multiples_by_company, pe_multiples_timeseries, pe_value_bridge
+    pe_multiples_by_company, pe_multiples_timeseries, pe_value_bridge,
+    pme_long_nickels,
 )
 from src.database import get_engine
 
@@ -227,3 +228,101 @@ class TestPeValueBridge:
         result_one = pe_value_bridge(ENGINE, FUND_ID, company_id=first_cid)
         assert len(result_one['rows']) == 1
         assert result_one['rows'][0]['company_id'] == first_cid
+
+
+# ================================================================
+# pme_long_nickels — no DB required, synthetic fixtures only
+# ================================================================
+
+def _make_index(
+    start: float,
+    annual_return: float,
+    start_date: str = '2017-01-01',
+    end_date: str   = '2024-01-01',
+) -> pd.Series:
+    """Synthetic monthly index price series growing at annual_return."""
+    dates  = pd.date_range(start_date, end_date, freq='MS')
+    prices = [start * (1 + annual_return) ** (i / 12) for i in range(len(dates))]
+    return pd.Series(prices, index=dates)
+
+
+class TestPmeLongNickels:
+
+    def test_returns_dict(self):
+        idx    = _make_index(100, 0.10)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=200_000, valuation_date='2023-01-01'
+        )
+        assert isinstance(result, dict)
+
+    def test_required_keys(self):
+        idx    = _make_index(100, 0.10)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=200_000, valuation_date='2023-01-01'
+        )
+        for key in ['pme_multiple', 'pme_irr', 'pe_irr', 'alpha',
+                    'pme_terminal_nav', 'units', 'simulated_nav']:
+            assert key in result
+
+    def test_pe_outperforms_positive_alpha(self):
+        # PE 3x in 5 years (~24.6% IRR) vs index at 8% annually → positive alpha
+        idx    = _make_index(100, 0.08)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=300_000, valuation_date='2023-01-01'
+        )
+        assert result['alpha'] is not None
+        assert result['alpha'] > 0
+
+    def test_pe_underperforms_negative_alpha(self):
+        # PE 1.2x in 5 years (~3.7% IRR) vs index at 20% annually → negative alpha
+        idx    = _make_index(100, 0.20)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=120_000, valuation_date='2023-01-01'
+        )
+        assert result['alpha'] is not None
+        assert result['alpha'] < 0
+
+    def test_flat_market_pme_irr_near_zero(self):
+        # Flat index → PME buys at 100, sells at 100 → PME IRR ≈ 0%
+        idx    = pd.Series(
+            100.0, index=pd.date_range('2017-01-01', '2024-01-01', freq='MS')
+        )
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=150_000, valuation_date='2023-01-01'
+        )
+        assert result['pme_irr'] is not None
+        assert abs(result['pme_irr']) < 0.01
+
+    def test_alpha_equals_pe_irr_minus_pme_irr(self):
+        idx    = _make_index(100, 0.10)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=200_000, valuation_date='2023-01-01'
+        )
+        assert result['alpha'] == pytest.approx(
+            result['pe_irr'] - result['pme_irr'], rel=1e-6
+        )
+
+    def test_pme_multiple_is_float(self):
+        idx    = _make_index(100, 0.10)
+        result = pme_long_nickels(
+            [-100_000], ['2018-01-01'], idx,
+            terminal_nav=200_000, valuation_date='2023-01-01'
+        )
+        assert isinstance(result['pme_multiple'], float)
+
+    def test_simulated_nav_is_series(self):
+        idx    = _make_index(100, 0.10)
+        cfs    = [-100_000, -50_000, 30_000]
+        dates  = ['2018-01-01', '2019-01-01', '2021-01-01']
+        result = pme_long_nickels(
+            cfs, dates, idx,
+            terminal_nav=200_000, valuation_date='2023-01-01'
+        )
+        assert isinstance(result['simulated_nav'], pd.Series)
+        assert len(result['simulated_nav']) == len(cfs)

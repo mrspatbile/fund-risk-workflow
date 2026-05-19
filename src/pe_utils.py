@@ -20,6 +20,9 @@ pe_multiples_by_company(engine, fund_id, as_of_date)
 pe_multiples_timeseries(engine, fund_id)
     Quarterly TVPI evolution over fund life.
 
+pme_long_nickels(cash_flows, dates, index_prices, terminal_nav, valuation_date)
+    Long-Nickels PME: PE IRR vs public market equivalent IRR and alpha.
+
 Regulatory basis
 ----------------
 IPEV Valuation Guidelines (International Private Equity Valuation)
@@ -48,7 +51,7 @@ __all__ = [
     'pe_multiples_by_company',
     'pe_multiples_timeseries',
     'pe_value_bridge',
-
+    'pme_long_nickels',
 ]
 
 
@@ -325,6 +328,106 @@ def pe_multiples_timeseries(
         })
 
     return pd.DataFrame(rows)
+
+
+def pme_long_nickels(
+    cash_flows: list,
+    dates: list,
+    index_prices: pd.Series,
+    terminal_nav: float = 0.0,
+    valuation_date: str = None,
+) -> dict:
+    """
+    Long-Nickels Public Market Equivalent (PME) analysis.
+
+    Replicates the PE fund's capital call and distribution schedule by
+    buying/selling a public index at the same dates and amounts. Compares
+    the resulting index portfolio value (PME terminal NAV) to the PE fund
+    NAV to determine whether public markets outperformed PE.
+
+    Algorithm
+    ---------
+    For each capital call (cf < 0): buy |cf| / price index units.
+    For each distribution (cf > 0): sell cf / price index units
+        (floored at zero — cannot sell more units than held).
+    PME terminal NAV = remaining units × index price at valuation_date.
+
+    If PME IRR > PE IRR: public markets outperformed (negative alpha).
+    If PE IRR > PME IRR: PE outperformed (positive alpha).
+
+    Parameters
+    ----------
+    cash_flows : list of float
+        PE cash flows. Negative = capital calls. Positive = distributions.
+    dates : list of str or datetime
+        Dates corresponding to each cash flow.
+    index_prices : pd.Series
+        Daily index prices with DatetimeIndex. Nearest prior price used
+        via .asof() for each cash flow date.
+    terminal_nav : float
+        Current PE fund NAV. Added at valuation_date to compute PE IRR.
+        Default 0.0 (fully realised fund).
+    valuation_date : str or None
+        Terminal date for NAV and PME computations. If None, uses the
+        last date in dates.
+
+    Returns
+    -------
+    dict with keys:
+        pme_multiple     float — (distributions + PME NAV) / paid-in capital
+        pme_irr          float or None
+        pe_irr           float or None — computed from cash_flows + terminal_nav
+        alpha            float or None — PE IRR minus PME IRR
+        pme_terminal_nav float — simulated index portfolio value at valuation_date
+        units            float — index units held at termination
+        simulated_nav    pd.Series — index portfolio value after each cash flow
+    """
+    dates_pd  = pd.to_datetime(dates)
+    term_date = pd.Timestamp(valuation_date) if valuation_date else dates_pd[-1]
+    prices    = index_prices.sort_index()
+
+    units      = 0.0
+    nav_points = {}
+
+    for cf, date in zip(cash_flows, dates_pd):
+        price = float(prices.asof(date))
+        if np.isnan(price) or price <= 0:
+            continue
+        if cf < 0:
+            units += abs(cf) / price
+        else:
+            units = max(0.0, units - cf / price)
+        nav_points[date] = units * price
+
+    term_price       = float(prices.asof(term_date))
+    pme_terminal_nav = units * term_price if not np.isnan(term_price) else 0.0
+
+    paid_in       = sum(abs(cf) for cf in cash_flows if cf < 0)
+    distributions = sum(cf for cf in cash_flows if cf > 0)
+
+    pme_multiple = (
+        (distributions + pme_terminal_nav) / paid_in if paid_in > 0 else float('nan')
+    )
+
+    terminal_dates = list(dates_pd) + [term_date]
+    pme_irr = xirr(list(cash_flows) + [pme_terminal_nav], terminal_dates)
+    pe_irr  = xirr(list(cash_flows) + [terminal_nav],     terminal_dates)
+
+    alpha = (
+        pe_irr - pme_irr
+        if pe_irr is not None and pme_irr is not None
+        else None
+    )
+
+    return {
+        'pme_multiple'    : round(pme_multiple, 3) if not np.isnan(pme_multiple) else None,
+        'pme_irr'         : pme_irr,
+        'pe_irr'          : pe_irr,
+        'alpha'           : alpha,
+        'pme_terminal_nav': round(pme_terminal_nav, 2),
+        'units'           : units,
+        'simulated_nav'   : pd.Series(nav_points),
+    }
 
 
 def pe_value_bridge(
