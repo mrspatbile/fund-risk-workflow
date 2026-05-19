@@ -18,7 +18,7 @@ from src.risk_utils import (
     stress_property, stress_rental, stress_ltv,
     days_to_liquidate, liquidity_buckets,
     redemption_stress, investor_concentration,
-    liquidity_adjusted_var, var_montecarlo,
+    liquidity_adjusted_var, var_montecarlo, compute_pnl_attribution
 )
 
 
@@ -779,3 +779,83 @@ class TestVarMonteCarlo:
         r1 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
         r2 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
         assert r1['var'] == r2['var']
+
+# tests/test_pnl_attribution.py
+# MRS-28 | Unit tests for compute_pnl_attribution()
+
+
+# Known dataset
+# One equity position: MV=1,000,000, beta=1.2
+# One bond position:   MV=500,000,  dur=4.0
+# One USD position:    MV=200,000,  no beta/dur
+# One day of market moves:
+#   r_market = +1%  -> equity P&L = 1.2 * 0.01 * 1,000,000 = 12,000
+#   dy       = +5bp -> rates P&L  = -4.0 * 0.0005 * 500,000 = -1,000
+#   r_fx_USD = +0.5%-> FX P&L     = 200,000 * 0.005 = 1,000
+#   explained = 12,000
+#   actual    = 14,000
+#   residual  = 2,000
+
+@pytest.fixture
+def positions():
+    return pd.DataFrame([
+        {'isin': 'EQ1', 'asset_class': 'Equity', 'currency': 'EUR',
+         'market_value_eur': 1_000_000, 'beta': 1.2, 'dur_adj_mid': float('nan')},
+        {'isin': 'BD1', 'asset_class': 'Bond',   'currency': 'EUR',
+         'market_value_eur': 500_000,   'beta': float('nan'), 'dur_adj_mid': 4.0},
+        {'isin': 'FX1', 'asset_class': 'Equity', 'currency': 'USD',
+         'market_value_eur': 200_000,   'beta': float('nan'), 'dur_adj_mid': float('nan')},
+    ])
+
+@pytest.fixture
+def market_moves():
+    return pd.DataFrame(
+        [{'r_market': 0.01, 'dy': 0.0005, 'r_fx_USD': 0.005}],
+        index=pd.to_datetime(['2025-01-02']),
+    )
+
+@pytest.fixture
+def pnl_actual():
+    return pd.Series(
+        [14_000.0],
+        index=pd.to_datetime(['2025-01-02']),
+    )
+
+
+class TestComputePnlAttribution:
+
+    def test_returns_dataframe(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        assert isinstance(result, pd.DataFrame)
+
+    def test_required_columns(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        for col in ['pnl_actual', 'pnl_equity', 'pnl_rates', 'pnl_fx',
+                    'pnl_explained', 'pnl_residual', 'pct_explained']:
+            assert col in result.columns
+
+    def test_equity_pnl(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        assert result['pnl_equity'].iloc[0] == pytest.approx(12_000.0, rel=1e-4)
+
+    def test_rates_pnl(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        assert result['pnl_rates'].iloc[0] == pytest.approx(-1_000.0, rel=1e-4)
+
+    def test_fx_pnl(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        assert result['pnl_fx'].iloc[0] == pytest.approx(1_000.0, rel=1e-4)
+
+    def test_residual_equals_actual_minus_explained(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        row = result.iloc[0]
+        assert row['pnl_residual'] == pytest.approx(
+            row['pnl_actual'] - row['pnl_explained'], rel=1e-4
+        )
+
+    def test_pct_explained(self, positions, market_moves, pnl_actual):
+        result = compute_pnl_attribution(positions, market_moves, pnl_actual)
+        # explained = 12,000, actual = 14,000 -> 85.7%
+        assert result['pct_explained'].iloc[0] == pytest.approx(
+            12_000 / 14_000, rel=1e-4
+        )
