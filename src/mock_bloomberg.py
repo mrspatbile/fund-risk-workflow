@@ -17,15 +17,23 @@ Supported methods:
     bds: Bloomberg Data Set (bulk data)
 
 Instrument coverage:
-    Equities : SPY, AAPL, MSFT, JPM, GLD, TLT, HYG
+    Equities : SPY, AAPL, MSFT, JPM, GLD, TLT, HYG, TSLA, NVDA
     Bonds    : US Treasury, German Bund, IG corporate, HY corporate
     FX       : EURUSD, GBPUSD, USDJPY
     Indices  : SPX, SX5E, VIX
+
+MRS-47: bdh returns real cached prices for instruments in YF_MAP.
+        bdp returns real cached PX_LAST, BETA, EQY_DVD_YLD_IND,
+        VOLUME_AVG_20D for instruments in YF_MAP.
+        Rate series fetched from ECB API and yfinance.
+        Cache lives in data/yf_cache/. Populated on first call,
+        reused on all subsequent calls. Delete cache file to refresh.
 """
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
+import requests
+from pathlib import Path
 
 
 class MockBloomberg:
@@ -36,27 +44,59 @@ class MockBloomberg:
     ----------
     seed : int
         Random seed for reproducibility. Default 42.
-
-    Examples
-    --------
-    >>> bbg = MockBloomberg()
-    >>> bbg.bdp('SPY US Equity', ['PX_LAST', 'BETA'])
-    >>> bbg.bdh('SPY US Equity', 'PX_LAST', '20240101', '20260513')
-    >>> bbg.bds('US912828YK09 Govt', 'CASH_FLOW')
     """
 
     # ----------------------------------------------------------------
-    # Static reference data
-    # Fields: PX_LAST, DUR_ADJ_MID, CONVEXITY, YLD_YTM_MID,
-    #         BETA, VOLUME_AVG_20D, EQY_DVD_YLD_IND,
-    #         CRNCY, ASSET_CLASS, RTG_SP, RTG_MOODY,
-    #         CPN, MATURITY, AMT_OUTSTANDING, Z_SPRD_MID,
-    #         DELTA, GAMMA, VEGA, THETA, OPT_UNDL_PX,
-    #         CONTRACT_SIZE, IMPLIED_VOL,
-    #         ESG_SCORE, ENV_SCORE, SOC_SCORE, GOV_SCORE,
-    #         CONTROVERSY_FLAG, CARBON_INTENSITY, ESG_LOOK_THROUGH
+    # MRS-47: yfinance ticker map for liquid instruments
+    # PX_LAST, BETA, EQY_DVD_YLD_IND, VOLUME_AVG_20D are set to None
+    # for these instruments and populated at runtime from yf cache.
+    # If yfinance fails, bdp returns None for those fields.
+    # To override manually, replace None with a hardcoded value.
     # ----------------------------------------------------------------
+    VALUATION_DATE = pd.Timestamp('2026-05-13')
 
+    YF_MAP = {
+        'SPY US Equity'  : 'SPY',
+        'AAPL US Equity' : 'AAPL',
+        'MSFT US Equity' : 'MSFT',
+        'JPM US Equity'  : 'JPM',
+        'TSLA US Equity' : 'TSLA',
+        'NVDA US Equity' : 'NVDA',
+        'GLD US Equity'  : 'GLD',
+        'TLT US Equity'  : 'TLT',
+        'HYG US Equity'  : 'HYG',
+        'SX5E Index'     : '^STOXX50E',
+        'VIX Index'      : '^VIX',
+        'EURUSD Curncy'  : 'EURUSD=X',
+        'GBPUSD Curncy'  : 'GBPUSD=X',
+    }
+
+    # Betas fixed by definition — never overridden by yfinance
+    BETA_OVERRIDE = {
+        'SPY US Equity' : 1.0,
+        'SX5E Index'    : 1.0,
+    }
+
+    # MRS-47: ECB rate series — key: cache name, value: series id
+    ECB_SERIES = {
+        'ESTR'    : 'EST/B.EU000A2X2A25.WT',
+        'EUR_10Y' : 'YC/B.U2.EUR.4F.G_N_A.SV_C_YM.SR_10Y',
+    }
+
+    # MRS-47: yfinance rate tickers
+    YF_RATES = {
+        'USD_10Y' : '^TNX',
+        'USD_3M'  : '^IRX',
+    }
+
+    YF_CACHE_DIR = Path(__file__).parent.parent / 'data' / 'yf_cache'
+
+    # ----------------------------------------------------------------
+    # Static reference data
+    # For instruments in YF_MAP: PX_LAST, BETA, EQY_DVD_YLD_IND,
+    # VOLUME_AVG_20D are None — populated at runtime from yf cache.
+    # All other fields (duration, ratings, ESG, spreads) are hardcoded.
+    # ----------------------------------------------------------------
     _reference_data = {
 
     # ---- US Treasuries ----
@@ -194,16 +234,19 @@ class MockBloomberg:
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
-    # ---- Equities ----
+    # ---- Equities in YF_MAP ----
+    # PX_LAST, BETA, EQY_DVD_YLD_IND, VOLUME_AVG_20D: None
+    # populated at runtime from yfinance cache via bdp/bdh.
+    # To override manually replace None with a hardcoded value.
     'SPY US Equity': {
         'NAME'            : 'SPDR S&P 500 ETF',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 523.42,
-        'BETA'            : 1.00,
-        'VOLUME_AVG_20D'  : 85e6,
-        'EQY_DVD_YLD_IND' : 1.32,
-        'PE_RATIO'        : 22.4,
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'PE_RATIO'        : None,
         'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': None,
     },
@@ -211,11 +254,11 @@ class MockBloomberg:
         'NAME'            : 'Apple Inc',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 211.45,
-        'BETA'            : 1.24,
-        'VOLUME_AVG_20D'  : 52e6,
-        'EQY_DVD_YLD_IND' : 0.48,
-        'PE_RATIO'        : 31.2,
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'PE_RATIO'        : None,
         'ESG_SCORE'       : 78, 'ENV_SCORE': 82, 'SOC_SCORE': 75, 'GOV_SCORE': 77,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 28.4, 'ESG_LOOK_THROUGH': None,
     },
@@ -223,11 +266,11 @@ class MockBloomberg:
         'NAME'            : 'Microsoft Corp',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 415.32,
-        'BETA'            : 0.91,
-        'VOLUME_AVG_20D'  : 21e6,
-        'EQY_DVD_YLD_IND' : 0.72,
-        'PE_RATIO'        : 35.8,
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'PE_RATIO'        : None,
         'ESG_SCORE'       : 81, 'ENV_SCORE': 85, 'SOC_SCORE': 79, 'GOV_SCORE': 79,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 15.2, 'ESG_LOOK_THROUGH': None,
     },
@@ -235,11 +278,11 @@ class MockBloomberg:
         'NAME'            : 'JPMorgan Chase',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 248.73,
-        'BETA'            : 1.18,
-        'VOLUME_AVG_20D'  : 8e6,
-        'EQY_DVD_YLD_IND' : 2.11,
-        'PE_RATIO'        : 12.4,
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'PE_RATIO'        : None,
         'ESG_SCORE'       : 58, 'ENV_SCORE': 52, 'SOC_SCORE': 61, 'GOV_SCORE': 61,
         'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 312.5, 'ESG_LOOK_THROUGH': None,
     },
@@ -247,10 +290,10 @@ class MockBloomberg:
         'NAME'            : 'SPDR Gold Shares',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 287.34,
-        'BETA'            : 0.08,
-        'VOLUME_AVG_20D'  : 12e6,
-        'EQY_DVD_YLD_IND' : 0.0,
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
         'ESG_SCORE'       : 42, 'ENV_SCORE': 35, 'SOC_SCORE': 48, 'GOV_SCORE': 43,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 89.3, 'ESG_LOOK_THROUGH': None,
     },
@@ -258,14 +301,50 @@ class MockBloomberg:
         'NAME'            : 'iShares 20+ Year Treasury',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 84.23,
-        'BETA'            : -0.31,
+        'PX_LAST'         : None,
+        'BETA'            : None,
         'DUR_ADJ_MID'     : 16.4,
-        'VOLUME_AVG_20D'  : 38e6,
-        'EQY_DVD_YLD_IND' : 4.12,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
         'ESG_SCORE'       : 68, 'ENV_SCORE': 65, 'SOC_SCORE': 70, 'GOV_SCORE': 69,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
+    'HYG US Equity': {
+        'NAME'            : 'iShares HY Corp Bond ETF',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Equity',
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'DUR_ADJ_MID'     : 3.82,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'ESG_SCORE'       : 52, 'ENV_SCORE': 48, 'SOC_SCORE': 54, 'GOV_SCORE': 54,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
+    },
+    'TSLA US Equity': {
+        'NAME'            : 'Tesla Inc',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Equity',
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'ESG_SCORE'       : 45, 'ENV_SCORE': 62, 'SOC_SCORE': 32, 'GOV_SCORE': 41,
+        'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
+    },
+    'NVDA US Equity': {
+        'NAME'            : 'Nvidia Corp',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Equity',
+        'PX_LAST'         : None,
+        'BETA'            : None,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'ESG_SCORE'       : 71, 'ENV_SCORE': 68, 'SOC_SCORE': 73, 'GOV_SCORE': 72,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 8.9, 'ESG_LOOK_THROUGH': None,
+    },
+
+    # ---- Other equities (not in YF_MAP, hardcoded) ----
     'IEAG LN Equity': {
         'NAME'            : 'iShares Core EUR Govt Bond ETF',
         'CRNCY'           : 'EUR',
@@ -290,53 +369,6 @@ class MockBloomberg:
         'ESG_SCORE'       : 55, 'ENV_SCORE': 50, 'SOC_SCORE': 58, 'GOV_SCORE': 57,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
     },
-    'HYG US Equity': {
-        'NAME'            : 'iShares HY Corp Bond ETF',
-        'CRNCY'           : 'USD',
-        'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 76.43,
-        'BETA'            : 0.52,
-        'DUR_ADJ_MID'     : 3.82,
-        'VOLUME_AVG_20D'  : 28e6,
-        'EQY_DVD_YLD_IND' : 5.84,
-        'ESG_SCORE'       : 52, 'ENV_SCORE': 48, 'SOC_SCORE': 54, 'GOV_SCORE': 54,
-        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
-    },
-    'SX5E Index': {
-        'NAME'            : 'Euro Stoxx 50',
-        'CRNCY'           : 'EUR',
-        'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 5124.87,
-        'BETA'            : 1.0,
-        'VOLUME_AVG_20D'  : 2e9,
-        'EQY_DVD_YLD_IND' : 3.12,
-        'ESG_SCORE'       : 64, 'ENV_SCORE': 61, 'SOC_SCORE': 66, 'GOV_SCORE': 65,
-        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 168.4, 'ESG_LOOK_THROUGH': None,
-    },
-    'TSLA US Equity': {
-        'NAME'            : 'Tesla Inc',
-        'CRNCY'           : 'USD',
-        'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 175.34,
-        'BETA'            : 2.12,
-        'VOLUME_AVG_20D'  : 95e6,
-        'EQY_DVD_YLD_IND' : 0.0,
-        'ESG_SCORE'       : 45, 'ENV_SCORE': 62, 'SOC_SCORE': 32, 'GOV_SCORE': 41,
-        'CONTROVERSY_FLAG': True, 'CARBON_INTENSITY': 0.0, 'ESG_LOOK_THROUGH': None,
-    },
-    'NVDA US Equity': {
-        'NAME'            : 'Nvidia Corp',
-        'CRNCY'           : 'USD',
-        'ASSET_CLASS'     : 'Equity',
-        'PX_LAST'         : 892.54,
-        'BETA'            : 1.85,
-        'VOLUME_AVG_20D'  : 280e6,
-        'EQY_DVD_YLD_IND' : 0.03,
-        'ESG_SCORE'       : 71, 'ENV_SCORE': 68, 'SOC_SCORE': 73, 'GOV_SCORE': 72,
-        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 8.9, 'ESG_LOOK_THROUGH': None,
-    },
-
-    # ---- Listed REITs ----
     'VNA GY Equity': {
         'NAME'            : 'Vonovia SE',
         'CRNCY'           : 'EUR',
@@ -360,12 +392,42 @@ class MockBloomberg:
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 78.3, 'ESG_LOOK_THROUGH': None,
     },
 
-    # ---- FX ----
+    # ---- Indices in YF_MAP ----
+    'SX5E Index': {
+        'NAME'            : 'Euro Stoxx 50',
+        'CRNCY'           : 'EUR',
+        'ASSET_CLASS'     : 'Equity',
+        'PX_LAST'         : None,
+        'BETA'            : 1.0,
+        'VOLUME_AVG_20D'  : None,
+        'EQY_DVD_YLD_IND' : None,
+        'ESG_SCORE'       : 64, 'ENV_SCORE': 61, 'SOC_SCORE': 66, 'GOV_SCORE': 65,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 168.4, 'ESG_LOOK_THROUGH': None,
+    },
+    'VIX Index': {
+        'NAME'            : 'CBOE Volatility Index',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Index',
+        'PX_LAST'         : None,
+        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
+        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
+    },
+    'SPX Index': {
+        'NAME'            : 'S&P 500 Index',
+        'CRNCY'           : 'USD',
+        'ASSET_CLASS'     : 'Index',
+        'PX_LAST'         : 5842.31,
+        'BETA'            : 1.0,
+        'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
+        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': None,
+    },
+
+    # ---- FX in YF_MAP ----
     'EURUSD Curncy': {
         'NAME'            : 'Euro / US Dollar',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'FX',
-        'PX_LAST'         : 1.1234,
+        'PX_LAST'         : None,
         'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
         'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
@@ -373,10 +435,12 @@ class MockBloomberg:
         'NAME'            : 'British Pound / US Dollar',
         'CRNCY'           : 'USD',
         'ASSET_CLASS'     : 'FX',
-        'PX_LAST'         : 1.3312,
+        'PX_LAST'         : None,
         'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
         'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
+
+    # ---- FX not in YF_MAP (hardcoded) ----
     'USDJPY Curncy': {
         'NAME'            : 'US Dollar / Japanese Yen',
         'CRNCY'           : 'JPY',
@@ -394,26 +458,7 @@ class MockBloomberg:
         'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
 
-    # ---- Indices and Vol ----
-    'VIX Index': {
-        'NAME'            : 'CBOE Volatility Index',
-        'CRNCY'           : 'USD',
-        'ASSET_CLASS'     : 'Index',
-        'PX_LAST'         : 18.42,
-        'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
-        'CONTROVERSY_FLAG': None, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
-    },
-    'SPX Index': {
-        'NAME'            : 'S&P 500 Index',
-        'CRNCY'           : 'USD',
-        'ASSET_CLASS'     : 'Index',
-        'PX_LAST'         : 5842.31,
-        'BETA'            : 1.0,
-        'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
-        'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': None,
-    },
-
-    # ---- Listed Options ----
+    # ---- Listed Options (fully hardcoded, greeks not in yfinance) ----
     'SPXW 260619P05500 Index': {
         'NAME'            : 'SPX Put 5500 Jun26',
         'CRNCY'           : 'USD',
@@ -429,7 +474,7 @@ class MockBloomberg:
         'ESG_SCORE'       : 62, 'ENV_SCORE': 58, 'SOC_SCORE': 65, 'GOV_SCORE': 63,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': 145.2, 'ESG_LOOK_THROUGH': 'SPX Index',
     },
-}
+    }
 
     def __init__(self, seed: int = 42):
         np.random.seed(seed)
@@ -438,11 +483,13 @@ class MockBloomberg:
 
     # ----------------------------------------------------------------
     # BDP: Bloomberg Data Point
+    # MRS-47: for YF_MAP instruments, PX_LAST, BETA, EQY_DVD_YLD_IND,
+    # VOLUME_AVG_20D populated from yfinance info cache.
     # ----------------------------------------------------------------
     def bdp(
         self,
         securities: str | list,
-        fields: str | list
+        fields: str | list,
     ) -> pd.DataFrame:
         """
         Pull static reference data for one or more securities.
@@ -450,33 +497,37 @@ class MockBloomberg:
         Parameters
         ----------
         securities : str or list of str
-            Bloomberg tickers e.g. 'SPY US Equity'
         fields : str or list of str
-            Bloomberg fields e.g. ['PX_LAST', 'BETA']
 
         Returns
         -------
-        pd.DataFrame
-            Index: security tickers, columns: requested fields
-
-        Examples
-        --------
-        >>> bbg = MockBloomberg()
-        >>> bbg.bdp('SPY US Equity', ['PX_LAST', 'BETA'])
-        >>> bbg.bdp(
-        ...     ['SPY US Equity', 'US912828YK09 Govt'],
-        ...     ['PX_LAST', 'DUR_ADJ_MID', 'CRNCY']
-        ... )
+        pd.DataFrame indexed by security ticker
         """
         if isinstance(securities, str):
             securities = [securities]
         if isinstance(fields, str):
             fields = [fields]
 
+        live_fields = {'PX_LAST', 'BETA', 'EQY_DVD_YLD_IND',
+                       'VOLUME_AVG_20D', 'PE_RATIO'}
+        needs_live  = any(f in live_fields for f in fields)
+
         rows = []
         for sec in securities:
             row  = {'security': sec}
-            data = self._reference_data.get(sec, {})
+            data = self._reference_data.get(sec, {}).copy()
+
+            # MRS-47: overlay live fields from yfinance info cache
+            if needs_live and sec in self.YF_MAP:
+                live = self._fetch_yf_info(self.YF_MAP[sec])
+                for f in live_fields:
+                    if f in fields and live.get(f) is not None:
+                        data[f] = live[f]
+
+            # Beta fixed by definition for benchmark instruments
+            if 'BETA' in fields and sec in self.BETA_OVERRIDE:
+                data['BETA'] = self.BETA_OVERRIDE[sec]
+
             for field in fields:
                 row[field] = data.get(field, np.nan)
             rows.append(row)
@@ -485,6 +536,7 @@ class MockBloomberg:
 
     # ----------------------------------------------------------------
     # BDH: Bloomberg Data History
+    # MRS-47: real prices from yfinance cache for mapped instruments
     # ----------------------------------------------------------------
     def bdh(
         self,
@@ -492,39 +544,27 @@ class MockBloomberg:
         fields: str | list,
         start_date: str,
         end_date: str,
-        freq: str = 'DAILY'
+        freq: str = 'DAILY',
     ) -> pd.DataFrame:
         """
         Pull historical time series data.
 
+        For instruments in YF_MAP, PX_LAST returns real closing prices
+        from cache. All other instruments fall back to simulation.
+
         Parameters
         ----------
         securities : str or list of str
-            Bloomberg tickers
         fields : str or list of str
-            Bloomberg fields e.g. 'PX_LAST', 'VOLUME'
-        start_date : str
-            Start date in 'YYYYMMDD' or 'YYYY-MM-DD' format
-        end_date : str
-            End date in 'YYYYMMDD' or 'YYYY-MM-DD' format
-        freq : str
-            Frequency: 'DAILY', 'WEEKLY', 'MONTHLY'
+        start_date : str   YYYYMMDD or YYYY-MM-DD
+        end_date : str     YYYYMMDD or YYYY-MM-DD
+        freq : str         DAILY | WEEKLY | MONTHLY
 
         Returns
         -------
         pd.DataFrame
             Single security: DatetimeIndex, columns: fields
             Multiple securities: MultiIndex (date, security)
-
-        Examples
-        --------
-        >>> bbg = MockBloomberg()
-        >>> bbg.bdh('SPY US Equity', 'PX_LAST', '20240101', '20260513')
-        >>> bbg.bdh(
-        ...     ['SPY US Equity', 'GLD US Equity'],
-        ...     ['PX_LAST', 'VOLUME'],
-        ...     '20240101', '20260513'
-        ... )
         """
         if isinstance(securities, str):
             securities = [securities]
@@ -547,7 +587,11 @@ class MockBloomberg:
             price  = ref.get('PX_LAST', 100.0)
             aclass = ref.get('ASSET_CLASS', 'Equity')
 
-            prices = self._simulate_prices(sec, price, dates, aclass)
+            yf_ticker = self.YF_MAP.get(sec)
+            if yf_ticker and 'PX_LAST' in fields:
+                prices = self._fetch_yf_prices(yf_ticker, dates, price or 100.0)
+            else:
+                prices = self._simulate_prices(sec, price or 100.0, dates, aclass)
 
             df_sec             = pd.DataFrame(index=dates)
             df_sec.index.name  = 'date'
@@ -557,7 +601,7 @@ class MockBloomberg:
                 if field == 'PX_LAST':
                     df_sec[field] = prices
                 elif field == 'VOLUME':
-                    adv = ref.get('VOLUME_AVG_20D', 1e6)
+                    adv = ref.get('VOLUME_AVG_20D', 1e6) or 1e6
                     df_sec[field] = np.random.lognormal(
                         np.log(max(adv, 1)), 0.3, len(dates))
                 elif field == 'YLD_YTM_MID':
@@ -585,7 +629,7 @@ class MockBloomberg:
     def bds(
         self,
         security: str,
-        field: str
+        field: str,
     ) -> pd.DataFrame:
         """
         Pull bulk data for a single security.
@@ -593,99 +637,271 @@ class MockBloomberg:
         Parameters
         ----------
         security : str
-            Bloomberg ticker
-        field : str
-            Bulk field: 'CASH_FLOW' or 'INDX_MEMBERS'
+        field : str   CASH_FLOW | INDX_MEMBERS
 
         Returns
         -------
         pd.DataFrame
-
-        Examples
-        --------
-        >>> bbg = MockBloomberg()
-        >>> bbg.bds('US912828YK09 Govt', 'CASH_FLOW')
-        >>> bbg.bds('SPX Index', 'INDX_MEMBERS')
         """
         ref = self._reference_data.get(security, {})
-
         if field == 'CASH_FLOW':
             return self._simulate_cashflows(security, ref)
         elif field == 'INDX_MEMBERS':
             return self._simulate_index_members(security)
-        else:
-            return pd.DataFrame()
+        return pd.DataFrame()
 
     # ----------------------------------------------------------------
-    # Convenience: enrich positions DataFrame with Bloomberg data
+    # Convenience: enrich positions DataFrame
     # ----------------------------------------------------------------
     def get_portfolio_data(
         self,
         positions_df: pd.DataFrame,
-        fields: list | None = None
+        fields: list | None = None,
     ) -> pd.DataFrame:
-        """
-        Enrich a positions DataFrame with Bloomberg reference data.
-        Skips rows where bloomberg_ticker is None or NaN
-        (illiquid instruments: direct properties, private loans).
-
-        Parameters
-        ----------
-        positions_df : pd.DataFrame
-            Must contain column 'bloomberg_ticker'
-        fields : list of str, optional
-            Bloomberg fields to pull. Defaults to standard
-            risk fields.
-
-        Returns
-        -------
-        pd.DataFrame
-            Original positions enriched with Bloomberg data
-
-        Examples
-        --------
-        >>> bbg = MockBloomberg()
-        >>> enriched = bbg.get_portfolio_data(positions_df)
-        """
+        """Enrich a positions DataFrame with Bloomberg reference data."""
         if fields is None:
             fields = [
                 'NAME', 'CRNCY', 'ASSET_CLASS', 'PX_LAST',
                 'DUR_ADJ_MID', 'CONVEXITY', 'YLD_YTM_MID',
                 'BETA', 'VOLUME_AVG_20D', 'EQY_DVD_YLD_IND',
-                'RTG_SP', 'RTG_MOODY', 'Z_SPRD_MID'
+                'RTG_SP', 'RTG_MOODY', 'Z_SPRD_MID',
             ]
 
-        # only enrich liquid instruments with a Bloomberg ticker
         liquid_mask = positions_df['bloomberg_ticker'].notna()
-        tickers     = positions_df.loc[
-            liquid_mask, 'bloomberg_ticker'
-        ].tolist()
+        tickers     = positions_df.loc[liquid_mask, 'bloomberg_ticker'].tolist()
 
         if not tickers:
             return positions_df
 
         bbg_data = self.bdp(tickers, fields).reset_index()
-        bbg_data = bbg_data.rename(
-            columns={'security': 'bloomberg_ticker'})
+        bbg_data = bbg_data.rename(columns={'security': 'bloomberg_ticker'})
 
-        enriched = positions_df.merge(
-            bbg_data, on='bloomberg_ticker', how='left')
-
-        return enriched
+        return positions_df.merge(bbg_data, on='bloomberg_ticker', how='left')
 
     # ----------------------------------------------------------------
-    # Internal simulation helpers
+    # MRS-47: rate series access
+    # ----------------------------------------------------------------
+    def get_rate_series(
+        self,
+        series_name: str,
+        start_date: str,
+        end_date: str,
+    ) -> pd.Series:
+        """
+        Return a daily rate series by name.
+
+        Available series:
+            ESTR      ECB Euro Short-Term Rate (overnight, %)
+            EUR_10Y   ECB AAA EUR govt bond 10Y yield (%)
+            USD_10Y   US 10Y Treasury yield (%, via yfinance ^TNX)
+            USD_3M    US 3M T-bill yield (%, via yfinance ^IRX)
+
+        Parameters
+        ----------
+        series_name : str
+        start_date : str   YYYY-MM-DD
+        end_date : str     YYYY-MM-DD
+
+        Returns
+        -------
+        pd.Series with DatetimeIndex, values in percent (e.g. 3.5 = 3.5%)
+        """
+        start = pd.to_datetime(start_date)
+        end   = pd.to_datetime(end_date)
+        dates = pd.bdate_range(start, end)
+
+        if series_name in self.ECB_SERIES:
+            raw = self._fetch_ecb_rate(series_name)
+        elif series_name in self.YF_RATES:
+            raw = self._fetch_yf_rate(series_name)
+        else:
+            raise ValueError(
+                f"Unknown rate series '{series_name}'. "
+                f"Available: {list(self.ECB_SERIES) + list(self.YF_RATES)}"
+            )
+
+        series = raw.reindex(dates, method='ffill').bfill()
+        return series
+
+    # ----------------------------------------------------------------
+    # Internal helpers — MRS-47 cache layer
+    # ----------------------------------------------------------------
+    def _fetch_yf_info(self, yf_ticker: str) -> dict:
+        """
+        Return live static fields from yfinance .info for a ticker.
+        Cached as JSON in data/yf_cache/{ticker}_info.json.
+        Fields returned: PX_LAST, BETA, EQY_DVD_YLD_IND,
+                         VOLUME_AVG_20D, PE_RATIO.
+        """
+        import json
+        self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        safe_name  = yf_ticker.replace('^', '').replace('=', '_')
+        cache_path = self.YF_CACHE_DIR / f'{safe_name}_info.json'
+
+        if cache_path.exists():
+            with open(cache_path) as f:
+                return json.load(f)
+
+        try:
+            import yfinance as yf
+            # PX_LAST from price cache — same source as bdh
+            # ensures bdp and bdh are consistent
+            price_cache = self.YF_CACHE_DIR / f'{safe_name}.csv'
+            if not price_cache.exists():
+                self._fetch_yf_prices(
+                    yf_ticker,
+                    pd.bdate_range('2018-01-01', self.VALUATION_DATE),
+                    100.0,
+                )
+            if price_cache.exists():
+                raw       = pd.read_csv(price_cache, index_col=0, parse_dates=True)
+                raw.index = pd.to_datetime(raw.index).tz_localize(None)
+                raw       = raw[raw.index <= self.VALUATION_DATE]
+                px_last   = float(raw['Close'].dropna().iloc[-1]) if not raw.empty else None
+            else:
+                px_last = None
+
+            info = yf.Ticker(yf_ticker).info
+            result = {
+                'PX_LAST'         : px_last,
+                'BETA'            : info.get('beta'),
+                'EQY_DVD_YLD_IND' : (info.get('dividendYield') or 0) * 100
+                                    if info.get('dividendYield') else None,
+                'VOLUME_AVG_20D'  : info.get('averageVolume'),
+                'PE_RATIO'        : info.get('trailingPE'),
+            }
+            with open(cache_path, 'w') as f:
+                json.dump(result, f)
+            return result
+        except Exception:
+            return {}
+
+    def _fetch_yf_prices(
+        self,
+        yf_ticker: str,
+        dates: pd.DatetimeIndex,
+        fallback_price: float,
+    ) -> np.ndarray:
+        """
+        Return real closing prices from yfinance cache.
+        Cache file: data/yf_cache/{ticker}.csv
+        Falls back to simulation if download fails.
+        """
+        self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        safe_name  = yf_ticker.replace('^', '').replace('=', '_')
+        cache_path = self.YF_CACHE_DIR / f'{safe_name}.csv'
+
+        if cache_path.exists():
+            raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            raw.index = pd.to_datetime(raw.index).tz_localize(None)
+        else:
+            try:
+                import yfinance as yf
+                start = (dates[0]  - pd.Timedelta(days=10)).strftime('%Y-%m-%d')
+                end   = (dates[-1] + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+                raw   = yf.download(
+                    yf_ticker, start=start, end=end,
+                    auto_adjust=True, progress=False,
+                )
+                if raw.empty:
+                    raise ValueError(f"Empty download for {yf_ticker}")
+                if isinstance(raw.columns, pd.MultiIndex):
+                    raw.columns = raw.columns.get_level_values(0)
+                raw = raw[['Close']]
+                raw.index = pd.to_datetime(raw.index).tz_localize(None)
+                raw.to_csv(cache_path)
+            except Exception:
+                return self._simulate_prices(
+                    yf_ticker, fallback_price, dates, 'Equity'
+                )
+
+        close = raw['Close'].squeeze()
+        close = close.reindex(dates, method='ffill').bfill()
+
+        if close.isna().all():
+            return self._simulate_prices(
+                yf_ticker, fallback_price, dates, 'Equity'
+            )
+
+        return close.values.astype(float)
+
+    def _fetch_ecb_rate(self, series_name: str) -> pd.Series:
+        """
+        Fetch ECB rate series. Cached as CSV in data/yf_cache/.
+        """
+        self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_path = self.YF_CACHE_DIR / f'ECB_{series_name}.csv'
+
+        if cache_path.exists():
+            raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            raw.index = pd.to_datetime(raw.index).tz_localize(None)
+            return raw['rate']
+
+        try:
+            series_id = self.ECB_SERIES[series_name]
+            url = (
+                f'https://data-api.ecb.europa.eu/service/data/{series_id}'
+                f'?format=csvdata&startPeriod=2018-01-01'
+            )
+            r = requests.get(url, timeout=15)
+            r.raise_for_status()
+            from io import StringIO
+            df  = pd.read_csv(StringIO(r.text))
+            df  = df[['TIME_PERIOD', 'OBS_VALUE']].dropna()
+            df['TIME_PERIOD'] = pd.to_datetime(df['TIME_PERIOD'])
+            df  = df.set_index('TIME_PERIOD')
+            df.index = df.index.tz_localize(None)
+            df.columns = ['rate']
+            df.to_csv(cache_path)
+            return df['rate']
+        except Exception:
+            # Fallback: flat 3% series
+            idx = pd.bdate_range('2018-01-01', '2026-05-13')
+            return pd.Series(3.0, index=idx, name='rate')
+
+    def _fetch_yf_rate(self, series_name: str) -> pd.Series:
+        """
+        Fetch rate series from yfinance. Cached as CSV in data/yf_cache/.
+        """
+        self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_path = self.YF_CACHE_DIR / f'YF_{series_name}.csv'
+
+        if cache_path.exists():
+            raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            raw.index = pd.to_datetime(raw.index).tz_localize(None)
+            return raw['rate']
+
+        try:
+            import yfinance as yf
+            yf_ticker = self.YF_RATES[series_name]
+            raw = yf.download(
+                yf_ticker, start='2018-01-01', end='2026-05-14',
+                auto_adjust=True, progress=False,
+            )
+            if raw.empty:
+                raise ValueError(f"Empty download for {yf_ticker}")
+            if isinstance(raw.columns, pd.MultiIndex):
+                raw.columns = raw.columns.get_level_values(0)
+            df = raw[['Close']].rename(columns={'Close': 'rate'})
+            df.index = pd.to_datetime(df.index).tz_localize(None)
+            df.to_csv(cache_path)
+            return df['rate']
+        except Exception:
+            idx = pd.bdate_range('2018-01-01', '2026-05-13')
+            return pd.Series(4.0, index=idx, name='rate')
+
+    # ----------------------------------------------------------------
+    # Internal simulation helpers (fallback for non-YF_MAP instruments)
     # ----------------------------------------------------------------
     def _simulate_prices(
         self,
         sec: str,
         current_price: float,
         dates: pd.DatetimeIndex,
-        asset_class: str
+        asset_class: str,
     ) -> np.ndarray:
         """Simulate realistic price history ending at current_price."""
         n = len(dates)
-
         vol_map = {
             'FX'    : 0.006,
             'Bond'  : 0.003,
@@ -694,20 +910,17 @@ class MockBloomberg:
             'Index' : 0.012,
         }
         vol = vol_map.get(asset_class, 0.015)
-
         np.random.seed(hash(sec) % 2**31)
         log_returns = np.random.normal(-vol**2 / 2, vol, n)
-        log_prices  = np.log(current_price) - np.cumsum(
-            log_returns[::-1])
+        log_prices  = np.log(current_price) - np.cumsum(log_returns[::-1])
         prices      = np.exp(log_prices)[::-1]
         prices      = prices * current_price / prices[-1]
-
         return prices
 
     def _simulate_yield(
         self,
         current_ytm: float,
-        dates: pd.DatetimeIndex
+        dates: pd.DatetimeIndex,
     ) -> np.ndarray:
         """Simulate yield history ending at current level."""
         n       = len(dates)
@@ -720,7 +933,7 @@ class MockBloomberg:
     def _simulate_spread(
         self,
         current_spread: float,
-        dates: pd.DatetimeIndex
+        dates: pd.DatetimeIndex,
     ) -> np.ndarray:
         """Simulate credit spread history."""
         n       = len(dates)
@@ -732,90 +945,64 @@ class MockBloomberg:
     def _simulate_cashflows(
         self,
         security: str,
-        ref: dict
+        ref: dict,
     ) -> pd.DataFrame:
         """Simulate bond cash flow schedule."""
         if ref.get('ASSET_CLASS') not in ('Bond', 'Loan', 'CLO'):
             return pd.DataFrame()
 
-        maturity = pd.to_datetime(
-            ref.get('MATURITY', '2030-01-01'))
+        maturity = pd.to_datetime(ref.get('MATURITY', '2030-01-01'))
         coupon   = ref.get('CPN', 0.0)
         face     = 100.0
-        today    = pd.Timestamp.today()
+        valuation_date = self.VALUATION_DATE
 
-        dates = pd.date_range(today, maturity, freq='6MS')[1:].date        
+        dates = pd.date_range(valuation_date, maturity, freq='6MS')[1:].date
         if len(dates) == 0:
             return pd.DataFrame()
 
-        cfs        = [coupon / 2 * face] * len(dates)
-        cfs[-1]   += face
+        cfs      = [coupon / 2 * face] * len(dates)
+        cfs[-1] += face
 
         return pd.DataFrame({
             'cash_flow_date'  : dates,
-            'cash_flow_amount': cfs
+            'cash_flow_amount': cfs,
         })
 
-    def _simulate_index_members(
-        self,
-        security: str
-    ) -> pd.DataFrame:
+    def _simulate_index_members(self, security: str) -> pd.DataFrame:
         """Return simulated index members."""
         members = {
             'SPX Index' : [
                 'AAPL US Equity', 'MSFT US Equity',
-                'JPM US Equity',  'SPY US Equity'
+                'JPM US Equity',  'SPY US Equity',
             ],
             'SX5E Index': [
-                'VNA GY Equity', 'URI FP Equity',
-                'LVMH FP Equity'
+                'VNA GY Equity', 'URI FP Equity', 'LVMH FP Equity',
             ],
         }
-        tickers = members.get(security, [])
-        return pd.DataFrame({'member_ticker': tickers})
+        return pd.DataFrame({'member_ticker': members.get(security, [])})
 
 
 # ----------------------------------------------------------------
-# Usage example (run as script)
+# Usage example
 # ----------------------------------------------------------------
 if __name__ == '__main__':
-
     bbg = MockBloomberg()
 
-    print('\n--- BDP: reference data ---')
+    print('\n--- BDP: reference data (live from cache) ---')
     ref = bbg.bdp(
-        ['SPY US Equity', 'US912828YK09 Govt', 'EURUSD Curncy'],
-        ['NAME', 'PX_LAST', 'DUR_ADJ_MID', 'BETA', 'CRNCY']
+        ['SPY US Equity', 'AAPL US Equity', 'EURUSD Curncy'],
+        ['NAME', 'PX_LAST', 'BETA', 'EQY_DVD_YLD_IND', 'VOLUME_AVG_20D']
     )
     print(ref)
 
     print('\n--- BDH: historical prices ---')
-    hist = bbg.bdh(
-        'SPY US Equity', 'PX_LAST',
-        '20240101', '20260513'
-    )
+    hist = bbg.bdh('SPY US Equity', 'PX_LAST', '20240101', '20260513')
     print(hist.tail())
 
-    print('\n--- BDS: bond cash flows ---')
-    cfs = bbg.bds('US912828YK09 Govt', 'CASH_FLOW')
-    print(cfs.head())
+    print('\n--- Rate series: ESTR ---')
+    estr = bbg.get_rate_series('ESTR', '2024-01-01', '2026-05-13')
+    print(estr.tail())
 
-    print('\n--- get_portfolio_data: enrich positions ---')
-    positions = pd.DataFrame({
-        'bloomberg_ticker': [
-            'SPY US Equity',
-            'US912828YK09 Govt',
-            'EURUSD Curncy',
-            None,             # direct property: skip Bloomberg
-        ],
-        'instrument_name' : [
-            'SPDR S&P 500',
-            'US Treasury 2.875 2028',
-            'EUR/USD Forward',
-            'Office Luxembourg City',
-        ],
-        'market_value_eur': [5234200, 4821000, 2246800, 12500000],
-    })
-    enriched = bbg.get_portfolio_data(positions)
-    print(enriched[['instrument_name', 'PX_LAST',
-                     'DUR_ADJ_MID', 'BETA', 'CRNCY']])
+    print('\n--- Rate series: USD_10Y ---')
+    usd10y = bbg.get_rate_series('USD_10Y', '2024-01-01', '2026-05-13')
+    print(usd10y.tail())

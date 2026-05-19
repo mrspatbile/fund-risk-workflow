@@ -59,6 +59,26 @@ def simulate_prices(
     prices      = prices * start_price / prices[-1]
     return prices
 
+def _get_base_price(bloomberg_ticker: str, fallback: float) -> float:
+    """
+    For instruments in MockBloomberg.YF_MAP return the last real
+    closing price from yfinance cache. Falls back to hardcoded price
+    if not mapped or cache unavailable.
+    """
+    from src.mock_bloomberg import MockBloomberg
+    yf_ticker = MockBloomberg.YF_MAP.get(bloomberg_ticker)
+    if not yf_ticker:
+        return fallback
+    cache_dir  = MockBloomberg.YF_CACHE_DIR
+    safe_name  = yf_ticker.replace('^', '').replace('=', '_')
+    cache_path = cache_dir / f'{safe_name}.csv'
+    if not cache_path.exists():
+        return fallback
+    try:
+        raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+        return float(raw['Close'].dropna().iloc[-1])
+    except Exception:
+        return fallback
 
 def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
     """
@@ -69,7 +89,11 @@ def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
     all_rows = []
 
     for i, row in enumerate(rows):
-        base_price = row['price']
+        bbg_ticker = row.get('bloomberg_ticker')
+        base_price = (
+            _get_base_price(bbg_ticker, row['price'])
+            if bbg_ticker else row['price']
+        )
         vol        = row.get('price_vol', 0.01)
         prices     = simulate_prices(base_price, len(dates),
                                      vol=vol, seed=i)
