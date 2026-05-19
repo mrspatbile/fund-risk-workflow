@@ -120,6 +120,16 @@ def run(force: bool = False) -> None:
     else:
         print(f'PE fund data exists. Skipping.')
 
+    # step 5: generate infrastructure fund data if tables empty
+    from src.generate_infra_fund import generate_infra_fund
+    with engine.connect() as conn:
+        n_infra = conn.execute(sa.text('SELECT COUNT(*) FROM infra_funds')).scalar()
+    if n_infra == 0:
+        print('Generating infrastructure fund data...')
+        generate_infra_fund(engine)
+    else:
+        print(f'Infrastructure fund data exists. Skipping.')
+
     print('\nDatabase ready.')
 
 

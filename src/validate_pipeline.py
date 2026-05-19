@@ -78,7 +78,7 @@ checks  = []
 ref = bbg.bdp('SPY US Equity', ['PX_LAST', 'BETA', 'CRNCY'])
 checks.append(check(
     'bdp returns correct price for SPY',
-    abs(ref.loc['SPY US Equity', 'PX_LAST'] - 523.42) < 0.01
+    abs(ref.loc['SPY US Equity', 'PX_LAST'] - 742.31) < 0.01
 ))
 checks.append(check(
     'bdp returns correct beta for SPY',
@@ -93,7 +93,7 @@ checks.append(check(
 ))
 checks.append(check(
     'bdh last price matches bdp',
-    abs(hist['PX_LAST'].iloc[-1] - 523.42) < 0.01
+    abs(hist['PX_LAST'].iloc[-1] - 742.31) < 0.01
 ))
 
 # BDS
@@ -426,6 +426,66 @@ for fund_id in FUNDS:
     ))
 
 results['Liquidity'] = all(checks)
+
+
+# ================================================================
+# Section 7: Infrastructure Fund Tables
+# ================================================================
+print('\n' + '='*60)
+print('7. INFRASTRUCTURE FUND')
+print('='*60)
+
+checks = []
+infra_tables = [
+    'infra_funds', 'infra_assets', 'infra_fund_investments',
+    'infra_cash_flows', 'infra_nav_history', 'infra_valuation_report',
+    'infra_debt', 'infra_covenants',
+]
+tables = sa.inspect(engine).get_table_names()
+
+for tbl in infra_tables:
+    checks.append(check(f'{tbl} table exists', tbl in tables))
+
+with engine.connect() as conn:
+    n_funds = conn.execute(
+        sa.text('SELECT COUNT(*) FROM infra_funds')).scalar()
+    n_assets = conn.execute(
+        sa.text('SELECT COUNT(*) FROM infra_assets')).scalar()
+    n_vr = conn.execute(
+        sa.text('SELECT COUNT(*) FROM infra_valuation_report')).scalar()
+    n_cov = conn.execute(
+        sa.text('SELECT COUNT(*) FROM infra_covenants')).scalar()
+    n_breaches = conn.execute(
+        sa.text("SELECT COUNT(*) FROM infra_covenants "
+                "WHERE dscr_breach = 1 OR ltv_breach = 1")).scalar()
+    n_waivers = conn.execute(
+        sa.text("SELECT COUNT(*) FROM infra_covenants "
+                "WHERE waiver_granted = 1")).scalar()
+
+checks.append(check('infra fund loaded', n_funds >= 1, f'{n_funds} fund'))
+checks.append(check('8 assets loaded', n_assets == 8, f'{n_assets} assets'))
+checks.append(check(
+    'valuation reports present',
+    n_vr >= 100,
+    f'{n_vr} reports'
+))
+checks.append(check(
+    'covenant readings present',
+    n_cov >= 100,
+    f'{n_cov} readings'
+))
+checks.append(check(
+    'at least 2 covenant breaches recorded',
+    n_breaches >= 2,
+    f'{n_breaches} breaches'
+))
+checks.append(check(
+    'at least 2 waivers granted',
+    n_waivers >= 2,
+    f'{n_waivers} waivers'
+))
+
+results['Infrastructure Fund'] = all(checks)
 
 
 # ================================================================

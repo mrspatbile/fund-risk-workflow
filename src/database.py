@@ -331,6 +331,186 @@ class PEFundCashManagement(Base):
     cumulative_interest_earned  : Mapped[float] = mapped_column(Float, nullable=True)
     cumulative_interest_paid    : Mapped[float] = mapped_column(Float, nullable=True)
 
+
+# ----------------------------------------------------------------
+# Infrastructure Fund Tables (MRS-74)
+# ----------------------------------------------------------------
+
+class InfraFund(Base):
+    """
+    Infrastructure fund metadata.
+    Benchmark is typically CPI + absolute spread (e.g. CPI+4%) or
+    an absolute return target, reflecting the inflation-linkage of the
+    underlying assets.
+    """
+    __tablename__ = 'infra_funds'
+
+    id                   : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id              : Mapped[str]   = mapped_column(String, unique=True, nullable=False)
+    fund_name            : Mapped[str]   = mapped_column(String, nullable=False)
+    vintage_year         : Mapped[int]   = mapped_column(Integer, nullable=False)
+    target_size_eur      : Mapped[float] = mapped_column(Float, nullable=False)
+    committed_eur        : Mapped[float] = mapped_column(Float, nullable=True)
+    drawn_eur            : Mapped[float] = mapped_column(Float, nullable=True)
+    fund_life_years      : Mapped[int]   = mapped_column(Integer, nullable=True)
+    currency             : Mapped[str]   = mapped_column(String, nullable=True)
+    domicile             : Mapped[str]   = mapped_column(String, nullable=True)
+    benchmark            : Mapped[str]   = mapped_column(String, nullable=True)
+    aifmd_classification : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class InfraAsset(Base):
+    """
+    Infrastructure asset master.
+    Independent of any fund — an asset can appear in multiple fund vehicles.
+    Fund-specific terms (entry date, cost basis, ownership) live in
+    InfraFundInvestment.
+    """
+    __tablename__ = 'infra_assets'
+
+    id                   : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    asset_id             : Mapped[str]   = mapped_column(String, unique=True, nullable=False)
+    asset_name           : Mapped[str]   = mapped_column(String, nullable=False)
+    sector               : Mapped[str]   = mapped_column(String, nullable=True)
+    sub_type             : Mapped[str]   = mapped_column(String, nullable=True)
+    country              : Mapped[str]   = mapped_column(String, nullable=True)
+    regulatory_framework : Mapped[str]   = mapped_column(String, nullable=True)
+    concession_start     : Mapped[str]   = mapped_column(String, nullable=True)
+    concession_end       : Mapped[str]   = mapped_column(String, nullable=True)
+    inflation_linkage    : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class InfraFundInvestment(Base):
+    """Fund-asset link: investment terms and economics."""
+    __tablename__ = 'infra_fund_investments'
+    __table_args__ = (
+        sa.UniqueConstraint('fund_id', 'asset_id', name='uq_infra_fund_asset'),
+    )
+
+    id               : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id          : Mapped[str]   = mapped_column(String, nullable=False)
+    asset_id         : Mapped[str]   = mapped_column(String, nullable=False)
+    entry_date       : Mapped[str]   = mapped_column(String, nullable=False)
+    exit_date        : Mapped[str]   = mapped_column(String, nullable=True)
+    ownership_pct    : Mapped[float] = mapped_column(Float, nullable=True)
+    cost_basis_eur   : Mapped[float] = mapped_column(Float, nullable=False)
+    committed_equity : Mapped[float] = mapped_column(Float, nullable=True)
+    drawn_equity     : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class InfraCashFlow(Base):
+    """
+    Infrastructure capital calls, distributions, management fees,
+    interest received, and refinancing proceeds.
+    Negative amounts: capital calls, management fees.
+    Positive amounts: distributions, interest received, refinancing.
+    """
+    __tablename__ = 'infra_cash_flows'
+
+    id          : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id     : Mapped[str]   = mapped_column(String, nullable=False)
+    asset_id    : Mapped[str]   = mapped_column(String, nullable=True)
+    date        : Mapped[str]   = mapped_column(String, nullable=False)
+    flow_type   : Mapped[str]   = mapped_column(String, nullable=False)
+    amount_eur  : Mapped[float] = mapped_column(Float, nullable=False)
+    currency    : Mapped[str]   = mapped_column(String, nullable=True)
+    description : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class InfraNavHistory(Base):
+    """
+    Quarterly NAV per fund per asset.
+    Derived from InfraValuationReport. Never hardcoded directly.
+    asset_id = None means fund-level aggregate.
+    """
+    __tablename__ = 'infra_nav_history'
+
+    id       : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id  : Mapped[str]   = mapped_column(String, nullable=False)
+    asset_id : Mapped[str]   = mapped_column(String, nullable=True)
+    date     : Mapped[str]   = mapped_column(String, nullable=False)
+    nav_eur  : Mapped[float] = mapped_column(Float, nullable=False)
+    moic     : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class InfraValuationReport(Base):
+    """
+    External appraiser inputs per asset per quarter.
+    This is the governance boundary: the risk management layer consumes
+    these reports from an independent appraiser; it does not produce them.
+    Consistent with AIFMD Article 19 and IPEV Valuation Guidelines.
+    """
+    __tablename__ = 'infra_valuation_report'
+    __table_args__ = (
+        sa.UniqueConstraint('fund_id', 'asset_id', 'date',
+                            name='uq_infra_valuation'),
+    )
+
+    id                   : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    fund_id              : Mapped[str]   = mapped_column(String, nullable=False)
+    asset_id             : Mapped[str]   = mapped_column(String, nullable=False)
+    date                 : Mapped[str]   = mapped_column(String, nullable=False)
+    appraised_ev_eur     : Mapped[float] = mapped_column(Float, nullable=True)
+    net_debt_eur         : Mapped[float] = mapped_column(Float, nullable=True)
+    implied_equity_eur   : Mapped[float] = mapped_column(Float, nullable=False)
+    ebitda_eur           : Mapped[float] = mapped_column(Float, nullable=True)
+    revenue_eur          : Mapped[float] = mapped_column(Float, nullable=True)
+    discount_rate        : Mapped[float] = mapped_column(Float, nullable=True)
+    inflation_assumption : Mapped[float] = mapped_column(Float, nullable=True)
+    terminal_value_eur   : Mapped[float] = mapped_column(Float, nullable=True)
+    appraiser            : Mapped[str]   = mapped_column(String, nullable=True)
+    valuation_basis      : Mapped[str]   = mapped_column(String, nullable=True)
+    key_risks            : Mapped[str]   = mapped_column(String, nullable=True)
+
+
+class InfraDebt(Base):
+    """
+    Project-level debt per asset.
+    Infra debt is structured at asset (project finance) level, not fund level.
+    DSCR and LTV covenants are defined here; quarterly readings in InfraCovenant.
+    """
+    __tablename__ = 'infra_debt'
+
+    id                 : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    asset_id           : Mapped[str]   = mapped_column(String, nullable=False)
+    tranche_name       : Mapped[str]   = mapped_column(String, nullable=False)
+    lender             : Mapped[str]   = mapped_column(String, nullable=True)
+    outstanding_eur    : Mapped[float] = mapped_column(Float, nullable=True)
+    maturity           : Mapped[str]   = mapped_column(String, nullable=True)
+    interest_rate_type : Mapped[str]   = mapped_column(String, nullable=True)
+    margin_bps         : Mapped[float] = mapped_column(Float, nullable=True)
+    amortisation_type  : Mapped[str]   = mapped_column(String, nullable=True)
+    dscr_covenant      : Mapped[float] = mapped_column(Float, nullable=True)
+    ltv_covenant       : Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class InfraCovenant(Base):
+    """
+    Quarterly covenant readings per asset.
+    Breach flag is set when actual DSCR < covenant or actual LTV > covenant.
+    Waiver flag indicates lender has granted a formal waiver.
+    """
+    __tablename__ = 'infra_covenants'
+    __table_args__ = (
+        sa.UniqueConstraint('asset_id', 'date', name='uq_infra_covenant'),
+    )
+
+    id             : Mapped[int]   = mapped_column(Integer, primary_key=True)
+    asset_id       : Mapped[str]   = mapped_column(String, nullable=False)
+    fund_id        : Mapped[str]   = mapped_column(String, nullable=False)
+    date           : Mapped[str]   = mapped_column(String, nullable=False)
+    dscr_actual    : Mapped[float] = mapped_column(Float, nullable=True)
+    dscr_covenant  : Mapped[float] = mapped_column(Float, nullable=True)
+    dscr_headroom  : Mapped[float] = mapped_column(Float, nullable=True)
+    ltv_actual     : Mapped[float] = mapped_column(Float, nullable=True)
+    ltv_covenant   : Mapped[float] = mapped_column(Float, nullable=True)
+    ltv_headroom   : Mapped[float] = mapped_column(Float, nullable=True)
+    dscr_breach    : Mapped[bool]  = mapped_column(Boolean, nullable=True)
+    ltv_breach     : Mapped[bool]  = mapped_column(Boolean, nullable=True)
+    waiver_granted : Mapped[bool]  = mapped_column(Boolean, nullable=True)
+    waiver_notes   : Mapped[str]   = mapped_column(String, nullable=True)
+
+
 # ----------------------------------------------------------------
 # Database functions
 # ----------------------------------------------------------------
