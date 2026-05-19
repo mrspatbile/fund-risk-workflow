@@ -58,6 +58,27 @@ def run(force: bool = False) -> None:
         print('--force: removing existing database...')
         os.remove(DB_PATH)
 
+    # step 0: regenerate position Excel files with real prices
+    if force:
+        print('Regenerating position Excel files with real prices...')
+        from src.generate_positions import (
+            generate_hedge_fund, generate_private_debt,
+            generate_real_estate, generate_ucits_balanced,
+        )
+        import pandas as pd
+        fund_generators = {
+            'AIFM_HedgeFund'  : generate_hedge_fund,
+            'AIFM_PrivateDebt': generate_private_debt,
+            'AIFM_RealEstate' : generate_real_estate,
+            'UCITS_Balanced'  : generate_ucits_balanced,
+        }
+        for fund_name, generator in fund_generators.items():
+            print(f'  {fund_name}...')
+            df = generator()
+            path = str(ROOT_DIR / 'data' / f'fund_positions_{fund_name}.xlsx')
+            df.to_excel(path, index=False)
+        print('Excel files regenerated.')
+
     # step 1: create schema if db missing
     if not os.path.exists(DB_PATH):
         print('Creating database schema...')

@@ -59,6 +59,7 @@ def simulate_prices(
     prices      = prices * start_price / prices[-1]
     return prices
 
+
 def _get_base_price(bloomberg_ticker: str, fallback: float) -> float:
     """
     For instruments in MockBloomberg.YF_MAP return the last real
@@ -76,33 +77,48 @@ def _get_base_price(bloomberg_ticker: str, fallback: float) -> float:
         return fallback
     try:
         raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+        raw.index = pd.to_datetime(raw.index).tz_localize(None)
+        raw = raw[raw.index <= pd.Timestamp('2026-05-13')]
         return float(raw['Close'].dropna().iloc[-1])
     except Exception:
         return fallback
+
 
 def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
     """
     Expand a list of position definitions across all dates.
     Each row is a dict defining a single position (instrument).
-    Prices evolve realistically over time.
+    For instruments in YF_MAP, real price history is used.
+    All other instruments use simulated random walk prices.
     """
     all_rows = []
 
     for i, row in enumerate(rows):
         bbg_ticker = row.get('bloomberg_ticker')
         base_price = (
-            _get_base_price(bbg_ticker, row['price'])
-            if bbg_ticker else row['price']
+            _get_base_price(bbg_ticker, row['price'] or 100.0)
+            if bbg_ticker else (row['price'] or 100.0)
         )
-        vol        = row.get('price_vol', 0.01)
-        prices     = simulate_prices(base_price, len(dates),
-                                     vol=vol, seed=i)
-        quantities = row['quantity']
 
+        # MRS-47: use real price history for YF_MAP instruments
+        if bbg_ticker:
+            from src.mock_bloomberg import MockBloomberg
+            yf_ticker = MockBloomberg.YF_MAP.get(bbg_ticker)
+        else:
+            yf_ticker = None
+
+        if yf_ticker:
+            from src.mock_bloomberg import MockBloomberg
+            prices = MockBloomberg()._fetch_yf_prices(yf_ticker, dates, base_price)
+        else:
+            vol    = row.get('price_vol', 0.01)
+            prices = simulate_prices(base_price, len(dates), vol=vol, seed=i)
+
+        quantities  = row['quantity']
         asset_class = row.get('asset_class', 'Equity')
 
         for j, dt in enumerate(dates):
-            price    = prices[j]
+            price = prices[j]
 
             # bonds, loans, CLOs: price is per 100 face value
             if asset_class in ('Bond', 'Loan', 'CLO'):
@@ -129,7 +145,7 @@ def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
                 'price'             : round(price, 4),
                 'market_value_local': round(mv_local, 2),
                 'market_value_eur'  : round(mv_eur, 2),
-                'weight_pct'        : 0.0,  # computed below
+                'weight_pct'        : 0.0,
                 'country'           : row.get('country', ''),
                 'rating'            : row.get('rating', ''),
                 'maturity'          : row.get('maturity', ''),
@@ -176,6 +192,10 @@ def make_positions_df(rows: list, dates: pd.DatetimeIndex) -> pd.DataFrame:
 # NAV: EUR 250m, long/short equity, bonds, FX, options
 # ----------------------------------------------------------------
 
+# Note: price fields for YF_MAP instruments (SPY, AAPL, MSFT, JPM, TSLA,
+# NVDA, GLD, TLT, HYG, SX5E, EURUSD, GBPUSD) are ignored at runtime.
+# Real price history is loaded from data/yf_cache/ via _fetch_yf_prices.
+# Hardcoded values are kept as approximate entry level documentation only.
 def generate_hedge_fund() -> pd.DataFrame:
 
     positions = [
@@ -365,7 +385,7 @@ def generate_private_debt() -> pd.DataFrame:
              price_vol=0.002, fx_rate=1.0, country='GB',
              rating='B', maturity='2028-12-15', adv_eur=0,
              esg_score=38, env_score=35, soc_score=40, gov_score=39,
-             carbon_intensity=45.2, controversy_flag=False,),
+             carbon_intensity=45.2, controversy_flag=False),
 
         dict(fund_id='AIFM_PrivateDebt', fund_name='AIFM Private Debt',
              isin='XS9876543211', bloomberg_ticker=None,
@@ -375,7 +395,7 @@ def generate_private_debt() -> pd.DataFrame:
              price_vol=0.002, fx_rate=1.0, country='DE',
              rating='B+', maturity='2029-06-30', adv_eur=0,
              esg_score=45, env_score=42, soc_score=47, gov_score=46,
-             carbon_intensity=98.3, controversy_flag=False,),
+             carbon_intensity=98.3, controversy_flag=False),
 
         dict(fund_id='AIFM_PrivateDebt', fund_name='AIFM Private Debt',
              isin='XS9876543212', bloomberg_ticker=None,
@@ -417,8 +437,7 @@ def generate_private_debt() -> pd.DataFrame:
              price_vol=0.006, fx_rate=0.89, country='US',
              rating='BB-', maturity='2032-08-19', adv_eur=5e6,
              esg_score=48, env_score=44, soc_score=51, gov_score=49,
-             controversy_flag=True, carbon_intensity=285.4,
-          ),
+             controversy_flag=True, carbon_intensity=285.4),
 
         # --- CLO Tranches ---
         dict(fund_id='AIFM_PrivateDebt', fund_name='AIFM Private Debt',
@@ -457,8 +476,7 @@ def generate_private_debt() -> pd.DataFrame:
              instrument_name='Cash EUR',
              asset_class='Cash', sub_asset_class='Cash',
              currency='EUR', quantity=8000000, price=1.0,
-             price_vol=0.0, fx_rate=1.0, country='LU',
-             adv_eur=0,
+             price_vol=0.0, fx_rate=1.0, country='LU', adv_eur=0,
              esg_score=None, env_score=None, soc_score=None, gov_score=None,
              controversy_flag=None, carbon_intensity=None),
 
@@ -485,8 +503,7 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='Office Tower Luxembourg City',
              asset_class='Real Estate', sub_asset_class='Direct Property',
              currency='EUR', quantity=1, price=45000000,
-             price_vol=0.0, fx_rate=1.0, country='LU',
-             adv_eur=0,
+             price_vol=0.0, fx_rate=1.0, country='LU', adv_eur=0,
              ltv_pct=42.5, rental_yield_pct=4.2,
              vacancy_rate_pct=8.5, property_type='Office',
              valuation_date='2026-03-31', is_direct_property=True,
@@ -498,8 +515,7 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='Logistics Park Frankfurt',
              asset_class='Real Estate', sub_asset_class='Direct Property',
              currency='EUR', quantity=1, price=32000000,
-             price_vol=0.0, fx_rate=1.0, country='DE',
-             adv_eur=0,
+             price_vol=0.0, fx_rate=1.0, country='DE', adv_eur=0,
              ltv_pct=38.2, rental_yield_pct=5.1,
              vacancy_rate_pct=2.0, property_type='Logistics',
              valuation_date='2026-03-31', is_direct_property=True,
@@ -511,8 +527,7 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='Retail Centre Paris',
              asset_class='Real Estate', sub_asset_class='Direct Property',
              currency='EUR', quantity=1, price=28000000,
-             price_vol=0.0, fx_rate=1.0, country='FR',
-             adv_eur=0,
+             price_vol=0.0, fx_rate=1.0, country='FR', adv_eur=0,
              ltv_pct=55.0, rental_yield_pct=3.8,
              vacancy_rate_pct=15.0, property_type='Retail',
              valuation_date='2026-03-31', is_direct_property=True,
@@ -524,8 +539,7 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='Residential Complex Amsterdam',
              asset_class='Real Estate', sub_asset_class='Direct Property',
              currency='EUR', quantity=1, price=22000000,
-             price_vol=0.0, fx_rate=1.0, country='NL',
-             adv_eur=0,
+             price_vol=0.0, fx_rate=1.0, country='NL', adv_eur=0,
              ltv_pct=48.0, rental_yield_pct=3.2,
              vacancy_rate_pct=3.5, property_type='Residential',
              valuation_date='2026-03-31', is_direct_property=True,
@@ -559,8 +573,8 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='USD/EUR Forward 6M',
              asset_class='FX', sub_asset_class='Forward',
              currency='EUR', quantity=5000000, price=0.8902,
-             price_vol=0.006, fx_rate=1.0, country='',
-             adv_eur=0, is_direct_property=False,
+             price_vol=0.006, fx_rate=1.0, country='', adv_eur=0,
+             is_direct_property=False,
              esg_score=None, env_score=None, soc_score=None, gov_score=None,
              controversy_flag=None, carbon_intensity=None),
 
@@ -570,8 +584,8 @@ def generate_real_estate() -> pd.DataFrame:
              instrument_name='Cash EUR',
              asset_class='Cash', sub_asset_class='Cash',
              currency='EUR', quantity=15000000, price=1.0,
-             price_vol=0.0, fx_rate=1.0, country='LU',
-             adv_eur=0, is_direct_property=False,
+             price_vol=0.0, fx_rate=1.0, country='LU', adv_eur=0,
+             is_direct_property=False,
              esg_score=None, env_score=None, soc_score=None, gov_score=None,
              controversy_flag=None, carbon_intensity=None),
     ]
@@ -583,6 +597,11 @@ def generate_real_estate() -> pd.DataFrame:
 # Fund 4: UCITS Balanced
 # NAV: EUR 500m, equity ETFs, IG bonds, government bonds, gold
 # ----------------------------------------------------------------
+
+# Note: price fields for YF_MAP instruments (SPY, AAPL, MSFT, JPM, TSLA,
+# NVDA, GLD, TLT, HYG, SX5E, EURUSD, GBPUSD) are ignored at runtime.
+# Real price history is loaded from data/yf_cache/ via _fetch_yf_prices.
+# Hardcoded values are kept as approximate entry level documentation only.
 
 def generate_ucits_balanced() -> pd.DataFrame:
 
@@ -685,6 +704,7 @@ def generate_ucits_balanced() -> pd.DataFrame:
 
     return make_positions_df(positions, DATES)
 
+
 # ----------------------------------------------------------------
 # Main: generate all four files
 # ----------------------------------------------------------------
@@ -692,7 +712,7 @@ def generate_ucits_balanced() -> pd.DataFrame:
 if __name__ == '__main__':
 
     funds = {
-        'AIFM_HedgeFund' : generate_hedge_fund,
+        'AIFM_HedgeFund'  : generate_hedge_fund,
         'AIFM_PrivateDebt': generate_private_debt,
         'AIFM_RealEstate' : generate_real_estate,
         'UCITS_Balanced'  : generate_ucits_balanced,
@@ -704,7 +724,6 @@ if __name__ == '__main__':
         filename = f'{OUTPUT_DIR}/fund_positions_{fund_name}.xlsx'
         df.to_excel(filename, index=False)
 
-        # summary
         latest = df[df['date'] == df['date'].max()]
         nav    = latest['market_value_eur'].sum()
         print(f'  positions : {len(latest)}')

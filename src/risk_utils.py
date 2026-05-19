@@ -1680,96 +1680,74 @@ def liquidity_adjusted_var(
 # ---------------------------------------------------------------------------
 
 def compute_pnl_attribution(
-    positions_df: pd.DataFrame,
+    positions_history_df: pd.DataFrame,
     market_moves_df: pd.DataFrame,
     pnl_actual_series: pd.Series,
 ) -> pd.DataFrame:
     """
     Sensitivity-based daily P&L attribution.
 
-    Used for hedge fund (AIFMD Article 15) and UCITS (internal governance).
-
     Parameters
     ----------
-    positions_df : pd.DataFrame
-        Enriched positions for a single date with columns:
-            isin, asset_class, currency, market_value_eur,
-            beta          (equity beta to benchmark; NaN for non-equity),
-            dur_adj_mid   (modified duration; NaN for non-rates)
-
+    positions_history_df : pd.DataFrame
+        Daily positions with columns: date, isin, asset_class, currency,
+        market_value_eur, beta, dur_adj_mid.
+        One row per position per date.
     market_moves_df : pd.DataFrame
-        Daily market moves, DatetimeIndex, columns:
-            r_market   daily benchmark return (decimal)
-            dy         daily parallel yield curve shift (decimal)
-            r_fx_USD   daily USD/EUR return (and any other foreign ccys)
-
+        Daily market moves with DatetimeIndex and columns:
+        r_market, dy, r_fx_USD
     pnl_actual_series : pd.Series
         Daily actual P&L in EUR, DatetimeIndex.
-        Source: query_nav_history() pnl_eur column.
-
-    Returns
-    -------
-    pd.DataFrame indexed by date, columns:
-        pnl_actual, pnl_equity, pnl_rates, pnl_fx,
-        pnl_explained, pnl_residual, pct_explained
     """
     BASE_CCY = 'EUR'
     fx_cols  = {c: c.replace('r_fx_', '').upper()
                 for c in market_moves_df.columns
                 if c.startswith('r_fx_')}
 
-    # Precompute position-level sensitivities once — positions are
-    # static (single snapshot). Market moves vary daily.
-    equity_contribs = []   # (beta * MV) per position
-    rates_contribs  = []   # (dur * MV) per position
-    fx_contribs     = {}   # ccy -> sum(MV) for that currency
-
-    for _, pos in positions_df.iterrows():
-        mv           = float(pos['market_value_eur'])
-        ccy          = str(pos.get('currency', BASE_CCY)).upper()
-        asset_class  = str(pos.get('asset_class', '')).strip()
-
-        # Equity attribution — equities and futures only
-        if asset_class in ('Equity',):
-            beta = pos.get('beta')
-            if pd.notna(beta) and beta != 0:
-                equity_contribs.append(float(beta) * mv)
-
-        # Rates attribution — bonds only
-        if asset_class in ('Bond',):
-            dur = pos.get('dur_adj_mid')
-            if pd.notna(dur) and dur != 0:
-                rates_contribs.append(float(dur) * mv)
-
-        # FX attribution — FX forwards and non-EUR bonds only
-        # Equity positions in USD are excluded: their USD exposure
-        # is captured via beta to a USD-denominated benchmark.
-        # Derivatives are excluded: no reliable linear FX sensitivity.
-        if ccy != BASE_CCY and asset_class in ('FX', 'Bond'):
-            fx_contribs[ccy] = fx_contribs.get(ccy, 0.0) + mv
-
-    sum_beta_mv = sum(equity_contribs)
-    sum_dur_mv  = sum(rates_contribs)
-
     rows = []
     for date, moves in market_moves_df.iterrows():
         r_market = float(moves.get('r_market', 0.0))
         dy       = float(moves.get('dy', 0.0))
 
-        pnl_equity = sum_beta_mv * r_market
-        pnl_rates  = -sum_dur_mv * dy
-        pnl_fx     = sum(
-            fx_contribs[ccy] * float(moves.get(col, 0.0))
-            for col, ccy in fx_cols.items()
-            if ccy in fx_contribs
-        )
+        # Use positions for this specific date
+        pos_today = positions_history_df[
+            positions_history_df['date'] == date
+        ]
+
+        if pos_today.empty:
+            continue
+
+        pnl_equity = 0.0
+        pnl_rates  = 0.0
+        pnl_fx     = 0.0
+
+        for _, pos in pos_today.iterrows():
+            mv         = float(pos['market_value_eur'])
+            ccy        = str(pos.get('currency', BASE_CCY)).upper()
+            asset_class= str(pos.get('asset_class', '')).strip()
+
+            if asset_class == 'Equity':
+                beta = pos.get('beta')
+                if pd.notna(beta) and beta != 0:
+                    pnl_equity += float(beta) * mv * r_market
+
+            if asset_class == 'Bond':
+                dur = pos.get('dur_adj_mid')
+                if pd.notna(dur) and dur != 0:
+                    pnl_rates += -float(dur) * dy * mv
+
+            if ccy != BASE_CCY and asset_class in ('FX', 'Bond'):
+                fx_col = f'r_fx_{ccy}'
+                r_fx   = float(moves.get(fx_col, 0.0))
+                pnl_fx += mv * r_fx
+
         pnl_explained = pnl_equity + pnl_rates + pnl_fx
         pnl_actual    = float(pnl_actual_series.get(date, float('nan')))
         pnl_residual  = pnl_actual - pnl_explained
 
         pct_explained = (
             abs(pnl_explained) / abs(pnl_actual)
-            if pd.notna(pnl_actual) and abs(pnl_actual) > 1e-6
+            if pd.notna(pnl_actual) and abs(pnl_actual) > 1_000
             else float('nan')
         )
 
