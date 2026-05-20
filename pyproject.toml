@@ -21,6 +21,7 @@ dependencies = [
     "ipykernel",
     "jupyterlab",
     "pytest",
+    "reportlab",
 ]
 
 [tool.setuptools.packages.find]
