@@ -18,8 +18,14 @@ from src.risk_utils import (
     stress_property, stress_rental, stress_ltv,
     days_to_liquidate, liquidity_buckets,
     redemption_stress, investor_concentration,
-    liquidity_adjusted_var, var_montecarlo, compute_pnl_attribution
+    liquidity_adjusted_var, var_montecarlo, compute_pnl_attribution,
+    pre_trade_check,
 )
+from src.risk_utils import (  # private helpers — tested directly
+    _ptc_apply_trade, _ptc_portfolio_var,
+    _check_ucits, _check_aifm_hf, _check_aifm_pd,
+)
+from src.database import get_engine
 
 
 # ----------------------------------------------------------------
@@ -859,3 +865,450 @@ class TestComputePnlAttribution:
         assert result['pct_explained'].iloc[0] == pytest.approx(
             12_000 / 14_000, rel=1e-4
         )
+
+
+# ================================================================
+# pre_trade_check — MRS-61
+# Breach tests use synthetic DataFrames; no DB required.
+# Integration test uses live ENGINE to verify clean trade passes.
+# ================================================================
+
+_ENGINE  = get_engine()
+_PTC_DATE = '2026-05-13'
+
+
+def _make_ucits_positions(nav: float = 10_000_000) -> pd.DataFrame:
+    """
+    10 equities at 5% + 8 bonds at 5% + 1 cash at 10% = 100% NAV.
+    Each issuer exactly 5% (not > 5%) → no 5/10/40 bucket exposure.
+    Cash at 10% (not > 10%) → no single-issuer breach; sum_above_5 = 10% < 40%.
+    VaR ≈ 11.6% (port_beta=0.50, port_dur=2.0); relative mult ≈ 0.96.
+    """
+    rows = []
+    for i in range(10):
+        rows.append({
+            'isin': f'EQ_{i:02d}', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav * 0.05, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': f'Corp_{i:02d}', 'adv_eur': 5_000_000.0,
+        })
+    for i in range(8):
+        rows.append({
+            'isin': f'BD_{i:02d}', 'asset_class': 'Bond', 'sub_asset_class': 'Govie',
+            'market_value_eur': nav * 0.05, 'beta': float('nan'), 'dur_adj_mid': 5.0,
+            'currency': 'EUR', 'issuer': f'Sovereign_{i:02d}', 'adv_eur': 50_000_000.0,
+        })
+    rows.append({
+        'isin': 'CASH_EUR', 'asset_class': 'Cash', 'sub_asset_class': '',
+        'market_value_eur': nav * 0.10, 'beta': float('nan'), 'dur_adj_mid': float('nan'),
+        'currency': 'EUR', 'issuer': None, 'adv_eur': float('nan'),
+    })
+    return pd.DataFrame(rows)
+
+
+def _make_hf_positions(nav: float = 50_000_000) -> pd.DataFrame:
+    """
+    8 equities at 10% each across 4 sectors (2 per sector) + 20% cash = 100% NAV.
+    Includes 'sector' column so sector_col='sector' is used in the check.
+    Gross/commitment leverage = 1.0x; max issuer = 10%; max sector = 20%. All within limits.
+    Long-only: no EU 236/2012 short-selling flags.
+    """
+    _SECTORS = ['Technology', 'Healthcare', 'Financials', 'Consumer Staples']
+    rows = []
+    for i in range(8):
+        rows.append({
+            'isin': f'HF_EQ_{i:02d}', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav * 0.10, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': f'HF_Corp_{i:02d}', 'sector': _SECTORS[i % 4],
+            'adv_eur': 10_000_000.0,
+        })
+    rows.append({
+        'isin': 'HF_CASH', 'asset_class': 'Cash', 'sub_asset_class': '',
+        'market_value_eur': nav * 0.20, 'beta': float('nan'), 'dur_adj_mid': float('nan'),
+        'currency': 'EUR', 'issuer': None, 'sector': 'Cash', 'adv_eur': float('nan'),
+    })
+    return pd.DataFrame(rows)
+
+
+def _make_pd_positions(nav: float = 20_000_000) -> pd.DataFrame:
+    """
+    6 senior loans at 15% each + 1 mezzanine (HY) at 10% = 100% NAV.
+    Max borrower: 15% < 20% ✓; HY exposure: 10% < 50% ✓; Unrated: 0% ✓.
+    """
+    return pd.DataFrame([
+        {'isin': 'LOAN_A', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 3.0,
+         'currency': 'EUR', 'issuer': 'BorrowerA', 'rating': 'BBB'},
+        {'isin': 'LOAN_B', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 3.0,
+         'currency': 'EUR', 'issuer': 'BorrowerB', 'rating': 'BBB+'},
+        {'isin': 'LOAN_C', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 3.5,
+         'currency': 'EUR', 'issuer': 'BorrowerC', 'rating': 'A-'},
+        {'isin': 'LOAN_D', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 3.5,
+         'currency': 'EUR', 'issuer': 'BorrowerD', 'rating': 'BBB-'},
+        {'isin': 'LOAN_E', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 4.0,
+         'currency': 'EUR', 'issuer': 'BorrowerE', 'rating': 'BBB'},
+        {'isin': 'LOAN_F', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+         'market_value_eur': nav * 0.15, 'beta': float('nan'), 'dur_adj_mid': 4.0,
+         'currency': 'EUR', 'issuer': 'BorrowerF', 'rating': 'BBB+'},
+        {'isin': 'LOAN_G', 'asset_class': 'Loan', 'sub_asset_class': 'Mezzanine',
+         'market_value_eur': nav * 0.10, 'beta': float('nan'), 'dur_adj_mid': 4.5,
+         'currency': 'EUR', 'issuer': 'BorrowerG', 'rating': 'BB'},
+    ])
+
+
+class TestPtcApplyTrade:
+
+    def test_new_position_added(self):
+        pos   = _make_ucits_positions()
+        trade = {
+            'isin': 'NEW_STOCK', 'direction': 'buy', 'quantity': 100,
+            'price_eur': 50.0, 'asset_class': 'Equity', 'sub_asset_class': 'Small Cap',
+        }
+        result = _ptc_apply_trade(pos, trade)
+        assert 'NEW_STOCK' in result['isin'].values
+        new_mv = result.loc[result['isin'] == 'NEW_STOCK', 'market_value_eur'].iloc[0]
+        assert new_mv == pytest.approx(5_000.0)
+
+    def test_existing_position_increased(self):
+        pos   = _make_ucits_positions()
+        orig  = pos.loc[pos['isin'] == 'EQ_00', 'market_value_eur'].iloc[0]
+        trade = {
+            'isin': 'EQ_00', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100_000.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        result = _ptc_apply_trade(pos, trade)
+        new_mv = result.loc[result['isin'] == 'EQ_00', 'market_value_eur'].iloc[0]
+        assert new_mv == pytest.approx(orig + 100_000.0)
+
+    def test_sell_reduces_position(self):
+        pos   = _make_ucits_positions()
+        orig  = pos.loc[pos['isin'] == 'EQ_00', 'market_value_eur'].iloc[0]
+        trade = {
+            'isin': 'EQ_00', 'direction': 'sell', 'quantity': 1,
+            'price_eur': 100_000.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        result = _ptc_apply_trade(pos, trade)
+        new_mv = result.loc[result['isin'] == 'EQ_00', 'market_value_eur'].iloc[0]
+        assert new_mv == pytest.approx(orig - 100_000.0)
+
+    def test_short_creates_negative_mv(self):
+        pos   = _make_ucits_positions()
+        trade = {
+            'isin': 'SHORT_NEW', 'direction': 'short', 'quantity': 100,
+            'price_eur': 50.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        result = _ptc_apply_trade(pos, trade)
+        new_mv = result.loc[result['isin'] == 'SHORT_NEW', 'market_value_eur'].iloc[0]
+        assert new_mv == pytest.approx(-5_000.0)
+
+
+class TestPtcPortfolioVar:
+
+    def test_equity_only_portfolio(self):
+        pos = pd.DataFrame([{
+            'isin': 'EQ', 'asset_class': 'Equity',
+            'market_value_eur': 1_000_000, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+        }])
+        nav = 1_000_000.0
+        var = _ptc_portfolio_var(pos, nav)
+        # beta=1, full NAV equity → vol = 1*0.010, 20-day 99% VaR = 0.01*sqrt(20)*2.3263
+        import numpy as np
+        expected = 0.010 * np.sqrt(20) * 2.3263
+        assert var == pytest.approx(expected, rel=1e-4)
+
+    def test_zero_nav_returns_zero(self):
+        pos = _make_ucits_positions()
+        assert _ptc_portfolio_var(pos, 0.0) == 0.0
+
+    def test_bond_only_portfolio(self):
+        pos = pd.DataFrame([{
+            'isin': 'BD', 'asset_class': 'Bond',
+            'market_value_eur': 1_000_000, 'beta': float('nan'), 'dur_adj_mid': 5.0,
+        }])
+        nav = 1_000_000.0
+        var = _ptc_portfolio_var(pos, nav)
+        # dur=5, full NAV → vol = 5*0.005 = 0.025
+        import numpy as np
+        expected = 0.025 * np.sqrt(20) * 2.3263
+        assert var == pytest.approx(expected, rel=1e-4)
+
+
+class TestCheckUcitsClean:
+
+    def test_clean_trade_no_breaches(self):
+        pos   = _make_ucits_positions()
+        nav   = float(pos['market_value_eur'].sum())
+        trade = {
+            'isin': 'NEW_EQ', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 1_000.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma          = _ptc_apply_trade(pos, trade)
+        breaches, metrics  = _check_ucits(pro_forma, nav, trade)
+        assert len(breaches) == 0
+
+    def test_required_metrics_returned(self):
+        pos   = _make_ucits_positions()
+        nav   = float(pos['market_value_eur'].sum())
+        trade = {
+            'isin': 'NEW_EQ', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_ucits(pro_forma, nav, trade)
+        for key in ['absolute_var_pct', 'relative_var_multiplier', 'reference_var_pct',
+                    'max_issuer_pct', 'sum_above_5pct_issuers', 'trade_eligible', 'borrowing_pct']:
+            assert key in metrics
+
+    def test_ineligible_asset_breaches(self):
+        pos   = _make_ucits_positions()
+        nav   = float(pos['market_value_eur'].sum())
+        trade = {
+            'isin': 'LOAN_X', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100_000.0, 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_ucits(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'eligible_assets_article_50' in checks
+
+    def test_5_10_40_single_issuer_breach(self):
+        # Build a portfolio where one issuer already sits at 9% NAV, then add more
+        nav = 10_000_000.0
+        pos = pd.DataFrame([
+            {
+                'isin': 'EQ_A', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+                'market_value_eur': nav * 0.09, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+                'currency': 'EUR', 'issuer': 'BigCo',
+            },
+            {
+                'isin': 'EQ_B', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+                'market_value_eur': nav * 0.91, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+                'currency': 'EUR', 'issuer': 'Others',
+            },
+        ])
+        trade = {
+            'isin': 'EQ_A', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.025,  # +2.5% NAV → BigCo = 11.5% → breaches 10%
+            'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'issuer': 'BigCo',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_ucits(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert '5_10_40_single_issuer_hard' in checks
+
+    def test_var_breach_high_beta(self):
+        # Portfolio of very high-beta equity → absolute VaR > 20%
+        nav = 10_000_000.0
+        pos = pd.DataFrame([{
+            'isin': 'EQ_HIGH', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav, 'beta': 4.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': 'HighBeta',
+        }])
+        trade = {
+            'isin': 'MORE_EQ', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 1_000.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_ucits(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'absolute_var_limit' in checks
+
+
+class TestCheckAifmHfClean:
+
+    def test_clean_trade_no_breaches(self):
+        pos   = _make_hf_positions()
+        nav   = 50_000_000.0
+        trade = {
+            'isin': 'NEW_EQ', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 1_000.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_hf(pro_forma, nav, trade)
+        assert len(breaches) == 0
+
+    def test_required_metrics_returned(self):
+        pos   = _make_hf_positions()
+        nav   = 50_000_000.0
+        trade = {
+            'isin': 'NEW_EQ', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_hf(pro_forma, nav, trade)
+        for key in ['gross_leverage', 'commitment_leverage', 'max_issuer_pct', 'max_sector_pct']:
+            assert key in metrics
+
+    def test_gross_leverage_breach(self):
+        nav = 50_000_000.0
+        pos = pd.DataFrame([{
+            'isin': 'LONG_A', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav * 2.90, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': 'IssuerA', 'adv_eur': 10_000_000,
+        }])
+        trade = {
+            'isin': 'LONG_B', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.20,  # +20% NAV → gross = 3.10x → breach
+            'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_hf(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'gross_leverage' in checks
+
+    def test_issuer_concentration_breach(self):
+        nav = 50_000_000.0
+        pos = pd.DataFrame([{
+            'isin': 'EQ_A', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav * 0.24, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': 'BigIssuer', 'adv_eur': 10_000_000,
+        }, {
+            'isin': 'EQ_B', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'market_value_eur': nav * 0.76, 'beta': 1.0, 'dur_adj_mid': float('nan'),
+            'currency': 'EUR', 'issuer': 'Others', 'adv_eur': 20_000_000,
+        }])
+        trade = {
+            'isin': 'EQ_A', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.03,  # +3% → BigIssuer = 27% → breach 25%
+            'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+            'issuer': 'BigIssuer',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_hf(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'issuer_concentration' in checks
+
+
+class TestCheckAifmPdClean:
+
+    def test_clean_trade_no_breaches(self):
+        pos   = _make_pd_positions()
+        nav   = float(pos['market_value_eur'].sum())
+        trade = {
+            'isin': 'LOAN_D', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.05, 'asset_class': 'Loan',
+            'sub_asset_class': 'Senior Secured', 'rating': 'BBB',
+            'issuer': 'BorrowerD',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_pd(pro_forma, nav, trade)
+        assert len(breaches) == 0
+
+    def test_required_metrics_returned(self):
+        pos   = _make_pd_positions()
+        nav   = float(pos['market_value_eur'].sum())
+        trade = {
+            'isin': 'LOAN_D', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 1_000.0, 'asset_class': 'Loan',
+            'sub_asset_class': 'Senior Secured', 'rating': 'BBB',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_pd(pro_forma, nav, trade)
+        for key in ['max_borrower_pct', 'hy_exposure_pct', 'unrated_exposure_pct']:
+            assert key in metrics
+
+    def test_single_borrower_breach(self):
+        nav = 20_000_000.0
+        pos = pd.DataFrame([{
+            'isin': 'LOAN_A', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+            'market_value_eur': nav * 0.19, 'beta': float('nan'), 'dur_adj_mid': 3.0,
+            'currency': 'EUR', 'issuer': 'BigBorrower', 'rating': 'BBB',
+        }, {
+            'isin': 'LOAN_B', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+            'market_value_eur': nav * 0.81, 'beta': float('nan'), 'dur_adj_mid': 3.0,
+            'currency': 'EUR', 'issuer': 'Others', 'rating': 'BBB',
+        }])
+        trade = {
+            'isin': 'LOAN_A', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.03,  # +3% → BigBorrower = 22% → breach 20%
+            'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+            'issuer': 'BigBorrower', 'rating': 'BBB',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_pd(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'single_borrower_concentration' in checks
+
+    def test_hy_exposure_breach(self):
+        nav = 20_000_000.0
+        pos = pd.DataFrame([{
+            'isin': 'HY_A', 'asset_class': 'Loan', 'sub_asset_class': 'Mezzanine',
+            'market_value_eur': nav * 0.49, 'beta': float('nan'), 'dur_adj_mid': 4.0,
+            'currency': 'EUR', 'issuer': 'SubA', 'rating': 'BB',
+        }, {
+            'isin': 'IG_A', 'asset_class': 'Loan', 'sub_asset_class': 'Senior Secured',
+            'market_value_eur': nav * 0.51, 'beta': float('nan'), 'dur_adj_mid': 3.0,
+            'currency': 'EUR', 'issuer': 'IG1', 'rating': 'BBB',
+        }])
+        trade = {
+            'isin': 'HY_B', 'direction': 'buy', 'quantity': 1,
+            'price_eur': nav * 0.05,  # +5% → HY = 54% → breach 50%
+            'asset_class': 'Loan', 'sub_asset_class': 'Mezzanine',
+            'issuer': 'SubB', 'rating': 'B+',
+        }
+        pro_forma         = _ptc_apply_trade(pos, trade)
+        breaches, metrics = _check_aifm_pd(pro_forma, nav, trade)
+        checks = [b['check'] for b in breaches]
+        assert 'hy_exposure_limit' in checks
+
+
+class TestPreTradeCheckIntegration:
+    """Integration tests against the live DB. Require a populated database."""
+
+    def test_returns_dict(self):
+        trade = {
+            'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 500.0, 'asset_class': 'Equity',
+            'sub_asset_class': 'Large Cap', 'beta': 1.0,
+        }
+        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        assert isinstance(result, dict)
+
+    def test_required_keys(self):
+        trade = {
+            'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 500.0, 'asset_class': 'Equity',
+            'sub_asset_class': 'Large Cap', 'beta': 1.0,
+        }
+        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        for key in ['passed', 'fund_id', 'fund_type', 'proposed_trade',
+                    'breaches', 'post_trade_metrics']:
+            assert key in result
+
+    def test_passed_is_bool(self):
+        trade = {
+            'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 500.0, 'asset_class': 'Equity',
+            'sub_asset_class': 'Large Cap', 'beta': 1.0,
+        }
+        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        assert isinstance(result['passed'], bool)
+
+    def test_breaches_is_list(self):
+        trade = {
+            'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 10,
+            'price_eur': 500.0, 'asset_class': 'Equity',
+            'sub_asset_class': 'Large Cap', 'beta': 1.0,
+        }
+        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        assert isinstance(result['breaches'], list)
+
+    def test_fund_type_ucits(self):
+        trade = {
+            'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        assert result['fund_type'] == 'ucits'
+
+    def test_unsupported_fund_raises(self):
+        trade = {
+            'isin': 'X', 'direction': 'buy', 'quantity': 1,
+            'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
+        }
+        with pytest.raises(ValueError, match='not supported'):
+            pre_trade_check(_ENGINE, 'UNKNOWN_FUND', trade, _PTC_DATE)

@@ -1766,6 +1766,433 @@ def compute_pnl_attribution(
 
 
 # ================================================================
+# Pre-trade compliance
+# ================================================================
+
+_SIGMA_MARKET   = 0.010    # daily equity market vol (1%)
+_SIGMA_RATES    = 0.005    # daily rate vol (50bps)
+_Z99            = 2.3263   # norm.ppf(0.99)
+_HOLDING_DAYS   = 20       # UCITS holding period (days)
+
+_UCITS_INELIGIBLE = frozenset({
+    'Loan', 'CLO', 'ABS', 'MBS', 'CMBS', 'CDO',
+    'Real Estate', 'Property', 'Private Equity',
+})
+
+_HY_SUB_CLASSES = frozenset({
+    'HY Corporate', 'Second Lien', 'Mezzanine', 'CLO BB', 'CLO Equity',
+})
+_HY_RATINGS = frozenset({
+    'BB+', 'BB', 'BB-', 'B+', 'B', 'B-',
+    'CCC+', 'CCC', 'CCC-', 'CC', 'C', 'D',
+})
+
+
+def _ptc_apply_trade(positions: pd.DataFrame, trade: dict) -> pd.DataFrame:
+    """Return pro-forma positions after applying the proposed trade."""
+    direction = trade['direction'].lower()
+    mv_delta  = float(trade['quantity']) * float(trade['price_eur'])
+    if direction in ('sell', 'short'):
+        mv_delta = -mv_delta
+
+    pro_forma = positions.copy()
+    mask = pro_forma['isin'] == trade['isin']
+
+    if mask.any():
+        pro_forma.loc[mask, 'market_value_eur'] += mv_delta
+    else:
+        new_row = {col: None for col in pro_forma.columns}
+        new_row.update({
+            'isin'              : trade['isin'],
+            'asset_class'       : trade.get('asset_class', 'Equity'),
+            'sub_asset_class'   : trade.get('sub_asset_class', ''),
+            'market_value_eur'  : mv_delta,
+            'beta'              : trade.get('beta', 1.0),
+            'dur_adj_mid'       : trade.get('dur_adj_mid', 0.0),
+            'currency'          : trade.get('currency', 'EUR'),
+            'adv_eur'           : trade.get('adv_eur', 0.0),
+            'is_direct_property': False,
+        })
+        pro_forma = pd.concat(
+            [pro_forma, pd.DataFrame([new_row])], ignore_index=True
+        )
+    return pro_forma
+
+
+def _ptc_portfolio_var(pro_forma: pd.DataFrame, nav: float) -> float:
+    """
+    20-day 99% parametric VaR as decimal fraction of NAV.
+    Equity: beta-weighted. Rates: duration-weighted. Components independent.
+    """
+    if nav == 0:
+        return 0.0
+    eq = pro_forma[pro_forma['asset_class'] == 'Equity']
+    bd = pro_forma[pro_forma['asset_class'] == 'Bond']
+    port_beta = (eq['beta'].fillna(0) * eq['market_value_eur']).sum() / nav
+    port_dur  = (bd['dur_adj_mid'].fillna(0) * bd['market_value_eur']).sum() / nav
+    sigma = np.sqrt(
+        (port_beta * _SIGMA_MARKET) ** 2 +
+        (port_dur  * _SIGMA_RATES)  ** 2
+    )
+    return float(sigma * np.sqrt(_HOLDING_DAYS) * _Z99)
+
+
+def _ptc_reference_var() -> float:
+    """20-day 99% VaR for 60/40 reference portfolio (beta=1, 5yr duration)."""
+    sigma = np.sqrt(
+        (0.60 * _SIGMA_MARKET)       ** 2 +
+        (0.40 * 5.0 * _SIGMA_RATES)  ** 2
+    )
+    return float(sigma * np.sqrt(_HOLDING_DAYS) * _Z99)
+
+
+def _ptc_issuer_exposure(pro_forma: pd.DataFrame, nav: float) -> pd.Series:
+    """Issuer exposure as % of NAV. Uses 'issuer' column if present, else 'isin'."""
+    key = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
+    return (
+        pro_forma
+        .groupby(pro_forma[key].fillna(pro_forma['isin']))['market_value_eur']
+        .sum() / nav * 100
+    )
+
+
+def _breach(check: str, limit: float, actual: float,
+            unit: str, message: str) -> dict:
+    return {
+        'check'  : check,
+        'limit'  : limit,
+        'actual' : round(actual, 4),
+        'unit'   : unit,
+        'message': message,
+    }
+
+
+def _check_ucits(
+    pro_forma: pd.DataFrame, nav: float, trade: dict
+) -> tuple:
+    breaches: list = []
+    metrics:  dict = {}
+
+    # [1] Absolute VaR < 20% NAV (UCITS 20-day, 99%)
+    abs_var = _ptc_portfolio_var(pro_forma, nav)
+    metrics['absolute_var_pct'] = abs_var
+    if abs_var > 0.20:
+        breaches.append(_breach(
+            'absolute_var_limit', 0.20, abs_var, '% NAV (decimal)',
+            f'Post-trade absolute VaR {abs_var:.2%} exceeds UCITS limit 20.00% NAV '
+            f'(UCITS SRRI, 20-day, 99%)'
+        ))
+
+    # [2] Relative VaR < 2x reference portfolio
+    ref_var  = _ptc_reference_var()
+    rel_mult = abs_var / ref_var if ref_var > 0 else 0.0
+    metrics['relative_var_multiplier'] = rel_mult
+    metrics['reference_var_pct']       = ref_var
+    if rel_mult > 2.0:
+        breaches.append(_breach(
+            'relative_var_limit', 2.0, rel_mult, 'x reference',
+            f'Post-trade VaR is {rel_mult:.2f}x reference portfolio '
+            f'(60/40 benchmark), limit 2.0x'
+        ))
+
+    # [3] 5/10/40 rule (UCITSD Article 52)
+    issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
+    above_10   = issuer_exp[issuer_exp > 10.0]
+    above_5    = issuer_exp[issuer_exp >  5.0]
+    sum_above_5 = float(above_5.sum())
+    metrics['max_issuer_pct']      = float(issuer_exp.max()) if len(issuer_exp) else 0.0
+    metrics['sum_above_5pct_issuers'] = sum_above_5
+    for issuer, pct in above_10.items():
+        breaches.append(_breach(
+            '5_10_40_single_issuer_hard', 10.0, float(pct), '% NAV',
+            f'Issuer {issuer}: {pct:.1f}% NAV — exceeds 10% hard limit (5/10/40 rule)'
+        ))
+    if sum_above_5 > 40.0:
+        breaches.append(_breach(
+            '5_10_40_bucket_limit', 40.0, sum_above_5, '% NAV',
+            f'Positions >5% NAV aggregate to {sum_above_5:.1f}% — exceeds 40% bucket limit'
+        ))
+
+    # [4] Eligible assets (UCITSD Article 50)
+    asset_class = trade.get('asset_class', '')
+    metrics['trade_eligible'] = asset_class not in _UCITS_INELIGIBLE
+    if asset_class in _UCITS_INELIGIBLE:
+        breaches.append(_breach(
+            'eligible_assets_article_50', 1.0, 0.0, 'flag',
+            f'{asset_class} ({trade.get("sub_asset_class","")}) is ineligible '
+            f'under UCITSD Article 50 — fund cannot hold this instrument'
+        ))
+
+    # [5] Counterparty exposure (OTC derivatives)
+    cpty       = trade.get('counterparty')
+    cpty_type  = trade.get('counterparty_type', 'non_credit_institution')
+    cpty_limit = 0.10 if cpty_type == 'credit_institution' else 0.05
+    if cpty and trade.get('asset_class') == 'Derivative':
+        trade_mv_pct = abs(trade['quantity'] * trade['price_eur']) / nav if nav else 0.0
+        metrics[f'counterparty_{cpty}_pct'] = trade_mv_pct
+        if trade_mv_pct > cpty_limit:
+            breaches.append(_breach(
+                'counterparty_exposure', cpty_limit * 100,
+                trade_mv_pct * 100, '% NAV',
+                f'OTC counterparty {cpty} ({cpty_type}): {trade_mv_pct:.1%} NAV — '
+                f'exceeds {cpty_limit:.0%} limit'
+            ))
+
+    # [6] Borrowing limit < 10% NAV (UCITSD Article 83 — temporary borrowing only)
+    # Proxy: negative cash balances. Real borrowing tracked via prime broker/custodian.
+    cash_borrow = pro_forma.loc[
+        (pro_forma['asset_class'] == 'Cash') &
+        (pro_forma['market_value_eur'] < 0),
+        'market_value_eur'
+    ].sum()
+    borrow_pct = abs(cash_borrow) / nav if nav else 0.0
+    metrics['borrowing_pct'] = borrow_pct
+    if borrow_pct > 0.10:
+        breaches.append(_breach(
+            'borrowing_limit', 10.0, borrow_pct * 100, '% NAV',
+            f'Temporary borrowing {borrow_pct:.1%} NAV exceeds UCITSD Article 83 limit 10%'
+        ))
+
+    return breaches, metrics
+
+
+def _check_aifm_hf(
+    pro_forma: pd.DataFrame, nav: float, trade: dict
+) -> tuple:
+    breaches: list = []
+    metrics:  dict = {}
+
+    # [1] Gross leverage < 300% NAV (EU 231/2013 gross method)
+    gross_lev = pro_forma['market_value_eur'].abs().sum() / nav if nav else 0.0
+    metrics['gross_leverage'] = gross_lev
+    if gross_lev > 3.00:
+        breaches.append(_breach(
+            'gross_leverage', 3.00, gross_lev, 'x NAV',
+            f'Post-trade gross leverage {gross_lev:.2f}x exceeds 300% NAV RMP limit'
+        ))
+
+    # [2] Commitment leverage < 200% NAV (EU 231/2013 commitment method)
+    # Simplified: |net long + net short| / nav. Proper method requires delta adjustment.
+    long_mv  = pro_forma.loc[pro_forma['market_value_eur'] > 0, 'market_value_eur'].sum()
+    short_mv = abs(pro_forma.loc[pro_forma['market_value_eur'] < 0, 'market_value_eur'].sum())
+    commit_lev = (long_mv + short_mv) / nav if nav else 0.0
+    metrics['commitment_leverage'] = commit_lev
+    if commit_lev > 2.00:
+        breaches.append(_breach(
+            'commitment_leverage', 2.00, commit_lev, 'x NAV',
+            f'Post-trade commitment leverage {commit_lev:.2f}x exceeds 200% NAV RMP limit'
+        ))
+
+    # [3] Single issuer concentration vs RMP limit (25% NAV)
+    issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
+    metrics['max_issuer_pct'] = float(issuer_exp.max()) if len(issuer_exp) else 0.0
+    for issuer, pct in issuer_exp[issuer_exp > 25.0].items():
+        breaches.append(_breach(
+            'issuer_concentration', 25.0, float(pct), '% NAV',
+            f'Issuer {issuer}: {pct:.1f}% NAV exceeds RMP single-issuer limit 25%'
+        ))
+
+    # [4] Sector concentration (30% NAV — RMP internal limit)
+    sector_col = 'sector' if 'sector' in pro_forma.columns else 'asset_class'
+    sector_exp = (
+        pro_forma
+        .groupby(pro_forma[sector_col].fillna('Unknown'))['market_value_eur']
+        .sum().abs() / nav * 100
+    )
+    metrics['max_sector_pct'] = float(sector_exp.max()) if len(sector_exp) else 0.0
+    for sector, pct in sector_exp[sector_exp > 30.0].items():
+        breaches.append(_breach(
+            'sector_concentration', 30.0, float(pct), '% NAV',
+            f'Sector {sector}: {pct:.1f}% NAV exceeds internal RMP limit 30%'
+        ))
+
+    # [5] Counterparty concentration
+    cpty       = trade.get('counterparty')
+    cpty_type  = trade.get('counterparty_type', 'non_credit_institution')
+    cpty_limit = 0.10 if cpty_type == 'credit_institution' else 0.05
+    if cpty and trade.get('asset_class') == 'Derivative':
+        trade_mv_pct = abs(trade['quantity'] * trade['price_eur']) / nav if nav else 0.0
+        metrics[f'counterparty_{cpty}_pct'] = trade_mv_pct
+        if trade_mv_pct > cpty_limit:
+            breaches.append(_breach(
+                'counterparty_exposure', cpty_limit * 100,
+                trade_mv_pct * 100, '% NAV',
+                f'OTC counterparty {cpty} ({cpty_type}): {trade_mv_pct:.1%} NAV — '
+                f'exceeds {cpty_limit:.0%} limit'
+            ))
+
+    # [6] Short selling (EU 236/2012) — net short > 0.2% NAV is reportable
+    key = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
+    net_pos  = (
+        pro_forma
+        .groupby(pro_forma[key].fillna(pro_forma['isin']))['market_value_eur']
+        .sum()
+    )
+    net_short = net_pos[net_pos < 0]
+    metrics['max_net_short_pct'] = float(
+        net_short.min() / nav * 100
+    ) if (len(net_short) and nav) else 0.0
+    for issuer, mv in net_short.items():
+        short_pct = abs(mv) / nav * 100 if nav else 0.0
+        if short_pct > 0.2:
+            breaches.append(_breach(
+                'short_selling_eu_236', 0.2, short_pct, '% NAV',
+                f'Net short {issuer}: {short_pct:.2f}% NAV — '
+                f'reportable threshold under EU 236/2012'
+            ))
+
+    # [7] Liquidity impact — weighted avg days-to-liquidate vs 30-day redemption proxy
+    REDEMPTION_HORIZON = 30
+    if 'adv_eur' in pro_forma.columns:
+        liq_df = days_to_liquidate(
+            pro_forma.assign(adv_eur=pro_forma['adv_eur'].fillna(0))
+        )
+        finite_liq = liq_df[np.isfinite(liq_df['days_to_liquidate'])]
+        total_abs  = finite_liq['market_value_eur'].abs().sum()
+        wtd_days   = (
+            (finite_liq['days_to_liquidate'] * finite_liq['market_value_eur'].abs()).sum()
+            / total_abs
+            if total_abs > 0 else 0.0
+        )
+        metrics['wtd_avg_days_to_liquidate'] = round(wtd_days, 1)
+        if wtd_days > REDEMPTION_HORIZON:
+            breaches.append(_breach(
+                'liquidity_impact', float(REDEMPTION_HORIZON), wtd_days, 'days',
+                f'Post-trade weighted avg days-to-liquidate {wtd_days:.1f} exceeds '
+                f'{REDEMPTION_HORIZON}-day redemption horizon'
+            ))
+
+    return breaches, metrics
+
+
+def _check_aifm_pd(
+    pro_forma: pd.DataFrame, nav: float, trade: dict
+) -> tuple:
+    breaches: list = []
+    metrics:  dict = {}
+
+    # [1] Single borrower concentration < 20% NAV
+    issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
+    metrics['max_borrower_pct'] = float(issuer_exp.max()) if len(issuer_exp) else 0.0
+    for issuer, pct in issuer_exp[issuer_exp > 20.0].items():
+        breaches.append(_breach(
+            'single_borrower_concentration', 20.0, float(pct), '% NAV',
+            f'Borrower {issuer}: {pct:.1f}% NAV exceeds 20% single-borrower limit'
+        ))
+
+    # [2] HY exposure < 50% NAV
+    sub_cls = (
+        pro_forma['sub_asset_class']
+        if 'sub_asset_class' in pro_forma.columns
+        else pd.Series('', index=pro_forma.index)
+    )
+    rating = (
+        pro_forma['rating']
+        if 'rating' in pro_forma.columns
+        else pd.Series('', index=pro_forma.index)
+    )
+    hy_mask   = sub_cls.isin(_HY_SUB_CLASSES) | rating.fillna('').isin(_HY_RATINGS)
+    hy_exp_pct = pro_forma.loc[hy_mask, 'market_value_eur'].sum() / nav * 100 if nav else 0.0
+    metrics['hy_exposure_pct'] = hy_exp_pct
+    if hy_exp_pct > 50.0:
+        breaches.append(_breach(
+            'hy_exposure_limit', 50.0, hy_exp_pct, '% NAV',
+            f'HY exposure {hy_exp_pct:.1f}% NAV exceeds 50% limit'
+        ))
+
+    # [3] Unrated exposure < 10% NAV
+    unrated_mask = (sub_cls == 'Unrated') | rating.fillna('NR').isin({'NR', ''})
+    unrated_pct  = pro_forma.loc[unrated_mask, 'market_value_eur'].sum() / nav * 100 if nav else 0.0
+    metrics['unrated_exposure_pct'] = unrated_pct
+    if unrated_pct > 10.0:
+        breaches.append(_breach(
+            'unrated_exposure_limit', 10.0, unrated_pct, '% NAV',
+            f'Unrated exposure {unrated_pct:.1f}% NAV exceeds 10% limit'
+        ))
+
+    return breaches, metrics
+
+
+def pre_trade_check(
+    engine,
+    fund_id: str,
+    proposed_trade: dict,
+    date: str,
+) -> dict:
+    """
+    Pre-trade compliance check for UCITS and AIFM funds.
+
+    Loads the current enriched portfolio, applies the proposed trade
+    to produce a pro-forma positions DataFrame, then runs fund-type-specific
+    compliance checks. Returns a pass/fail result with breach detail and
+    all post-trade metrics.
+
+    Parameters
+    ----------
+    engine : sa.Engine
+    fund_id : str
+        One of: 'UCITS_Balanced', 'AIFM_HedgeFund', 'AIFM_PrivateDebt'.
+    proposed_trade : dict
+        Required keys: isin, direction ('buy'|'sell'|'short'),
+                       quantity, price_eur, asset_class, sub_asset_class.
+        Optional keys: rating, beta, dur_adj_mid, currency, issuer,
+                       counterparty, counterparty_type, adv_eur.
+    date : str
+        Valuation date for loading current positions.
+
+    Returns
+    -------
+    dict with keys:
+        passed             bool
+        fund_id            str
+        fund_type          str   — 'ucits' | 'aifm_hf' | 'aifm_pd'
+        proposed_trade     dict
+        breaches           list[dict]  — empty if passed
+        post_trade_metrics dict        — all computed values
+
+    Regulatory context
+    ------------------
+    UCITS checks: UCITSD Articles 50, 52, 83; CSSF SRRI framework.
+    AIFM HF:      AIFMD Article 15, EU 231/2013 Articles 6-8.
+    AIFM PD:      AIFMD Article 15, internal RMP concentration limits.
+    Short selling: EU Regulation 236/2012.
+    """
+    from src.enrichment import get_risk_ready_df
+
+    _FUND_TYPE = {
+        'UCITS_Balanced'   : 'ucits',
+        'AIFM_HedgeFund'   : 'aifm_hf',
+        'AIFM_PrivateDebt' : 'aifm_pd',
+    }
+    fund_type = _FUND_TYPE.get(fund_id)
+    if fund_type is None:
+        raise ValueError(
+            f"pre_trade_check: '{fund_id}' not supported. "
+            f"Supported fund_ids: {list(_FUND_TYPE)}"
+        )
+
+    positions = get_risk_ready_df(engine, fund_id, date)
+    nav       = float(positions['market_value_eur'].sum())
+    pro_forma = _ptc_apply_trade(positions, proposed_trade)
+
+    if fund_type == 'ucits':
+        breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
+    elif fund_type == 'aifm_hf':
+        breaches, metrics = _check_aifm_hf(pro_forma, nav, proposed_trade)
+    else:
+        breaches, metrics = _check_aifm_pd(pro_forma, nav, proposed_trade)
+
+    return {
+        'passed'            : len(breaches) == 0,
+        'fund_id'           : fund_id,
+        'fund_type'         : fund_type,
+        'proposed_trade'    : proposed_trade,
+        'breaches'          : breaches,
+        'post_trade_metrics': metrics,
+    }
+
+
+# ================================================================
 # Public API
 # ================================================================
 
@@ -1803,5 +2230,6 @@ __all__ = [
     'liquidity_adjusted_var',
     # attribution
     'compute_pnl_attribution',
-
+    # pre-trade compliance
+    'pre_trade_check',
 ]
