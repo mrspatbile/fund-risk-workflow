@@ -8,7 +8,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from src.esg_utils import (
-    build_esg_df, esg_portfolio_summary,
+    build_esg_df, esg_portfolio_summary, build_private_esg_df,
     ESG_FIELDS, ESG_THRESHOLD
 )
 from src.mock_bloomberg import MockBloomberg
@@ -19,6 +19,8 @@ from src.enrichment import get_risk_ready_df
 ENGINE  = get_engine()
 BBG     = MockBloomberg()
 DATE    = '2026-05-13'
+QUARTER = '2026-03-31'   # last quarter-end before VALUATION_DATE
+
 
 
 @pytest.fixture
@@ -91,3 +93,68 @@ class TestEsgPortfolioSummary:
 
     def test_esg_threshold_constant(self):
         assert ESG_THRESHOLD == 30
+
+
+class TestBuildPrivateEsgDf:
+
+    _LISTED_COLS = {
+        'instrument_name', 'asset_class', 'market_value_eur',
+        'esg_score', 'env_score', 'soc_score', 'gov_score',
+        'controversy_flag', 'carbon_intensity', 'esg_exposure_eur',
+    }
+
+    def test_pe_returns_dataframe(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        assert isinstance(df, pd.DataFrame)
+
+    def test_pe_columns_include_listed_cols(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        for col in self._LISTED_COLS:
+            assert col in df.columns, f"Missing column: {col}"
+
+    def test_pe_extra_columns_present(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        assert 'esg_reporter' in df.columns
+        assert 'esg_report_date' in df.columns
+
+    def test_pe_esg_reporter_not_null(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        assert df['esg_reporter'].notna().all()
+
+    def test_pe_asset_class(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        assert (df['asset_class'] == 'Private Equity').all()
+
+    def test_pe_exposure_nonnegative(self):
+        df = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        assert (df['esg_exposure_eur'] >= 0).all()
+
+    def test_pe_portfolio_summary_works(self):
+        df  = build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'pe', ENGINE)
+        nav = df['esg_exposure_eur'].sum()
+        summary = esg_portfolio_summary(df, nav)
+        assert isinstance(summary, dict)
+        assert 'wav_esg' in summary
+        assert 0 <= summary['wav_esg'] <= 100
+
+    def test_infra_columns_include_listed_cols(self):
+        df = build_private_esg_df('AIFM_Infra_Core', QUARTER, 'infra', ENGINE)
+        for col in self._LISTED_COLS:
+            assert col in df.columns, f"Missing column: {col}"
+
+    def test_infra_extra_columns_present(self):
+        df = build_private_esg_df('AIFM_Infra_Core', QUARTER, 'infra', ENGINE)
+        assert 'esg_reporter' in df.columns
+        assert 'esg_report_date' in df.columns
+
+    def test_infra_esg_reporter_not_null(self):
+        df = build_private_esg_df('AIFM_Infra_Core', QUARTER, 'infra', ENGINE)
+        assert df['esg_reporter'].notna().all()
+
+    def test_infra_asset_class(self):
+        df = build_private_esg_df('AIFM_Infra_Core', QUARTER, 'infra', ENGINE)
+        assert (df['asset_class'] == 'Infrastructure').all()
+
+    def test_invalid_asset_type_raises(self):
+        with pytest.raises(ValueError, match="asset_type"):
+            build_private_esg_df('AIFM_PE_Buyout', QUARTER, 'listed', ENGINE)

@@ -8,6 +8,9 @@ Functions
 build_esg_df(risk_df, bbg, engine, fund_id, date)
     Builds position-level ESG DataFrame with look-through for derivatives.
 
+build_private_esg_df(fund_id, quarter, asset_type, engine)
+    Builds position-level ESG DataFrame for private asset funds (PE or infrastructure).
+
 esg_portfolio_summary(esg_df, nav)
     Computes portfolio-level weighted ESG metrics and flags.
 
@@ -16,9 +19,17 @@ ESG_THRESHOLD : int
     Not prescribed by regulation; defined in the Risk Management Policy.
 """
 
+import json
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
-from src.database import query_positions
+from src.database import (
+    query_positions,
+    PEValuationReport, PEPortfolioCompany, PEFundInvestment,
+    InfraValuationReport, InfraAsset, InfraFundInvestment,
+)
+from sqlalchemy.orm import Session
 
 ESG_THRESHOLD = 30
 
@@ -32,7 +43,7 @@ def build_esg_df(
     engine,
     fund_id: str,
     date: str,
-) -> pd.DataFrame:
+    ) -> pd.DataFrame:
     """
     Build position-level ESG DataFrame with look-through for derivatives.
 
@@ -109,11 +120,143 @@ def build_esg_df(
 
     return pd.DataFrame(esg_rows)
 
+def build_private_esg_df(
+    fund_id: str,
+    quarter: str,
+    asset_type: str,
+    engine,
+    ) -> pd.DataFrame:
+    """
+    Build position-level ESG DataFrame for private asset funds.
+
+    Parallel to build_esg_df() for listed funds. Output columns are a superset
+    of build_esg_df() output so esg_portfolio_summary() can consume both without
+    changes. ESG scores come from reference_data/esg_scores.json, keyed by
+    company_id (PE) or asset_id (infra), simulating fund-admin or independent
+    appraiser data.
+
+    The esg_reporter column identifies the data source so the notebook can flag
+    manager estimates vs third-party assessors. A manager estimate is less
+    reliable than an independent appraiser and should be noted in reporting.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier, e.g. 'AIFM_PE_Buyout' or 'AIFM_Infra_Core'.
+    quarter : str
+        Quarter-end date string, e.g. '2026-03-31'. Must match a date in the
+        valuation report table.
+    asset_type : str
+        'pe' or 'infra'.
+    engine : sa.Engine
+        SQLAlchemy engine.
+
+    Returns
+    -------
+    pd.DataFrame with columns:
+        instrument_name, asset_class, sub_asset_class, market_value_eur,
+        weight_pct, esg_score, env_score, soc_score, gov_score,
+        controversy_flag, carbon_intensity, esg_exposure_eur,
+        esg_reporter, esg_report_date
+
+    Raises
+    ------
+    ValueError
+        If asset_type is not 'pe' or 'infra'.
+    """
+    if asset_type not in ('pe', 'infra'):
+        raise ValueError(
+            f"asset_type must be 'pe' or 'infra', got {asset_type!r}"
+        )
+
+    _esg_path = Path(__file__).parent.parent / 'reference_data' / 'esg_scores.json'
+    with open(_esg_path) as _f:
+        _esg_ref = json.load(_f)
+
+    rows = []
+
+    if asset_type == 'pe':
+        with Session(engine) as session:
+            reports = (
+                session.query(PEValuationReport)
+                .filter(
+                    PEValuationReport.fund_id == fund_id,
+                    PEValuationReport.date    == quarter,
+                )
+                .all()
+            )
+            companies = {
+                c.company_id: c
+                for c in session.query(PEPortfolioCompany).all()
+            }
+
+        total_nav = sum(r.appraised_nav_eur or 0.0 for r in reports)
+
+        for r in reports:
+            co  = companies.get(r.company_id)
+            esg = _esg_ref.get(r.company_id, {})
+            nav = r.appraised_nav_eur or 0.0
+            rows.append({
+                'instrument_name' : co.company_name if co else r.company_id,
+                'asset_class'     : 'Private Equity',
+                'sub_asset_class' : co.investment_stage if co else None,
+                'market_value_eur': nav,
+                'weight_pct'      : nav / total_nav * 100 if total_nav else 0.0,
+                'esg_score'       : esg.get('esg_score'),
+                'env_score'       : esg.get('env_score'),
+                'soc_score'       : esg.get('soc_score'),
+                'gov_score'       : esg.get('gov_score'),
+                'controversy_flag': esg.get('controversy_flag'),
+                'carbon_intensity': esg.get('carbon_intensity'),
+                'esg_exposure_eur': nav,
+                'esg_reporter'    : r.appraiser or 'Management estimate',
+                'esg_report_date' : r.date,
+            })
+
+    else:  # infra
+        with Session(engine) as session:
+            reports = (
+                session.query(InfraValuationReport)
+                .filter(
+                    InfraValuationReport.fund_id == fund_id,
+                    InfraValuationReport.date    == quarter,
+                )
+                .all()
+            )
+            assets = {
+                a.asset_id: a
+                for a in session.query(InfraAsset).all()
+            }
+
+        total_nav = sum(r.implied_equity_eur or 0.0 for r in reports)
+
+        for r in reports:
+            asset = assets.get(r.asset_id)
+            esg   = _esg_ref.get(r.asset_id, {})
+            nav   = r.implied_equity_eur or 0.0
+            rows.append({
+                'instrument_name' : asset.asset_name if asset else r.asset_id,
+                'asset_class'     : 'Infrastructure',
+                'sub_asset_class' : asset.sector if asset else None,
+                'market_value_eur': nav,
+                'weight_pct'      : nav / total_nav * 100 if total_nav else 0.0,
+                'esg_score'       : esg.get('esg_score'),
+                'env_score'       : esg.get('env_score'),
+                'soc_score'       : esg.get('soc_score'),
+                'gov_score'       : esg.get('gov_score'),
+                'controversy_flag': esg.get('controversy_flag'),
+                'carbon_intensity': esg.get('carbon_intensity'),
+                'esg_exposure_eur': nav,
+                'esg_reporter'    : r.appraiser or 'Independent appraiser',
+                'esg_report_date' : r.date,
+            })
+
+    return pd.DataFrame(rows)
 
 def esg_portfolio_summary(
     esg_df: pd.DataFrame,
     nav: float,
-) -> dict:
+    ) -> dict:
     """
     Compute portfolio-level weighted ESG metrics and flags.
 
