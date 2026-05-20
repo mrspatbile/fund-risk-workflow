@@ -1,12 +1,8 @@
 # manco-risk-mngmt
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Regulation](https://img.shields.io/badge/Regulation-AIFMD%20II-orange)
-![Framework](https://img.shields.io/badge/Framework-UCITS%20%7C%20AIFMD-blueviolet)
-![Data](https://img.shields.io/badge/Data-yfinance%20%7C%20SQLite-lightgrey)
 ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
-![SQLAlchemy](https://img.shields.io/badge/ORM-SQLAlchemy-red)
+![Regulation](https://img.shields.io/badge/Regulation-AIFMD%20II-orange)
 
 AIFM and UCITS risk management workflow for Luxembourg ManCos. VaR, ES, stress testing, liquidity risk, pre-trade compliance and regulatory reporting across six fund types including illiquid strategies. Simulated Bloomberg pipeline. SQLite via SQLAlchemy ORM. Python.
 
@@ -100,7 +96,7 @@ LMT trigger simulation covering gate, swing pricing and suspension across a 12-m
 
 **Liquidity monitoring dashboard**
 
-TO DO ![Liquidity monitoring](images/liquidity_monitoring.png)
+PLACEHOLDER for image
 
 *Fund-level liquidity bucket profiles, redemption stress scenarios, and investor concentration analysis.*
 
