@@ -96,9 +96,7 @@ LMT trigger simulation covering gate, swing pricing and suspension across a 12-m
 
 **Liquidity monitoring dashboard**
 
-PLACEHOLDER for image
-
-*Fund-level liquidity bucket profiles, redemption stress scenarios, and investor concentration analysis.*
+![Board risk liquidity overview](images/board_report_p4.png)
 
 ---
 
