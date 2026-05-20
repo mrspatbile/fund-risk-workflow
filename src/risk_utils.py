@@ -9,6 +9,7 @@ Regulatory context
 ------------------
     AIFMD        : Directive 2011/61/EU
     UCITS        : Directive 2009/65/EC
+    AIFMD II     : Directive 2024/927/EU (LMT tools — Article 16a)
     ESMA LST     : ESMA34-39-897 (liquidity stress testing)
     ESMA backt.  : ESMA34-43-392 (VaR backtesting)
     Annex VI     : AIFMD Level 2 stress testing framework
@@ -24,8 +25,8 @@ Usage
         stress_fx, stress_combined, stress_historical,
         stress_property, stress_rental, stress_ltv,
         days_to_liquidate, liquidity_buckets,
-        redemption_stress, investor_concentration,
-        liquidity_adjusted_var,
+        redemption_stress, lmt_trigger_analysis,
+        investor_concentration, liquidity_adjusted_var,
     )
 """
 
@@ -1496,6 +1497,220 @@ def redemption_stress(
         'can_meet_redemption' : bool(liquidity_gap >= 0),
         'recommendation'      : recommendation,
     }
+
+
+def lmt_trigger_analysis(
+    nav: float,
+    liquid_pct: float,
+    gate_threshold: float,
+    swing_threshold: float,
+    redemption_schedule: list,
+    consecutive_gate_for_suspension: int   = 3,
+    backlog_pct_for_suspension: float      = 0.25,
+    swing_factor: float                    = 0.005,
+    contagion_multiplier: float            = 1.0,
+) -> pd.DataFrame:
+    """
+    MRS-84: AIFMD II LMT time-series simulation.
+
+    Simulates 12 months of redemptions for an open-ended fund, modelling
+    gate activation, swing pricing, contagion feedback, and suspension
+    mechanics per the AIFMD II LMT framework (Directive 2024/927/EU,
+    Article 16a; ESMA Guidelines ESMA34-671404336-1364, April 2025).
+
+    The illiquid sleeve is treated as static (no return, no new investment).
+    The liquid sleeve shrinks as redemptions are paid. No new subscriptions.
+
+    Gate threshold semantics
+    ------------------------
+    The gate cap is expressed as a fraction of *total NAV*, consistent with
+    how fund documents define the gate (e.g. "redemptions shall not exceed
+    10% of NAV in any dealing period"). However, the fund can only pay what
+    it can actually liquidate, so the effective payment ceiling is:
+
+        gate_cap = min(gate_threshold * total_nav, liquid_nav)
+
+    This distinction matters for illiquid funds: a 10%-of-NAV gate on a fund
+    with only 15% liquid assets is contractually generous but practically
+    binding from month 1 of any stress scenario.
+
+    Contagion feedback
+    ------------------
+    When the gate was active in the previous month, remaining investors
+    rationally accelerate their own redemption requests to avoid being locked
+    in while others exit ahead of them. This is captured by scaling the
+    next period's gross redemption rate:
+
+        effective_gross_pct_t = min(schedule_t * contagion_multiplier, 1.0)
+            if gate was active in period t-1, else schedule_t
+
+    Typical calibration for institutional/sophisticated investor bases: 1.3–1.5.
+    Default 1.0 disables contagion (backward-compatible).
+
+    Suspension note
+    ---------------
+    Suspension is modelled as auto-triggering on two quantitative conditions.
+    Under AIFMD II and ESMA Guidelines (ESMA34-671404336-1364, April 2025),
+    actual suspension requires exceptional circumstances and a board decision
+    — it cannot be automatic. The auto-trigger here is a simulation
+    convenience for stress-testing purposes only.
+
+    Parameters
+    ----------
+    nav : float
+        Total fund NAV in EUR at month 0.
+    liquid_pct : float
+        Fraction of NAV in the liquid sleeve (0–1).
+    gate_threshold : float
+        Gate triggers when gross redemption demand exceeds this fraction of
+        *total NAV*. Paid redemptions are capped at min(gate_threshold *
+        total_nav, liquid_nav); excess is deferred into the backlog.
+    swing_threshold : float
+        Swing pricing activates when the gross (contagion-adjusted) redemption
+        rate exceeds this fraction of total NAV. Applies a dilution levy of
+        swing_factor to the effective NAV per unit, protecting remaining
+        investors from transaction-cost dilution.
+    redemption_schedule : list of float
+        12 base gross redemption requests, each as a fraction of *that
+        month's* total NAV before contagion scaling. len >= 12; only first
+        12 elements are used.
+    consecutive_gate_for_suspension : int
+        Number of consecutive months the gate must be active before the
+        suspension condition can be evaluated (AIFMD II Article 16a,
+        condition 1). Default 3.
+    backlog_pct_for_suspension : float
+        Outstanding backlog as a fraction of liquid NAV that must also be
+        breached simultaneously for suspension to trigger (condition 2).
+        Default 0.25 (25%).
+    swing_factor : float
+        Dilution levy when swing pricing is active, expressed as a fraction
+        of NAV per unit (e.g. 0.005 = 50 bps). Default 0.005.
+    contagion_multiplier : float
+        Scaling factor applied to the base redemption schedule in any month
+        immediately following a month in which the gate was active.
+        Default 1.0 (no contagion). Set to 1.3–1.5 for realistic open-ended
+        fund stress scenarios.
+
+    Returns
+    -------
+    pd.DataFrame with 12 rows and columns:
+        month                    : period number (1–12)
+        base_gross_pct           : raw schedule value before contagion (%)
+        effective_gross_pct      : contagion-adjusted gross rate actually used (%)
+        effective_gross_eur      : contagion-adjusted gross request in EUR
+        paid_eur                 : amount paid to redeeming investors this month
+        deferred_eur             : newly deferred from this month's gross request
+        backlog_eur              : cumulative unpaid balance carried forward
+        gate_active              : bool — gate in force this month
+        swing_active             : bool — swing pricing applied this month
+        suspension_active        : bool — suspension in force (simulation only)
+        consecutive_gate_months  : running count of consecutive gate months
+        liquid_nav_eur           : liquid sleeve at end of month
+        illiquid_nav_eur         : illiquid sleeve (static)
+        total_nav_eur            : liquid + illiquid at end of month
+
+    Examples
+    --------
+    >>> schedule = [0.05, 0.08, 0.12, 0.15, 0.10, 0.06,
+    ...             0.04, 0.03, 0.02, 0.02, 0.02, 0.01]
+    >>> df = lmt_trigger_analysis(
+    ...     nav=250e6, liquid_pct=0.70,
+    ...     gate_threshold=0.10, swing_threshold=0.05,
+    ...     redemption_schedule=schedule,
+    ...     contagion_multiplier=1.5)
+    >>> df[['month', 'effective_gross_pct', 'paid_eur',
+    ...     'gate_active', 'suspension_active']]
+    """
+    liquid_nav      = nav * liquid_pct
+    illiquid_nav    = nav * (1.0 - liquid_pct)
+    backlog         = 0.0
+    consec_gate     = 0
+    prev_gate       = False   # tracks whether gate was active last month
+    rows            = []
+
+    for month in range(1, 13):
+        total_nav     = liquid_nav + illiquid_nav
+        base_pct      = float(redemption_schedule[month - 1])
+
+        # contagion: scale up demand if gate fired last period
+        if prev_gate and contagion_multiplier != 1.0:
+            eff_pct = min(base_pct * contagion_multiplier, 1.0)
+        else:
+            eff_pct = base_pct
+
+        eff_eur = eff_pct * total_nav
+
+        # swing pricing: activates on effective gross rate
+        swing_active = eff_pct > swing_threshold
+        if swing_active:
+            # dilution levy adjusts effective NAV per unit upward,
+            # protecting remaining investors from transaction costs
+            effective_nav = total_nav * (1.0 + swing_factor)  # noqa: F841
+        else:
+            effective_nav = total_nav                          # noqa: F841
+
+        # gate cap: contractual limit (% of total NAV) floored by liquid sleeve
+        # — the fund cannot pay more than it can liquidate regardless of the
+        # contractual cap
+        contractual_cap = gate_threshold * total_nav
+        gate_cap_eur    = min(contractual_cap, liquid_nav)
+
+        # total demand this month = new contagion-adjusted requests + backlog
+        total_demand = eff_eur + backlog
+
+        # suspension check (evaluated before paying redemptions)
+        # Note: in practice requires a board decision (ESMA34-671404336-1364);
+        # auto-trigger here is a simulation simplification only.
+        suspension_active = (
+            consec_gate >= consecutive_gate_for_suspension
+            and (backlog / liquid_nav if liquid_nav > 0 else 0.0)
+                 >= backlog_pct_for_suspension
+        )
+
+        if suspension_active:
+            # no redemptions paid; all new requests accumulate in backlog
+            paid_eur     = 0.0
+            deferred_eur = eff_eur
+            gate_active  = True   # gate condition persists during suspension
+            consec_gate += 1
+        else:
+            if total_demand > gate_cap_eur:
+                gate_active  = True
+                paid_eur     = min(gate_cap_eur, total_demand)
+                # deferred = portion of this month's new gross not covered by
+                # remaining gate capacity after servicing old backlog
+                deferred_eur = max(0.0, eff_eur - max(0.0, gate_cap_eur - backlog))
+                consec_gate += 1
+            else:
+                gate_active  = False
+                paid_eur     = total_demand
+                deferred_eur = 0.0
+                consec_gate  = 0
+
+        prev_gate  = gate_active
+        backlog    = max(0.0, total_demand - paid_eur)
+
+        # liquid sleeve shrinks by the amount actually paid out
+        liquid_nav = max(0.0, liquid_nav - paid_eur)
+
+        rows.append({
+            'month'                  : month,
+            'base_gross_pct'         : round(base_pct * 100, 4),
+            'effective_gross_pct'    : round(eff_pct * 100, 4),
+            'effective_gross_eur'    : round(eff_eur, 2),
+            'paid_eur'               : round(paid_eur, 2),
+            'deferred_eur'           : round(deferred_eur, 2),
+            'backlog_eur'            : round(backlog, 2),
+            'gate_active'            : gate_active,
+            'swing_active'           : swing_active,
+            'suspension_active'      : suspension_active,
+            'consecutive_gate_months': consec_gate,
+            'liquid_nav_eur'         : round(liquid_nav, 2),
+            'illiquid_nav_eur'       : round(illiquid_nav, 2),
+            'total_nav_eur'          : round(liquid_nav + illiquid_nav, 2),
+        })
+
+    return pd.DataFrame(rows)
 
 
 def investor_concentration(
