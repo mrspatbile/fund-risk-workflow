@@ -48,42 +48,8 @@ from src.risk_utils import (
 
 warnings.filterwarnings('ignore')
 
-# ── colour palette ────────────────────────────────────────────────────────
-_C = {
-    'bg'      : '#0a0f1e',
-    'bg2'     : '#0f1729',
-    'bg3'     : '#1a1f2e',
-    'bg4'     : '#1d2235',
-    'panel'   : '#111827',
-    'border'  : '#374151',
-    'text'    : '#f9fafb',
-    'muted'   : '#9ca3af',
-    'dim'     : '#6b7280',
-    'cyan'    : '#1a9ed4',
-    'cyan2'   : '#38bdf8',
-    'green'   : '#22c55e',
-    'amber'   : '#f97316',
-    'red'     : '#ef4444',
-    'blue'    : '#3b82f6',
-    'purple'  : '#a855f7',
-    'rose'    : '#f43f5e',
-}
+from src.plot_style import C, BUCKET_COLORS, FUND_COLORS
 
-_BUCKET_COLORS = {
-    '1 day'      : _C['cyan'],
-    '2-7 days'   : _C['blue'],
-    '8-30 days'  : '#2563eb',
-    '31-90 days' : _C['amber'],
-    '91-365 days': '#ea580c',
-    '> 1 year'   : _C['red'],
-}
-
-_FUND_COLORS = {
-    'AIFM_HedgeFund'  : _C['cyan'],
-    'AIFM_PrivateDebt': _C['amber'],
-    'AIFM_RealEstate' : _C['green'],
-    'UCITS_Balanced'  : _C['blue'],
-}
 
 # ── fund configuration ────────────────────────────────────────────────────
 FUND_CONFIG: Dict[str, dict] = {
@@ -268,51 +234,51 @@ def _load_fund_metrics(
 
 def _fig(title: str, subtitle: str, date: str) -> plt.Figure:
     fig = plt.figure(figsize=(16, 10))
-    fig.patch.set_facecolor(_C['bg'])
+    fig.patch.set_facecolor(C['bg'])
 
     # header band
     fig.text(0.03, 0.96, title,
              fontsize=14, fontweight='bold',
-             color=_C['text'], va='top', fontfamily='monospace')
+             color=C['text'], va='top', fontfamily='monospace')
     fig.text(0.03, 0.93,
              f'{subtitle}  ·  Valuation: {date}  ·  '
              f'Generated: {datetime.today().strftime("%Y-%m-%d")}',
-             fontsize=8, color=_C['muted'], va='top')
+             fontsize=8, color=C['muted'], va='top')
     fig.text(0.97, 0.96,
              'INTERNAL — BOARD & RISK COMMITTEE ONLY',
-             fontsize=7, color=_C['amber'], va='top', ha='right',
+             fontsize=7, color=C['amber'], va='top', ha='right',
              fontweight='bold')
     fig.text(0.97, 0.93,
              'NOT ANNEX IV  ·  NOT AN INVESTOR REPORT',
-             fontsize=7, color=_C['dim'], va='top', ha='right')
+             fontsize=7, color=C['dim'], va='top', ha='right')
 
     # thin top border line
     fig.add_artist(plt.Line2D([0.03, 0.97], [0.915, 0.915],
                                transform=fig.transFigure,
-                               color=_C['border'], linewidth=0.6))
+                               color=C['border'], linewidth=0.6))
     return fig
 
 
 def _ax(fig: plt.Figure, *args, **kwargs) -> plt.Axes:
     ax = fig.add_subplot(*args, **kwargs)
-    ax.set_facecolor(_C['bg2'])
-    ax.tick_params(colors=_C['muted'], labelsize=8, length=0)
+    ax.set_facecolor(C['bg2'])
+    ax.tick_params(colors=C['muted'], labelsize=8, length=0)
     for spine in ax.spines.values():
-        spine.set_color(_C['border'])
+        spine.set_color(C['border'])
     return ax
 
 
 def _rag_color(rag: str) -> str:
-    return {'GREEN': _C['green'], 'AMBER': _C['amber'], 'RED': _C['red']}.get(rag, _C['muted'])
+    return {'GREEN': C['green'], 'AMBER': C['amber'], 'RED': C['red']}.get(rag, C['muted'])
 
 
 def _pct_color(v: float) -> str:
-    return _C['green'] if v >= 0 else _C['red']
+    return C['green'] if v >= 0 else C['red']
 
 
 def _section_title(ax: plt.Axes, title: str) -> None:
     ax.set_title(title, fontsize=9, fontweight='bold',
-                 color=_C['cyan'], pad=6, loc='left')
+                 color=C['cyan'], pad=6, loc='left')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -336,7 +302,7 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     # ── Fund overview table (spans full width, top row) ───────────────────
     ax_tbl = fig.add_subplot(gs[0, :])
-    ax_tbl.set_facecolor(_C['bg2'])
+    ax_tbl.set_facecolor(C['bg2'])
     ax_tbl.set_xlim(0, 1)
     ax_tbl.set_ylim(0, 1)
     ax_tbl.axis('off')
@@ -356,7 +322,7 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     def _cell(x, y, w, h, text, bg, fg, bold=False, align='center'):
         ax_tbl.add_patch(Rectangle((x, y), w - 0.003, h - 0.008,
-                                    facecolor=bg, edgecolor=_C['border'],
+                                    facecolor=bg, edgecolor=C['border'],
                                     linewidth=0.5, zorder=2))
         ha = 'left' if align == 'left' else ('right' if align == 'right' else 'center')
         xoff = 0.005 if align == 'left' else (-0.005 if align == 'right' else w / 2)
@@ -366,25 +332,25 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     # header row
     for col, cx, cw in zip(cols, col_xs, col_w):
-        _cell(cx, hdr_y, cw, row_h, col, _C['bg3'], _C['cyan'], bold=True)
+        _cell(cx, hdr_y, cw, row_h, col, C['bg3'], C['cyan'], bold=True)
 
     # data rows
     for i, m in enumerate(funds):
         y    = data_y0 - i * row_h
-        bg   = _C['bg4'] if i % 2 == 0 else _C['bg2']
+        bg   = C['bg4'] if i % 2 == 0 else C['bg2']
         rc   = _rag_color(m['rag'])
         vutil = m['var_util']
 
-        var_20_color = _C['red'] if vutil > 1.0 else (_C['amber'] if vutil > 0.75 else _C['green'])
-        liq_color    = _C['red'] if m['liq_1_7d'] < m['cfg']['liq_threshold'] else _C['green']
+        var_20_color = C['red'] if vutil > 1.0 else (C['amber'] if vutil > 0.75 else C['green'])
+        liq_color    = C['red'] if m['liq_1_7d'] < m['cfg']['liq_threshold'] else C['green']
 
         row_vals = [
-            (m['label'],              _C['text'],    'left'),
-            (m['strategy'],           _C['muted'],   'left'),
-            (f"{m['nav']/1e6:,.1f}",  _C['text'],    'right'),
+            (m['label'],              C['text'],    'left'),
+            (m['strategy'],           C['muted'],   'left'),
+            (f"{m['nav']/1e6:,.1f}",  C['text'],    'right'),
             (f"{m['mtd']*100:+.2f}%", _pct_color(m['mtd']), 'right'),
             (f"{m['ytd']*100:+.2f}%", _pct_color(m['ytd']), 'right'),
-            (f"{m['var_1d']*100:.2f}%", _C['text'],  'right'),
+            (f"{m['var_1d']*100:.2f}%", C['text'],  'right'),
             (f"{m['var_20d']*100:.2f}%", var_20_color, 'right'),
             (f"{m['liq_1_7d']*100:.1f}%", liq_color, 'right'),
             (f"● {m['rag']}",         rc,            'center'),
@@ -399,18 +365,18 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     navs   = [m['nav'] / 1e6 for m in funds]
     labels = [m['label'].replace('AIFM ', '').replace('UCITS ', '') for m in funds]
-    colors = [_FUND_COLORS.get(m['fund_id'], _C['blue']) for m in funds]
+    colors = [FUND_COLORS.get(m['fund_id'], C['blue']) for m in funds]
 
     bars = ax_aum.barh(labels, navs, color=colors, alpha=0.85,
                        height=0.55, edgecolor='none')
-    ax_aum.set_xlabel('EUR M', fontsize=7, color=_C['muted'])
-    ax_aum.set_facecolor(_C['bg2'])
-    ax_aum.tick_params(labelsize=7, colors=_C['muted'], length=0)
+    ax_aum.set_xlabel('EUR M', fontsize=7, color=C['muted'])
+    ax_aum.set_facecolor(C['bg2'])
+    ax_aum.tick_params(labelsize=7, colors=C['muted'], length=0)
     ax_aum.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-    ax_aum.grid(True, axis='x', color=_C['border'], linewidth=0.4, alpha=0.5)
+    ax_aum.grid(True, axis='x', color=C['border'], linewidth=0.4, alpha=0.5)
     for bar, v in zip(bars, navs):
         ax_aum.text(v + 2, bar.get_y() + bar.get_height() / 2,
-                    f'{v:,.1f}M', va='center', fontsize=7, color=_C['muted'])
+                    f'{v:,.1f}M', va='center', fontsize=7, color=C['muted'])
 
     # ── MTD / YTD returns (bottom centre) ────────────────────────────────
     ax_ret = _ax(fig, gs[1, 1])
@@ -425,19 +391,19 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     ax_ret.bar(x - w / 2, mtds, w, color=mtd_colors, alpha=0.8, label='MTD', edgecolor='none')
     ax_ret.bar(x + w / 2, ytds, w, color=ytd_colors, alpha=0.4, label='YTD', edgecolor='none')
-    ax_ret.axhline(0, color=_C['border'], linewidth=0.8)
+    ax_ret.axhline(0, color=C['border'], linewidth=0.8)
     ax_ret.set_xticks(x)
     ax_ret.set_xticklabels(labels, fontsize=6.5, rotation=15, ha='right')
-    ax_ret.set_ylabel('%', fontsize=7, color=_C['muted'])
+    ax_ret.set_ylabel('%', fontsize=7, color=C['muted'])
     ax_ret.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-    ax_ret.grid(True, axis='y', color=_C['border'], linewidth=0.4, alpha=0.5)
-    ax_ret.tick_params(labelsize=7, colors=_C['muted'], length=0)
-    ax_ret.legend(fontsize=6.5, labelcolor=_C['muted'],
-                  facecolor=_C['bg3'], edgecolor=_C['border'], framealpha=0.8)
+    ax_ret.grid(True, axis='y', color=C['border'], linewidth=0.4, alpha=0.5)
+    ax_ret.tick_params(labelsize=7, colors=C['muted'], length=0)
+    ax_ret.legend(fontsize=6.5, labelcolor=C['muted'],
+                  facecolor=C['bg3'], edgecolor=C['border'], framealpha=0.8)
 
     # ── Key figures panel (bottom right) ─────────────────────────────────
     ax_kpi = fig.add_subplot(gs[1, 2])
-    ax_kpi.set_facecolor(_C['bg2'])
+    ax_kpi.set_facecolor(C['bg2'])
     ax_kpi.axis('off')
     _section_title(ax_kpi, 'Key Figures')
 
@@ -453,17 +419,17 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
         label = kpi[0]
         value = kpi[1]
         y = 0.92 - j * 0.155
-        vcolor = _C['red'] if label == 'Active breaches' and int(value) > 0 else _C['cyan']
-        ax_kpi.text(0.03, y,       label, fontsize=7.5, color=_C['muted'], va='top')
+        vcolor = C['red'] if label == 'Active breaches' and int(value) > 0 else C['cyan']
+        ax_kpi.text(0.03, y,       label, fontsize=7.5, color=C['muted'], va='top')
         ax_kpi.text(0.03, y - 0.07, value, fontsize=11,
                     color=vcolor, va='top', fontweight='bold')
-        ax_kpi.axhline(y - 0.13, color=_C['border'], linewidth=0.4, xmin=0.02, xmax=0.98)
+        ax_kpi.axhline(y - 0.13, color=C['border'], linewidth=0.4, xmin=0.02, xmax=0.98)
 
     # footer
     fig.text(0.03, 0.025,
              'Internal governance document — produced by the Risk Function under AIFMD Article 15. '
              'Not for external distribution. Not the Annex IV regulatory submission.',
-             fontsize=6.5, color=_C['dim'], va='bottom')
+             fontsize=6.5, color=C['dim'], va='bottom')
     return fig
 
 
@@ -493,49 +459,49 @@ def _page_var(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
         limit = m['cfg']['var_limit'] * 100  # % NAV — 20d limit, shown as daily equivalent / 4.5
         daily_limit = limit / np.sqrt(20)
 
-        color = _FUND_COLORS.get(m['fund_id'], _C['blue'])
+        color = FUND_COLORS.get(m['fund_id'], C['blue'])
 
         ax.fill_between(dates, rv, alpha=0.15, color=color)
         ax.plot(dates, rv, color=color, linewidth=1.4, label='VaR 1d (99%)')
-        ax.axhline(daily_limit, color=_C['amber'], linewidth=1.0,
+        ax.axhline(daily_limit, color=C['amber'], linewidth=1.0,
                    linestyle='--', label=f'Daily limit ({daily_limit:.2f}%)')
 
         # shade any breach
         breach_mask = rv > daily_limit
         if breach_mask.any():
             ax.fill_between(dates, rv, daily_limit,
-                            where=breach_mask, color=_C['red'], alpha=0.25)
+                            where=breach_mask, color=C['red'], alpha=0.25)
 
         var_util_pct = m['var_util'] * 100
         _section_title(ax, m['label'])
-        ax.set_ylabel('VaR (% NAV)', fontsize=7, color=_C['muted'])
+        ax.set_ylabel('VaR (% NAV)', fontsize=7, color=C['muted'])
         ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-        ax.grid(True, axis='y', color=_C['border'], linewidth=0.4, alpha=0.6)
-        ax.tick_params(labelsize=6.5, colors=_C['muted'], length=0)
+        ax.grid(True, axis='y', color=C['border'], linewidth=0.4, alpha=0.6)
+        ax.tick_params(labelsize=6.5, colors=C['muted'], length=0)
         ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d'))
 
         # metric callout box
-        util_color = _C['red'] if var_util_pct > 100 else (_C['amber'] if var_util_pct > 75 else _C['green'])
+        util_color = C['red'] if var_util_pct > 100 else (C['amber'] if var_util_pct > 75 else C['green'])
         info = (f"VaR 1d  {m['var_1d']*100:.2f}%\n"
                 f"VaR 20d {m['var_20d']*100:.2f}%\n"
                 f"ES 1d   {m['es_1d']*100:.2f}%\n"
                 f"Utilisation  {var_util_pct:.0f}%")
         ax.text(0.99, 0.97, info,
                 transform=ax.transAxes,
-                fontsize=7, color=_C['muted'],
+                fontsize=7, color=C['muted'],
                 va='top', ha='right',
                 fontfamily='monospace',
-                bbox=dict(facecolor=_C['bg3'], edgecolor=_C['border'],
+                bbox=dict(facecolor=C['bg3'], edgecolor=C['border'],
                           boxstyle='round,pad=0.4', alpha=0.9))
 
-        ax.legend(fontsize=6, labelcolor=_C['muted'],
-                  facecolor=_C['bg3'], edgecolor='none', framealpha=0.7, loc='upper left')
+        ax.legend(fontsize=6, labelcolor=C['muted'],
+                  facecolor=C['bg3'], edgecolor='none', framealpha=0.7, loc='upper left')
 
     fig.text(0.03, 0.025,
              'VaR computed by historical simulation on 250 trading days of fund P&L. '
              'Daily limit = 20-day regulatory limit ÷ √20. '
              'Amber zone = >75% utilisation.',
-             fontsize=6.5, color=_C['dim'], va='bottom')
+             fontsize=6.5, color=C['dim'], va='bottom')
     return fig
 
 
@@ -569,23 +535,23 @@ def _page_stress(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
 
     # ── Heatmap ───────────────────────────────────────────────────────────
     ax_heat = _ax(fig, gs[0, 0])
-    ax_heat.set_facecolor(_C['bg'])
+    ax_heat.set_facecolor(C['bg'])
 
     # custom colormap: red (large loss) → neutral → green (gain)
     from matplotlib.colors import LinearSegmentedColormap
     cmap = LinearSegmentedColormap.from_list(
         'risk',
-        [(0.00, _C['red']), (0.30, '#7f1d1d'), (0.55, _C['bg3']),
-         (0.75, '#166534'), (1.00, _C['green'])]
+        [(0.00, C['red']), (0.30, '#7f1d1d'), (0.55, C['bg3']),
+         (0.75, '#166534'), (1.00, C['green'])]
     )
 
     vmin, vmax = -40, 5
     im = ax_heat.imshow(mat, aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax)
 
     ax_heat.set_xticks(range(n_s))
-    ax_heat.set_xticklabels(scenarios, rotation=35, ha='right', fontsize=7, color=_C['muted'])
+    ax_heat.set_xticklabels(scenarios, rotation=35, ha='right', fontsize=7, color=C['muted'])
     ax_heat.set_yticks(range(n_f))
-    ax_heat.set_yticklabels(fund_labels, fontsize=8, color=_C['text'])
+    ax_heat.set_yticklabels(fund_labels, fontsize=8, color=C['text'])
     ax_heat.tick_params(length=0)
     ax_heat.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
 
@@ -594,17 +560,17 @@ def _page_stress(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
             v = mat[fi, si]
             if not np.isnan(v):
                 txt = f'{v:.1f}%'
-                fg  = 'white' if v < -15 or v > 2 else _C['text']
+                fg  = 'white' if v < -15 or v > 2 else C['text']
                 ax_heat.text(si, fi, txt, ha='center', va='center',
                               fontsize=7.5, color=fg, fontweight='bold')
             else:
                 ax_heat.text(si, fi, 'N/A', ha='center', va='center',
-                              fontsize=6.5, color=_C['dim'])
+                              fontsize=6.5, color=C['dim'])
 
     cbar = fig.colorbar(im, ax=ax_heat, fraction=0.04, pad=0.02)
-    cbar.ax.tick_params(labelsize=6.5, colors=_C['muted'], length=2)
-    cbar.set_label('ΔNAV (%)', fontsize=7, color=_C['muted'])
-    cbar.ax.yaxis.label.set_color(_C['muted'])
+    cbar.ax.tick_params(labelsize=6.5, colors=C['muted'], length=2)
+    cbar.set_label('ΔNAV (%)', fontsize=7, color=C['muted'])
+    cbar.ax.yaxis.label.set_color(C['muted'])
 
     _section_title(ax_heat, 'Scenario Severity Heatmap (ΔNAV %)')
 
@@ -616,25 +582,25 @@ def _page_stress(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
                    if not np.all(np.isnan(mat[fi, :])) else 'N/A'
                    for fi in range(n_f)]
 
-    colors_wc = [_C['red'] if v < -20 else (_C['amber'] if v < -10 else _C['green'])
+    colors_wc = [C['red'] if v < -20 else (C['amber'] if v < -10 else C['green'])
                  for v in worst_vals]
     bars = ax_wc.barh(fund_labels, worst_vals, color=colors_wc, alpha=0.85,
                       height=0.5, edgecolor='none')
 
-    ax_wc.axvline(0, color=_C['border'], linewidth=0.8)
-    ax_wc.axvline(-10, color=_C['amber'], linewidth=0.6, linestyle=':', alpha=0.7)
-    ax_wc.axvline(-20, color=_C['red'],   linewidth=0.6, linestyle=':', alpha=0.7)
-    ax_wc.set_xlabel('ΔNAV (%)', fontsize=7, color=_C['muted'])
+    ax_wc.axvline(0, color=C['border'], linewidth=0.8)
+    ax_wc.axvline(-10, color=C['amber'], linewidth=0.6, linestyle=':', alpha=0.7)
+    ax_wc.axvline(-20, color=C['red'],   linewidth=0.6, linestyle=':', alpha=0.7)
+    ax_wc.set_xlabel('ΔNAV (%)', fontsize=7, color=C['muted'])
     ax_wc.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-    ax_wc.grid(True, axis='x', color=_C['border'], linewidth=0.4, alpha=0.5)
-    ax_wc.tick_params(labelsize=7.5, colors=_C['muted'], length=0)
+    ax_wc.grid(True, axis='x', color=C['border'], linewidth=0.4, alpha=0.5)
+    ax_wc.tick_params(labelsize=7.5, colors=C['muted'], length=0)
 
     for bar, v, scen in zip(bars, worst_vals, worst_scens):
         ax_wc.text(v - 0.5, bar.get_y() + bar.get_height() / 2,
                    f'{v:.1f}%', va='center', ha='right', fontsize=7.5,
-                   color=_C['text'], fontweight='bold')
+                   color=C['text'], fontweight='bold')
         ax_wc.text(0.5, bar.get_y() + bar.get_height() / 2,
-                   scen, va='center', ha='left', fontsize=6.5, color=_C['dim'])
+                   scen, va='center', ha='left', fontsize=6.5, color=C['dim'])
 
     _section_title(ax_wc, 'Worst-Case Scenario per Fund')
 
@@ -642,7 +608,7 @@ def _page_stress(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
              'Dashed lines: −10% (amber threshold) and −20% (red threshold). '
              'N/A = scenario not applicable for fund strategy. '
              'Scenarios per ESMA/2020/1498 Annex VI.',
-             fontsize=6.5, color=_C['dim'], va='bottom')
+             fontsize=6.5, color=C['dim'], va='bottom')
     return fig
 
 
@@ -675,7 +641,7 @@ def _page_liquidity(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
     for b in bucket_keys:
         vals = [m['bucket_pcts'].get(b, 0) * 100 for m in fund_list]
         bars = ax_liq.barh(fund_labels, vals, left=lefts, height=0.45,
-                            color=_BUCKET_COLORS[b], alpha=0.88,
+                            color=BUCKET_COLORS[b], alpha=0.88,
                             label=b, edgecolor='none')
         for bar, v in zip(bars, vals):
             if v > 4:
@@ -690,47 +656,47 @@ def _page_liquidity(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
         thresh = m['cfg']['liq_threshold'] * 100
         ypos   = fund_labels.index(fl)
         ax_liq.plot([thresh, thresh], [ypos - 0.35, ypos + 0.35],
-                    color=_C['amber'], linewidth=1.5, linestyle='--', zorder=5)
+                    color=C['amber'], linewidth=1.5, linestyle='--', zorder=5)
 
-    ax_liq.set_xlabel('% NAV', fontsize=7, color=_C['muted'])
-    ax_liq.axvline(100, color=_C['border'], linewidth=0.8)
+    ax_liq.set_xlabel('% NAV', fontsize=7, color=C['muted'])
+    ax_liq.axvline(100, color=C['border'], linewidth=0.8)
     ax_liq.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-    ax_liq.grid(True, axis='x', color=_C['border'], linewidth=0.4, alpha=0.5)
-    ax_liq.tick_params(labelsize=7.5, colors=_C['muted'], length=0)
-    ax_liq.legend(fontsize=6.5, labelcolor=_C['muted'],
-                  facecolor=_C['bg3'], edgecolor=_C['border'],
+    ax_liq.grid(True, axis='x', color=C['border'], linewidth=0.4, alpha=0.5)
+    ax_liq.tick_params(labelsize=7.5, colors=C['muted'], length=0)
+    ax_liq.legend(fontsize=6.5, labelcolor=C['muted'],
+                  facecolor=C['bg3'], edgecolor=C['border'],
                   ncol=6, loc='lower right', framealpha=0.8)
     ax_liq.text(0.5, -0.14, '▲ Dashed line = fund liquidity threshold',
                 transform=ax_liq.transAxes, fontsize=6.5,
-                color=_C['amber'], ha='center', va='bottom')
+                color=C['amber'], ha='center', va='bottom')
 
     # ── Liquidity utilisation gauge (bottom left) ─────────────────────────
     ax_util = _ax(fig, gs[1, 0])
     _section_title(ax_util, '1-7d Liquidity vs Threshold')
-    ax_util.set_facecolor(_C['bg2'])
+    ax_util.set_facecolor(C['bg2'])
 
     x   = np.arange(len(fund_list))
     act = [m['liq_1_7d'] * 100 for m in fund_list]
     thr = [m['cfg']['liq_threshold'] * 100 for m in fund_list]
-    act_colors = [_C['green'] if a >= t else _C['red'] for a, t in zip(act, thr)]
+    act_colors = [C['green'] if a >= t else C['red'] for a, t in zip(act, thr)]
 
     ax_util.bar(x, act, color=act_colors, alpha=0.8, width=0.45,
                 edgecolor='none', label='Actual 1-7d liquid')
-    ax_util.plot(x, thr, 'o--', color=_C['amber'], linewidth=1.2,
+    ax_util.plot(x, thr, 'o--', color=C['amber'], linewidth=1.2,
                  markersize=4, label='Threshold')
 
     ax_util.set_xticks(x)
     ax_util.set_xticklabels(fund_labels, fontsize=7, rotation=15, ha='right')
-    ax_util.set_ylabel('% NAV', fontsize=7, color=_C['muted'])
+    ax_util.set_ylabel('% NAV', fontsize=7, color=C['muted'])
     ax_util.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-    ax_util.grid(True, axis='y', color=_C['border'], linewidth=0.4, alpha=0.5)
-    ax_util.tick_params(labelsize=7, colors=_C['muted'], length=0)
-    ax_util.legend(fontsize=6.5, labelcolor=_C['muted'],
-                   facecolor=_C['bg3'], edgecolor='none', framealpha=0.7)
+    ax_util.grid(True, axis='y', color=C['border'], linewidth=0.4, alpha=0.5)
+    ax_util.tick_params(labelsize=7, colors=C['muted'], length=0)
+    ax_util.legend(fontsize=6.5, labelcolor=C['muted'],
+                   facecolor=C['bg3'], edgecolor='none', framealpha=0.7)
 
     # ── Investor concentration flags (bottom right) ───────────────────────
     ax_conc = fig.add_subplot(gs[1, 1])
-    ax_conc.set_facecolor(_C['bg2'])
+    ax_conc.set_facecolor(C['bg2'])
     ax_conc.axis('off')
     _section_title(ax_conc, 'Investor Concentration Summary')
 
@@ -749,7 +715,7 @@ def _page_liquidity(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     def _cc(x, y, w, h, txt, bg, fg, bold=False):
         ax_conc.add_patch(Rectangle((x, y), w - 0.01, h - 0.01,
-                                      facecolor=bg, edgecolor=_C['border'],
+                                      facecolor=bg, edgecolor=C['border'],
                                       linewidth=0.4, zorder=2,
                                       transform=ax_conc.transAxes))
         ax_conc.text(x + w / 2, y + h / 2, txt,
@@ -759,36 +725,36 @@ def _page_liquidity(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     top_y = 0.87
     for hi, h in enumerate(header):
-        _cc(col_xs[hi], top_y, col_w[hi], row_h, h, _C['bg3'], _C['cyan'], bold=True)
+        _cc(col_xs[hi], top_y, col_w[hi], row_h, h, C['bg3'], C['cyan'], bold=True)
 
     for ri, m in enumerate(fund_list):
         y    = top_y - (ri + 1) * row_h
-        bg   = _C['bg4'] if ri % 2 == 0 else _C['bg2']
+        bg   = C['bg4'] if ri % 2 == 0 else C['bg2']
         cd   = concentration.get(m['fund_id'], {})
         lg   = cd.get('largest', 0)
         t3   = cd.get('top3', 0)
         flag = cd.get('flag', False)
 
-        lg_c = _C['red'] if lg > 0.20 else _C['green']
-        t3_c = _C['red'] if t3 > 0.50 else _C['green']
-        fl_c = _C['red'] if flag else _C['green']
+        lg_c = C['red'] if lg > 0.20 else C['green']
+        t3_c = C['red'] if t3 > 0.50 else C['green']
+        fl_c = C['red'] if flag else C['green']
         fl_t = '⚠ YES' if flag else '✓ NO'
 
         lbl = m['label'].replace('AIFM ', '').replace('UCITS ', '')
-        _cc(col_xs[0], y, col_w[0], row_h, lbl,         bg, _C['text'])
+        _cc(col_xs[0], y, col_w[0], row_h, lbl,         bg, C['text'])
         _cc(col_xs[1], y, col_w[1], row_h, f'{lg*100:.0f}%', bg, lg_c)
         _cc(col_xs[2], y, col_w[2], row_h, f'{t3*100:.0f}%', bg, t3_c)
         _cc(col_xs[3], y, col_w[3], row_h, fl_t,        bg, fl_c, bold=flag)
 
     ax_conc.text(0.5, 0.02,
                  'ESMA threshold: >20% single investor OR >50% top-3',
-                 ha='center', va='bottom', fontsize=6.5, color=_C['dim'],
+                 ha='center', va='bottom', fontsize=6.5, color=C['dim'],
                  transform=ax_conc.transAxes)
 
     fig.text(0.03, 0.025,
              'Liquidity buckets per ESMA34-39-897. Threshold = fund-specific minimum 1-7d liquid. '
              'Investor concentration per ESMA/2020/1498 Annex V.',
-             fontsize=6.5, color=_C['dim'], va='bottom')
+             fontsize=6.5, color=C['dim'], va='bottom')
     return fig
 
 
@@ -802,13 +768,13 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
                valuation_date)
 
     ax = fig.add_subplot(111)
-    ax.set_facecolor(_C['bg'])
+    ax.set_facecolor(C['bg'])
     ax.axis('off')
 
     # ── section title ─────────────────────────────────────────────────────
     fig.text(0.03, 0.86,
              'Breach Log — Reporting Period (May 2026)',
-             fontsize=10, fontweight='bold', color=_C['cyan'])
+             fontsize=10, fontweight='bold', color=C['cyan'])
 
     # ── breach log data ───────────────────────────────────────────────────
     breaches = [
@@ -878,7 +844,7 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
         fig.add_artist(FancyBboxPatch(
             (x, y), w - 0.005, h - 0.006,
             boxstyle='square,pad=0', facecolor=bg,
-            edgecolor=_C['border'], linewidth=0.4,
+            edgecolor=C['border'], linewidth=0.4,
             transform=fig.transFigure, zorder=2,
         ))
         fig.text(x + 0.003, y + h / 2, txt,
@@ -890,31 +856,31 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
 
     # header
     for col, cx, cw in zip(headers, col_xs, col_ws):
-        _bcell(cx, top_y, cw, hdr_h, col, _C['bg3'], _C['cyan'], bold=True)
+        _bcell(cx, top_y, cw, hdr_h, col, C['bg3'], C['cyan'], bold=True)
 
     status_colors = {
-        'OPEN'     : _C['red'],
-        'MONITORED': _C['amber'],
-        'RESOLVED' : _C['green'],
-        'CLOSED'   : _C['dim'],
+        'OPEN'     : C['red'],
+        'MONITORED': C['amber'],
+        'RESOLVED' : C['green'],
+        'CLOSED'   : C['dim'],
     }
 
     for ri, b in enumerate(breaches):
         y_row = top_y - hdr_h - ri * row_h
-        bg    = _C['bg4'] if ri % 2 == 0 else _C['bg2']
+        bg    = C['bg4'] if ri % 2 == 0 else C['bg2']
         sc    = _rag_color(b['severity'])
-        st_c  = status_colors.get(b['status'], _C['muted'])
+        st_c  = status_colors.get(b['status'], C['muted'])
 
         vals  = [b['date'], b['fund'], b['type'], b['metric'],
                  b['value'], b['limit'], b['action'], f"● {b['status']}"]
         cols_cfg = [
-            (col_xs[0], col_ws[0], _C['muted']),
-            (col_xs[1], col_ws[1], _C['text']),
+            (col_xs[0], col_ws[0], C['muted']),
+            (col_xs[1], col_ws[1], C['text']),
             (col_xs[2], col_ws[2], sc),
-            (col_xs[3], col_ws[3], _C['muted']),
+            (col_xs[3], col_ws[3], C['muted']),
             (col_xs[4], col_ws[4], sc),
-            (col_xs[5], col_ws[5], _C['dim']),
-            (col_xs[6], col_ws[6], _C['muted']),
+            (col_xs[5], col_ws[5], C['dim']),
+            (col_xs[6], col_ws[6], C['muted']),
             (col_xs[7], col_ws[7], st_c),
         ]
         for (cx, cw, fg), txt in zip(cols_cfg, vals):
@@ -930,13 +896,13 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
     fig.text(0.03, y_sum,
              f'Summary: {len(breaches)} events in period  |  '
              f'Open: {open_b}  |  Amber: {ambers}  |  Red: {reds}',
-             fontsize=8, color=_C['muted'], fontweight='bold')
+             fontsize=8, color=C['muted'], fontweight='bold')
 
     fig.text(0.03, 0.025,
              'This log is presented to the Risk Committee before distribution. '
              'All breaches require documented management action within 5 business days. '
              'RESOLVED = management action complete and verified.',
-             fontsize=6.5, color=_C['dim'], va='bottom')
+             fontsize=6.5, color=C['dim'], va='bottom')
     return fig
 
 
@@ -996,7 +962,7 @@ def generate_board_report(
             print(f'  {label}', end=' ', flush=True)
             fig = fn(all_metrics, valuation_date)
             pdf.savefig(fig, bbox_inches='tight', dpi=150,
-                        facecolor=_C['bg'])
+                        facecolor=C['bg'])
             plt.close(fig)
             print('✓')
 
