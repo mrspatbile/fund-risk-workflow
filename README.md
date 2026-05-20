@@ -72,7 +72,7 @@ LMT trigger simulation covering gate, swing pricing and suspension across a 12-m
 
 **VaR backtest — breach flags and test statistics**
 
-![VaR backtest with breach flags](images/var_backtest.png)
+![VaR backtest with breach flags](images/hf_var_backtest.png)
 
 *Kupiec and Christoffersen tests across the hedge fund portfolio. Breach dates flagged on the return series.*
 
@@ -80,9 +80,9 @@ LMT trigger simulation covering gate, swing pricing and suspension across a 12-m
 
 **PE value bridge and exit attribution**
 
-![PE value bridge and J-curve](images/pe_value_bridge.png)
+![PE value bridge](images/pe_fund_value_bridge_exit.png)
 
-*Entry-to-exit value decomposition across portfolio companies. MOIC, DPI, RVPI multiples and J-curve cash flow profile.*
+*Entry-to-exit value decomposition across portfolio companies.*
 
 ---
 
