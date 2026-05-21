@@ -20,6 +20,7 @@ dependencies = [
     "yfinance",
     "ipykernel",
     "jupyterlab",
+    "nbstripout",
     "pytest",
     "reportlab",
 ]
