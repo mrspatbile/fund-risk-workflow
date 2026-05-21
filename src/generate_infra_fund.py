@@ -151,7 +151,7 @@ ASSET_PROFILES = {
         'debt_repayment_pa'  : 10_000_000,
         'interest_rate'      : 0.033,
         'dscr_covenant'      : 1.20,
-        'ltv_covenant'       : 0.74,
+        'ltv_covenant'       : 0.78,
         'key_risks'          : 'Passenger volume risk, aeronautical tariff regulation, COVID-19 recovery tail risk',
     },
     'INFRA_005': {
@@ -202,11 +202,11 @@ ASSET_PROFILES = {
         'revenue_cagr'       : 0.035,
         'ebitda_margin_start': 0.38,
         'ebitda_margin_end'  : 0.44,
-        'net_debt_start'     : 175_000_000,
+        'net_debt_start'     : 120_000_000,
         'debt_repayment_pa'  : 5_000_000,
         'interest_rate'      : 0.048,
-        'dscr_covenant'      : 1.20,
-        'ltv_covenant'       : 0.75,
+        'dscr_covenant'      : 1.05,
+        'ltv_covenant'       : 0.87,
         'key_risks'          : 'Construction completion risk, merchant volume uncertainty, Baltic trade geopolitics',
         # Construction overrun: Q3 2023, additional debt draw of EUR 35m
         'overrun_quarter'    : '2023-09-30',
@@ -248,6 +248,53 @@ VALUATION_DATE = pd.Timestamp('2026-03-31')   # last quarter-end before 2026-05-
 
 
 # ----------------------------------------------------------------
+# Noise profiles — asset-type-specific quarterly variation
+#
+# vol      : sigma of the lognormal multiplicative revenue shock.
+#            Regulated utilities (RAB) are the most stable; merchant
+#            and construction-risk assets the most volatile.
+# seasonal : quarter-end month → multiplicative factor.
+#            Captures traffic seasonality (toll road, airport),
+#            wind-resource seasonality (offshore wind), and heating
+#            demand seasonality (district heating).
+# ----------------------------------------------------------------
+NOISE_PROFILES: dict = {
+    'INFRA_001': {   # AquaNet Rhein — RAB utility, very stable
+        'vol'     : 0.015,
+        'seasonal': {3: 1.00, 6: 1.00, 9: 1.00, 12: 1.00},
+    },
+    'INFRA_002': {   # Réseau Électrique — RAB utility, very stable
+        'vol'     : 0.015,
+        'seasonal': {3: 1.00, 6: 1.00, 9: 1.00, 12: 1.00},
+    },
+    'INFRA_003': {   # Autopista Norte — toll road, Q1 traffic dip (winter)
+        'vol'     : 0.025,
+        'seasonal': {3: 0.92, 6: 1.04, 9: 1.06, 12: 0.98},
+    },
+    'INFRA_004': {   # Aeroporto Adriatico — airport, summer peak
+        'vol'     : 0.030,
+        'seasonal': {3: 0.93, 6: 1.08, 9: 1.06, 12: 0.93},
+    },
+    'INFRA_005': {   # Zephyr Wind — offshore wind, higher output Q4/Q1
+        'vol'     : 0.035,
+        'seasonal': {3: 1.06, 6: 0.92, 9: 0.94, 12: 1.08},
+    },
+    'INFRA_006': {   # Midlands Health PPP — availability payments, minimal vol
+        'vol'     : 0.005,
+        'seasonal': {3: 1.00, 6: 1.00, 9: 1.00, 12: 1.00},
+    },
+    'INFRA_007': {   # Baltic Port — merchant cash flows, highest vol
+        'vol'     : 0.040,
+        'seasonal': {3: 1.00, 6: 1.00, 9: 1.00, 12: 1.00},
+    },
+    'INFRA_008': {   # Nordvärme — district heating, strong Q4/Q1 demand
+        'vol'     : 0.015,
+        'seasonal': {3: 1.08, 6: 0.88, 9: 0.90, 12: 1.14},
+    },
+}
+
+
+# ----------------------------------------------------------------
 # Valuation reports — quarterly independent appraisal
 # ----------------------------------------------------------------
 
@@ -279,12 +326,29 @@ def generate_valuation_reports() -> list:
         net_debt        = p['net_debt_start']
         discount_rate   = p['discount_rate']
         inflation       = p['inflation_assumption']
+        np_prof         = NOISE_PROFILES[aid]
+
+        # pre-compute the overrun quarter index for INFRA_007 ramp
+        overrun_i = None
+        if 'overrun_quarter' in p:
+            overrun_ts = pd.Timestamp(p['overrun_quarter'])
+            overrun_i  = next(
+                (idx for idx, qq in enumerate(quarters) if qq == overrun_ts), None
+            )
 
         for i, q in enumerate(quarters):
-            # revenue grows at revenue_cagr (approximates inflation linkage)
+            # ── revenue trend ────────────────────────────────────────
             rev_q = revenue * (1 + p['revenue_cagr']) ** (i / 4)
 
-            # COVID shock for toll road: 2020-Q2 revenue -42%, recover by 2020-Q4
+            # seasonal adjustment + per-quarter noise
+            # seasonal: deterministic pattern (Q1 dip, summer peak, etc.)
+            # noise:    lognormal shock with asset-type vol tier
+            seasonal_factor = np_prof['seasonal'][q.month]
+            noise_factor    = np.random.lognormal(0.0, np_prof['vol'])
+            rev_q          *= seasonal_factor * noise_factor
+
+            # COVID shock for toll road: applied after noise so the
+            # 60% traffic collapse always dominates random variation
             if aid == 'INFRA_003':
                 if q == pd.Timestamp('2020-06-30'):
                     rev_q *= (1 - p['covid_revenue_drop'])
@@ -292,6 +356,15 @@ def generate_valuation_reports() -> list:
                     rev_q *= (1 - p['covid_revenue_drop'] * 0.5)
                 elif q == pd.Timestamp('2020-12-31'):
                     rev_q *= (1 - p['covid_revenue_drop'] * 0.15)
+
+            # INFRA_007: convex ramp-up from the overrun quarter.
+            # Construction disruption suppresses port throughput;
+            # revenue recovers exponentially as new berths open.
+            # ramp(j=0)=0.85, ramp→1.0 as j→∞ (≈0.98 at j=6).
+            if overrun_i is not None and i >= overrun_i:
+                j      = i - overrun_i
+                ramp   = 1.0 - 0.15 * np.exp(-2.5 * j / 6)
+                rev_q *= ramp
 
             # EBITDA margin interpolates linearly over fund life
             t       = i / max(n_q - 1, 1)
