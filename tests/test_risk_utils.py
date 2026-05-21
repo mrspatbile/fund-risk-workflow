@@ -40,7 +40,7 @@ def normal_returns():
 
 
 @pytest.fixture
-def pnl_series(normal_returns):
+def returns_series(normal_returns):
     return pd.Series(normal_returns)
 
 
@@ -217,10 +217,12 @@ class TestEsParametric:
 
     def test_es_greater_than_var(self):
         sigma = 0.012
+        confidence = .99
         var   = var_parametric(mu=0, sigma=sigma,
-                               confidence=0.99, dist='normal')
+                               confidence=confidence, dist='normal')
         es    = es_parametric(sigma=sigma, mu=0,
-                              confidence=0.99, dist='normal')
+                              confidence=confidence, dist='normal')
+
         assert es >= var
 
     def test_t_greater_than_normal(self):
@@ -251,102 +253,102 @@ class TestEsScale:
 
 class TestKupiecTest:
 
-    def test_returns_dict(self, pnl_series, var_series):
-        result = kupiec_test(pnl_series, var_series)
+    def test_returns_dict(self, returns_series, var_series):
+        result = kupiec_test(returns_series, var_series)
         assert isinstance(result, dict)
 
-    def test_has_required_keys(self, pnl_series, var_series):
-        result = kupiec_test(pnl_series, var_series)
+    def test_has_required_keys(self, returns_series, var_series):
+        result = kupiec_test(returns_series, var_series)
         for key in ['n_obs', 'n_breaches', 'breach_rate',
                     'expected', 'lr_stat', 'p_value', 'result']:
             assert key in result
 
-    def test_result_is_pass_or_fail(self, pnl_series, var_series):
-        result = kupiec_test(pnl_series, var_series)
+    def test_result_is_pass_or_fail(self, returns_series, var_series):
+        result = kupiec_test(returns_series, var_series)
         assert result['result'] in ('PASS', 'FAIL')
 
-    def test_zero_breaches_handled(self, pnl_series):
+    def test_zero_breaches_handled(self, returns_series):
         large_var = pd.Series(np.ones(250))
-        result    = kupiec_test(pnl_series, large_var)
+        result    = kupiec_test(returns_series, large_var)
         assert result['n_breaches'] == 0
 
     def test_breach_rate_computed_correctly(self,
-                                             pnl_series,
+                                             returns_series,
                                              var_series):
-        result = kupiec_test(pnl_series, var_series)
+        result = kupiec_test(returns_series, var_series)
         expected_rate = result['n_breaches'] / result['n_obs']
         assert abs(result['breach_rate'] - expected_rate) < 1e-4
 
 
 class TestChristoffersenTest:
 
-    def test_returns_dict(self, pnl_series, var_series):
-        result = christoffersen_test(pnl_series, var_series)
+    def test_returns_dict(self, returns_series, var_series):
+        result = christoffersen_test(returns_series, var_series)
         assert isinstance(result, dict)
 
-    def test_has_required_keys(self, pnl_series, var_series):
-        result = christoffersen_test(pnl_series, var_series)
+    def test_has_required_keys(self, returns_series, var_series):
+        result = christoffersen_test(returns_series, var_series)
         for key in ['n00', 'n01', 'n10', 'n11',
                     'lr_ind', 'p_value', 'result']:
             assert key in result
 
     def test_transition_counts_sum_correctly(self,
-                                              pnl_series,
+                                              returns_series,
                                               var_series):
-        result = christoffersen_test(pnl_series, var_series)
+        result = christoffersen_test(returns_series, var_series)
         total  = result['n00'] + result['n01'] + \
                  result['n10'] + result['n11']
-        assert total == len(pnl_series) - 1
+        assert total == len(returns_series) - 1
 
-    def test_result_is_pass_or_fail(self, pnl_series, var_series):
-        result = christoffersen_test(pnl_series, var_series)
+    def test_result_is_pass_or_fail(self, returns_series, var_series):
+        result = christoffersen_test(returns_series, var_series)
         assert result['result'] in ('PASS', 'FAIL')
 
 
 class TestExceptionReport:
 
-    def test_returns_dataframe(self, pnl_series, var_series):
-        result = exception_report(pnl_series, var_series)
+    def test_returns_dataframe(self, returns_series, var_series):
+        result = exception_report(returns_series, var_series)
         assert isinstance(result, pd.DataFrame)
 
-    def test_has_correct_columns(self, pnl_series, var_series):
-        result = exception_report(pnl_series, var_series)
-        for col in ['pnl', 'var', 'excess_loss', 'action']:
+    def test_has_correct_columns(self, returns_series, var_series):
+        result = exception_report(returns_series, var_series)
+        for col in ['return', 'var', 'excess_loss', 'action']:
             assert col in result.columns
 
-    def test_all_rows_are_breaches(self, pnl_series, var_series):
-        result = exception_report(pnl_series, var_series)
-        assert (result['pnl'] < -result['var']).all()
+    def test_all_rows_are_breaches(self, returns_series, var_series):
+        result = exception_report(returns_series, var_series)
+        assert (result['return'] < -result['var']).all()
 
-    def test_excess_loss_positive(self, pnl_series, var_series):
-        result = exception_report(pnl_series, var_series)
+    def test_excess_loss_positive(self, returns_series, var_series):
+        result = exception_report(returns_series, var_series)
         if len(result) > 0:
             assert (result['excess_loss'] >= 0).all()
 
 
 class TestFullBacktestReport:
 
-    def test_returns_dataframe(self, pnl_series, var_series):
+    def test_returns_dataframe(self, returns_series, var_series):
         result = full_backtest_report(
-            pnl_series, {'model1': var_series})
+            returns_series, {'model1': var_series})
         assert isinstance(result, pd.DataFrame)
 
-    def test_three_confidence_levels(self, pnl_series,
+    def test_three_confidence_levels(self, returns_series,
                                       var_series):
         result = full_backtest_report(
-            pnl_series, {'model1': var_series})
+            returns_series, {'model1': var_series})
         assert len(result) == 3
 
-    def test_multiple_models(self, pnl_series, var_series):
+    def test_multiple_models(self, returns_series, var_series):
         result = full_backtest_report(
-            pnl_series,
+            returns_series,
             {'model1': var_series, 'model2': var_series * 1.1}
         )
         assert len(result) == 6
 
-    def test_result_column_values(self, pnl_series, var_series):
+    def test_result_column_values(self, returns_series, var_series):
         result = full_backtest_report(
-            pnl_series, {'model1': var_series})
+            returns_series, {'model1': var_series})
         assert result['result'].isin(['PASS', 'FAIL']).all()
 
 

@@ -73,7 +73,7 @@ HISTORICAL_SCENARIOS = {
 
 def var_historical(
     returns: np.ndarray | pd.Series,
-    confidence: float = 0.99
+    confidence: float = 0.99,
 ) -> float:
     """
     Historical simulation VaR.
@@ -110,7 +110,7 @@ def var_parametric(
     sigma: float,
     confidence: float = 0.99,
     dist: str = 't',
-    df: int = 5
+    df: int = 5,
 ) -> float:
     """
     Parametric VaR under normal or Student-t distribution.
@@ -151,12 +151,13 @@ def var_parametric(
         z = student_t.ppf(alpha, df=df)
     else:
         z = norm.ppf(alpha)
+        
     return float(-(mu + z * sigma))
 
 
 def var_scale(
     var_1d: float,
-    horizon: int = 10
+    horizon: int = 10, 
 ) -> float:
     """
     Scale 1-day VaR to longer horizon using square root of time.
@@ -250,13 +251,16 @@ def var_montecarlo(
     # 1. Risk factor volatilities (daily, calibrated to window)
     # ----------------------------------------------------------------
     # Representative daily vols per factor (annualised / sqrt(252))
+    TRADING_DAYS_PER_YEAR = 252
+    tdy = TRADING_DAYS_PER_YEAR
+    
     factor_vols = {
-        'eq_eur' : 0.15 / np.sqrt(252),
-        'eq_usd' : 0.16 / np.sqrt(252),
-        'rates_eur': 0.006 / np.sqrt(252),
-        'rates_usd': 0.007 / np.sqrt(252),
-        'fx_usd' : 0.07 / np.sqrt(252),
-        'fx_gbp' : 0.08 / np.sqrt(252),
+        'eq_eur' : 0.15 / np.sqrt(tdy),
+        'eq_usd' : 0.16 / np.sqrt(tdy),
+        'rates_eur': 0.006 / np.sqrt(tdy),
+        'rates_usd': 0.007 / np.sqrt(tdy),
+        'fx_usd' : 0.07 / np.sqrt(tdy),
+        'fx_gbp' : 0.08 / np.sqrt(tdy),
     }
 
     factors = list(factor_vols.keys())
@@ -302,22 +306,26 @@ def var_montecarlo(
         ccy     = pos.get('currency', 'EUR')
         beta    = pos.get('beta', 1.0) if not pd.isna(pos.get('beta', np.nan)) else 1.0
         dur     = pos.get('dur_adj_mid', 0.0) if not pd.isna(pos.get('dur_adj_mid', np.nan)) else 0.0
-
+        
+        # equity / RE
         if ac in ('Equity', 'Real Estate'):
             factor = 'eq_usd' if ccy == 'USD' else 'eq_eur'
             idx    = factors.index(factor)
             portfolio_pnl += beta * scenarios[:, idx] * mv
 
+        # fixed income
         elif ac in ('Bond', 'Loan', 'CLO'):
             factor = 'rates_usd' if ccy == 'USD' else 'rates_eur'
             idx    = factors.index(factor)
             portfolio_pnl += -dur * scenarios[:, idx] * mv
 
+        # currencies
         elif ac == 'FX':
             factor = 'fx_gbp' if 'GBP' in str(pos.get('instrument_name', '')) else 'fx_usd'
             idx    = factors.index(factor)
             portfolio_pnl += scenarios[:, idx] * mv
 
+        # derivatives
         elif ac == 'Derivative':
             # delta approximation for options
             factor = 'eq_usd'
@@ -354,11 +362,9 @@ def es_historical(
     Historical Expected Shortfall (CVaR).
     Mean of all returns that breach the VaR threshold.
 
-    ES_alpha = -E[R | R < -VaR_alpha]
+    ES_alpha = -E[R | R < -VaR]
 
-    Not suitable for direct real estate or private debt
-    where no daily return history exists. Apply to liquid
-    portion only.
+    Apply to liquid portion only.
 
     Parameters
     ----------
@@ -397,10 +403,11 @@ def es_parametric(
     """
     Parametric Expected Shortfall.
 
-    Normal distribution:
-        ES_alpha = sigma * phi(z_alpha) / (1 - alpha)
+    - Closed formed solutions (if μ ≠ 0, subtract μ) - 
+    1. Normal distribution:
+        ES_alpha = sigma * phi(z_alpha) / alpha
 
-    Student-t distribution:
+    2. Student-t distribution:
         ES_alpha = sigma * f_t(t_alpha) * (nu + t_alpha^2)
                    / [(nu - 1) * (1 - alpha)]
 
@@ -429,7 +436,7 @@ def es_parametric(
     alpha = 1 - confidence
 
     if dist == 'normal':
-        z  = norm.ppf(alpha)
+        z  = norm.ppf(alpha) # ppf is teh inverse of teh cdf, gives zscore s.t. P(X ≤ z) = alpha
         es = sigma * norm.pdf(z) / alpha
         return float(es - mu)
 
@@ -473,7 +480,7 @@ def es_scale(
 # ================================================================
 
 def kupiec_test(
-    pnl_series: np.ndarray | pd.Series,
+    returns_series: np.ndarray | pd.Series,
     var_series: np.ndarray | pd.Series,
     confidence: float = 0.99
 ) -> dict:
@@ -486,7 +493,7 @@ def kupiec_test(
 
     Parameters
     ----------
-    pnl_series : array-like
+    returns_series : array-like
         Daily P&L in decimal. Negative = loss.
     var_series : array-like
         Daily VaR estimates as positive numbers.
@@ -506,17 +513,17 @@ def kupiec_test(
 
     Examples
     --------
-    >>> result = kupiec_test(pnl, var_series, confidence=0.99)
+    >>> result = kupiec_test(returns_series, var_series, confidence=0.99)
     >>> print(result['result'])
     """
-    pnl = np.asarray(pnl_series)
+    ret = np.asarray(returns_series)
     var = np.asarray(var_series)
 
-    mask       = ~(np.isnan(pnl) | np.isnan(var))
-    pnl, var   = pnl[mask], var[mask]
+    mask       = ~(np.isnan(ret) | np.isnan(var))
+    ret, var   = ret[mask], var[mask]
 
-    n          = len(pnl)
-    breaches   = (pnl < -var).sum()
+    n          = len(ret)
+    breaches   = (ret < -var).sum()
     p_actual   = breaches / n
     p_expected = 1 - confidence
 
@@ -547,7 +554,7 @@ def kupiec_test(
 
 
 def christoffersen_test(
-    pnl_series: np.ndarray | pd.Series,
+    returns_series: np.ndarray | pd.Series,
     var_series: np.ndarray | pd.Series,
     confidence: float = 0.99
 ) -> dict:
@@ -559,7 +566,7 @@ def christoffersen_test(
 
     Parameters
     ----------
-    pnl_series : array-like
+    returns_series : array-like
         Daily P&L in decimal.
     var_series : array-like
         Daily VaR estimates as positive numbers.
@@ -577,15 +584,15 @@ def christoffersen_test(
 
     Examples
     --------
-    >>> result = christoffersen_test(pnl, var, confidence=0.99)
+    >>> result = christoffersen_test(returns, var, confidence=0.99)
     """
-    pnl = np.asarray(pnl_series)
+    ret = np.asarray(returns_series)
     var = np.asarray(var_series)
 
-    mask     = ~(np.isnan(pnl) | np.isnan(var))
-    pnl, var = pnl[mask], var[mask]
+    mask     = ~(np.isnan(ret) | np.isnan(var))
+    ret, var = ret[mask], var[mask]
 
-    breaches = (pnl < -var).astype(int)
+    breaches = (ret < -var).astype(int)
 
     # transition counts
     n00 = ((breaches[:-1] == 0) & (breaches[1:] == 0)).sum()
@@ -627,7 +634,7 @@ def christoffersen_test(
 
 
 def exception_report(
-    pnl_series: pd.Series,
+    returns_series: pd.Series,
     var_series: pd.Series,
     confidence: float = 0.99,
     dates: Optional[pd.DatetimeIndex] = None
@@ -644,26 +651,26 @@ def exception_report(
 
     Parameters
     ----------
-    pnl_series : pd.Series
+    returns_series : pd.Series
         Daily P&L in decimal.
     var_series : pd.Series
         Daily VaR estimates as positive numbers.
     confidence : float
         Confidence level. Default 0.99.
     dates : pd.DatetimeIndex, optional
-        Dates corresponding to pnl and var series.
+        Dates corresponding to returns and var series.
 
     Returns
     -------
     pd.DataFrame
         One row per breach with columns:
-        date, pnl, var, excess_loss, action_required
+        date, returns, var, excess_loss, action_required
     """
-    pnl = np.asarray(pnl_series)
+    ret = np.asarray(returns_series)
     var = np.asarray(var_series)
 
-    mask         = ~(np.isnan(pnl) | np.isnan(var))
-    breach_mask  = (pnl < -var) & mask
+    mask         = ~(np.isnan(ret) | np.isnan(var))
+    breach_mask  = (ret < -var) & mask
     breach_idx   = np.where(breach_mask)[0]
 
     n            = mask.sum()
@@ -682,9 +689,9 @@ def exception_report(
         rows.append({
             'date'       : dates[idx] if dates is not None
                            else idx,
-            'pnl'        : round(float(pnl[idx]), 6),
+            'return'        : round(float(ret[idx]), 6),
             'var'        : round(float(var[idx]), 6),
-            'excess_loss': round(float(-pnl[idx] - var[idx]), 6),
+            'excess_loss': round(float(-ret[idx] - var[idx]), 6),
             'action'     : action,
         })
 
@@ -701,7 +708,7 @@ def exception_report(
 
 
 def full_backtest_report(
-    pnl_series: pd.Series,
+    returns_series: pd.Series,
     var_dict: dict,
     dates: Optional[pd.DatetimeIndex] = None
 ) -> pd.DataFrame:
@@ -711,8 +718,8 @@ def full_backtest_report(
 
     Parameters
     ----------
-    pnl_series : pd.Series
-        Daily P&L in decimal.
+    returns_series : pd.Series
+        Daily returns in decimal.
     var_dict : dict
         Dictionary of {model_name: var_series}.
         e.g. {'historical': var_hist, 'parametric': var_param}
@@ -728,16 +735,16 @@ def full_backtest_report(
     Examples
     --------
     >>> report = full_backtest_report(
-    ...     pnl,
+    ...     return,
     ...     {'historical': var_hist, 'parametric': var_param}
     ... )
     """
     rows = []
     for model_name, var_series in var_dict.items():
         for confidence in [0.99, 0.975, 0.95]:
-            kup  = kupiec_test(pnl_series, var_series, confidence)
+            kup  = kupiec_test(returns_series, var_series, confidence)
             chri = christoffersen_test(
-                pnl_series, var_series, confidence)
+                returns_series, var_series, confidence)
 
             rows.append({
                 'model'            : model_name,
