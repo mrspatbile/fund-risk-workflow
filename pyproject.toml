@@ -23,6 +23,11 @@ dependencies = [
     "nbstripout",
     "pytest",
     "reportlab",
+    "dataframe_image",
+    "playwright",   # for saving html artifacts
+    "chromium",     # for saving html artifacts
+    "nest_asyncio", # for saving html artifacts
+
 ]
 
 [tool.setuptools.packages.find]
