@@ -220,14 +220,14 @@ def remove_spines(ax: plt.Axes, which: list[str] | None = None) -> None:
         ax.spines[side].set_visible(False)
 
 
-def section_title(ax: plt.Axes, title: str) -> None:
+def section_title(ax: plt.Axes, title: str, fontsize:int=FONT['section'], pad:int=6) -> None:
     """Cyan left-aligned bold section title — matches board_report._section_title."""
     ax.set_title(
         title,
-        fontsize=FONT['section'],
+        fontsize=fontsize,
         fontweight='bold',
         color=C['cyan'],
-        pad=6,
+        pad=pad,
         loc='left',
     )
 
@@ -297,6 +297,16 @@ def fig_footer(fig: plt.Figure, text: str) -> None:
     fig.text(
         0.03, 0.025, text,
         fontsize=FONT['footer'], color=C['dim'], va='bottom',
+    )
+
+def sup_title(fig: plt.Figure, title: str, fontsize=FONT['section']) -> None:
+    fig.suptitle(
+        title,
+        fontsize=fontsize,
+        fontweight='bold',
+        color=C['cyan'],
+        x=0.01,
+        ha='left',
     )
 
 
