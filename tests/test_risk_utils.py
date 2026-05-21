@@ -19,7 +19,7 @@ from src.risk_utils import (
     days_to_liquidate, liquidity_buckets,
     redemption_stress, investor_concentration,
     liquidity_adjusted_var, var_montecarlo, compute_pnl_attribution,
-    pre_trade_check,
+    pre_trade_check, lmt_trigger_analysis,
 )
 from src.risk_utils import (  # private helpers — tested directly
     _ptc_apply_trade, _ptc_portfolio_var,
@@ -671,6 +671,192 @@ class TestRedemptionStress:
         result = redemption_stress(pos, nav,
                                    redemption_pct=0.90)
         assert not result['can_meet_redemption']
+
+
+# ================================================================
+# lmt_trigger_analysis — MRS-84 / MRS-86
+# ================================================================
+
+_LMT_NAV            = 1_000_000_000   # 1bn total NAV
+_LMT_LIQUID_PCT     = 0.70            # 700M liquid, 300M illiquid
+_LMT_GATE           = 0.10            # gate cap = min(10% × NAV, liquid) = 100M
+_LMT_SWING          = 0.05            # swing threshold = 5% of NAV
+
+_LMT_COLS = [
+    'month', 'base_gross_pct', 'effective_gross_pct', 'effective_gross_eur',
+    'paid_eur', 'deferred_eur', 'backlog_eur', 'gate_active', 'swing_active',
+    'suspension_active', 'consecutive_gate_months', 'liquid_nav_eur',
+    'illiquid_nav_eur', 'total_nav_eur',
+]
+
+
+class TestLmtTriggerAnalysis:
+
+    def _run(self, schedule, **kwargs):
+        return lmt_trigger_analysis(
+            _LMT_NAV, _LMT_LIQUID_PCT,
+            _LMT_GATE, _LMT_SWING,
+            schedule, **kwargs,
+        )
+
+    # ── Structure ────────────────────────────────────────────────
+
+    def test_returns_dataframe(self):
+        df = self._run([0.03] * 12)
+        assert isinstance(df, pd.DataFrame)
+
+    def test_has_twelve_rows(self):
+        df = self._run([0.03] * 12)
+        assert len(df) == 12
+
+    def test_required_columns(self):
+        df = self._run([0.03] * 12)
+        for col in _LMT_COLS:
+            assert col in df.columns, f'Missing column: {col}'
+
+    def test_month_index_is_one_to_twelve(self):
+        df = self._run([0.03] * 12)
+        assert df['month'].tolist() == list(range(1, 13))
+
+    # ── Normal flow — no LMT triggers ───────────────────────────
+
+    def test_normal_flow_no_triggers(self):
+        """3% / month: 30M demand < 100M gate cap, 3% < 5% swing."""
+        df = self._run([0.03] * 12)
+        assert not df['gate_active'].any()
+        assert not df['swing_active'].any()
+        assert not df['suspension_active'].any()
+        assert (df['backlog_eur'] == 0.0).all()
+        assert (df['deferred_eur'] == 0.0).all()
+
+    def test_normal_flow_full_payment(self):
+        """When no gate fires every redemption request is paid in full."""
+        df = self._run([0.03] * 12)
+        assert (df['paid_eur'] == df['effective_gross_eur']).all()
+
+    def test_liquid_nav_decreases_over_time(self):
+        """Paid redemptions shrink the liquid sleeve each month."""
+        df = self._run([0.05] * 12)
+        for i in range(1, len(df)):
+            assert df['liquid_nav_eur'].iloc[i] <= df['liquid_nav_eur'].iloc[i - 1]
+
+    # ── Gate activation ──────────────────────────────────────────
+
+    def test_gate_activates_when_demand_exceeds_cap(self):
+        """15% / month: 150M demand > 100M gate cap → gate fires in month 1."""
+        df = self._run([0.15] * 12)
+        assert df['gate_active'].iloc[0]
+
+    def test_gate_creates_deferred_amount(self):
+        """When gate fires, deferred_eur > 0 (excess demand rolled to backlog)."""
+        df = self._run([0.15] * 12)
+        assert df['deferred_eur'].iloc[0] > 0.0
+
+    def test_gate_paid_capped_at_gate_cap(self):
+        """
+        Month 1: gate_cap = min(10% × 1bn, 700M) = 100M.
+        No prior backlog so paid_eur must equal gate_cap.
+        """
+        df = self._run([0.15] * 12)
+        assert abs(df['paid_eur'].iloc[0] - 100_000_000) < 1.0
+
+    def test_gate_backlog_accumulates(self):
+        """Backlog in month 2 >= backlog in month 1 while gate keeps firing."""
+        df = self._run([0.15] * 12)
+        assert df['backlog_eur'].iloc[1] >= df['backlog_eur'].iloc[0]
+
+    def test_no_gate_below_threshold(self):
+        """9% / month: 90M demand < 100M gate cap → gate never fires."""
+        df = self._run([0.09] * 12)
+        assert not df['gate_active'].any()
+
+    # ── Swing pricing ────────────────────────────────────────────
+
+    def test_swing_activates_above_threshold(self):
+        """7% demand > 5% swing threshold → swing active; 70M < 100M → no gate."""
+        df = self._run([0.07] * 12)
+        assert df['swing_active'].iloc[0]
+        assert not df['gate_active'].iloc[0]
+
+    def test_swing_off_below_threshold(self):
+        """3% < 5% → swing never fires."""
+        df = self._run([0.03] * 12)
+        assert not df['swing_active'].any()
+
+    # ── Contagion multiplier ─────────────────────────────────────
+
+    def test_contagion_scales_effective_rate_after_gate(self):
+        """
+        Month 1 at 15% fires the gate.
+        Month 2 base = 8%; with contagion × 1.5 → effective = 12%.
+        effective_gross_pct > base_gross_pct only with contagion active.
+        """
+        schedule = [0.15, 0.08] + [0.01] * 10
+        df = self._run(schedule, contagion_multiplier=1.5)
+        # month 2 (index 1): effective > base because gate fired in month 1
+        assert df['effective_gross_pct'].iloc[1] > df['base_gross_pct'].iloc[1]
+        assert abs(df['effective_gross_pct'].iloc[1] - 12.0) < 0.01
+
+    def test_no_contagion_effective_equals_base(self):
+        """Without contagion (multiplier=1.0) effective always equals base."""
+        schedule = [0.15, 0.08] + [0.01] * 10
+        df = self._run(schedule, contagion_multiplier=1.0)
+        assert (df['effective_gross_pct'] == df['base_gross_pct']).all()
+
+    # ── Suspension trigger ───────────────────────────────────────
+
+    def test_suspension_fires_after_consecutive_gates_with_large_backlog(self):
+        """
+        With 15% / month and default consecutive_gate_for_suspension=3:
+
+        Month 1: consec=1, backlog=50M
+        Month 2: consec=2, backlog=95M
+        Month 3: consec=3, backlog=135.5M, liquid=429M  → 135.5/429 = 31.6% > 25%
+        Month 4: both conditions met → suspension_active = True
+        """
+        df = self._run([0.15] * 12)
+        assert df['suspension_active'].iloc[3]   # month 4 (0-indexed: 3)
+
+    def test_suspension_stops_all_payments(self):
+        """When suspension is active, paid_eur must be zero."""
+        df = self._run([0.15] * 12)
+        suspended = df[df['suspension_active']]
+        assert len(suspended) > 0
+        assert (suspended['paid_eur'] == 0.0).all()
+
+    def test_no_suspension_with_small_redemptions(self):
+        """5% / month never fires the gate so suspension cannot trigger."""
+        df = self._run([0.05] * 12)
+        assert not df['suspension_active'].any()
+
+    # ── Edge cases ───────────────────────────────────────────────
+
+    def test_zero_schedule_no_activity(self):
+        """Zero redemptions: nothing paid, nothing deferred, no triggers."""
+        df = self._run([0.0] * 12)
+        assert (df['paid_eur'] == 0.0).all()
+        assert (df['deferred_eur'] == 0.0).all()
+        assert (df['backlog_eur'] == 0.0).all()
+        assert not df['gate_active'].any()
+        assert not df['swing_active'].any()
+        assert not df['suspension_active'].any()
+
+    def test_zero_schedule_liquid_nav_unchanged(self):
+        """Zero redemptions: liquid sleeve must stay at its initial value."""
+        df = self._run([0.0] * 12)
+        expected_liquid = _LMT_NAV * _LMT_LIQUID_PCT
+        assert df['liquid_nav_eur'].iloc[-1] == pytest.approx(expected_liquid)
+
+    def test_illiquid_nav_stays_static(self):
+        """Illiquid sleeve never changes regardless of redemption pressure."""
+        df = self._run([0.15] * 12)
+        expected_illiquid = _LMT_NAV * (1.0 - _LMT_LIQUID_PCT)
+        assert (df['illiquid_nav_eur'] - expected_illiquid).abs().max() < 1.0
+
+    def test_base_gross_pct_stored_as_percentage(self):
+        """Output base_gross_pct is in % (e.g. 5.0 for a 0.05 schedule value)."""
+        df = self._run([0.05] * 12)
+        assert df['base_gross_pct'].iloc[0] == pytest.approx(5.0)
 
 
 class TestInvestorConcentration:
