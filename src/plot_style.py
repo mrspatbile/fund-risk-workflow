@@ -61,15 +61,6 @@ WARNING = C['amber']
 # Domain colour maps
 # ══════════════════════════════════════════════════════════════════════════
 
-BUCKET_COLORS: dict[str, str] = {
-    '1 day'      : C['cyan'],
-    '2-7 days'   : C['blue'],
-    '8-30 days'  : C['blue2'],
-    '31-90 days' : C['amber'],
-    '91-365 days': C['amber2'],
-    '> 1 year'   : C['red'],
-}
-
 FUND_COLORS: dict[str, str] = {
     'AIFM_HedgeFund'  : C['cyan'],
     'AIFM_PrivateDebt': C['amber'],
