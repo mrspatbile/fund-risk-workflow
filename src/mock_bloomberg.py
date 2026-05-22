@@ -61,6 +61,7 @@ class MockBloomberg:
     YF_MAP = json.loads((_REF_DIR / 'ticker_map.json').read_text())
 
     # Betas fixed by definition — never overridden by yfinance
+    # necessary becase as of today, yfinance has beta=0 for these
     BETA_OVERRIDE = {
         'SPY US Equity' : 1.0,
         'SX5E Index'    : 1.0,
@@ -87,6 +88,8 @@ class MockBloomberg:
     # All other fields (duration, ratings, ESG, spreads) are hardcoded.
     # ----------------------------------------------------------------
     _reference_data = {
+
+    # ---- Section 1: Securities Not populated by yfinance
 
     # ---- US Treasuries ----
     'US912828YK09 Govt': {
@@ -222,6 +225,8 @@ class MockBloomberg:
         'ESG_SCORE'       : None, 'ENV_SCORE': None, 'SOC_SCORE': None, 'GOV_SCORE': None,
         'CONTROVERSY_FLAG': False, 'CARBON_INTENSITY': None, 'ESG_LOOK_THROUGH': None,
     },
+
+    # ---- Section 2: Securities Not populated by yfinance
 
     # ---- Equities in YF_MAP ----
     # PX_LAST, BETA, EQY_DVD_YLD_IND, VOLUME_AVG_20D: None
