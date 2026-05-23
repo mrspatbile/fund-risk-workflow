@@ -26,7 +26,10 @@ Usage
         stress_property, stress_rental, stress_ltv,
         days_to_liquidate, liquidity_buckets,
         redemption_stress, lmt_trigger_analysis,
-        investor_concentration, liquidity_adjusted_var,
+        investor_concentration, load_investor_register,
+        'load_counterparty',
+        liquidity_adjusted_var, 'compute_pnl_attribution',
+        'pre_trade_check',
     )
 """
 
@@ -35,6 +38,7 @@ import pandas as pd
 from scipy import stats
 from scipy.stats import norm, t as student_t
 from typing import Optional
+from pathlib import Path
 
 HISTORICAL_SCENARIOS = {
         '2008': {
@@ -66,6 +70,9 @@ HISTORICAL_SCENARIOS = {
             'fx_shocks'    : {'USD': 0.10, 'GBP': -0.05},
         },
     }
+
+_DIR = Path(__file__).parent.parent 
+
 
 # ================================================================
 # VaR functions
@@ -1619,6 +1626,47 @@ def investor_concentration(
         ]],
     }
 
+def load_investor_register(fund_id: str, nav: float) -> pd.DataFrame:
+    """
+    Load investor register from reference_data/investor_register/<fund_id>_inv.json
+    and return a DataFrame ready for investor_concentration().
+
+    Adds aum_eur = weight * nav.
+
+    Parameters
+    ----------
+    fund_id : str   e.g. 'AIFM_HedgeFund'
+    nav     : float fund NAV in EUR
+
+    Returns
+    -------
+    pd.DataFrame with columns: investor_id, investor_name, investor_type, weight, aum_eur
+    """
+    
+    path = _DIR / 'reference_data' / 'investor_register' / f'{fund_id}_inv.json'
+    df = pd.read_json(path)
+    df['aum_eur'] = df['weight'] * nav
+    return df
+
+def load_counterparty(fund_id: str) -> pd.DataFrame:
+    """
+    Load counterparty from reference_data/counterparty/<fund_id>_counterparty.json
+    and return a DataFrame.
+
+    Parameters
+    ----------
+    fund_id : str   e.g. 'AIFM_HedgeFund'
+
+    Returns
+    -------
+    pd.DataFrame with columns: ounterparty, type, exposure_pct, collateral_cover
+    """
+
+    
+    path = _DIR / 'reference_data' / 'counterparty' / f'{fund_id}_counterparty.json'
+    df = pd.read_json(path)
+    return df
+
 
 def liquidity_adjusted_var(
     var: float,
@@ -2286,6 +2334,8 @@ __all__ = [
     'liquidity_buckets',
     'redemption_stress',
     'investor_concentration',
+    'load_investor_register',
+    'load_counterparty',
     'liquidity_adjusted_var',
     # attribution
     'compute_pnl_attribution',

@@ -1,0 +1,17 @@
+[
+    {"investor_id": "HF001", "investor_name": "Nordic Pension Fund",      "investor_type": "Pension Fund",    "weight": 0.25},
+    {"investor_id": "HF002", "investor_name": "Swiss Insurance Co",       "investor_type": "Insurance",       "weight": 0.17},
+    {"investor_id": "HF003", "investor_name": "European Family Office A", "investor_type": "Family Office",   "weight": 0.13},
+    {"investor_id": "HF004", "investor_name": "German Asset Manager",     "investor_type": "Asset Manager",   "weight": 0.06},
+    {"investor_id": "HF005", "investor_name": "Endowment Fund B",         "investor_type": "Endowment",       "weight": 0.05},
+    {"investor_id": "HF006", "investor_name": "Sovereign Wealth Fund C",  "investor_type": "Sovereign Wealth","weight": 0.05},
+    {"investor_id": "HF007", "investor_name": "Private Bank D",           "investor_type": "Private Bank",    "weight": 0.04},
+    {"investor_id": "HF008", "investor_name": "Insurance Co E",           "investor_type": "Insurance",       "weight": 0.04},
+    {"investor_id": "HF009", "investor_name": "Fund of Funds F",          "investor_type": "FoF",             "weight": 0.04},
+    {"investor_id": "HF010", "investor_name": "Family Office G",          "investor_type": "Family Office",   "weight": 0.03},
+    {"investor_id": "HF011", "investor_name": "HNWI H",                   "investor_type": "HNWI",            "weight": 0.03},
+    {"investor_id": "HF012", "investor_name": "Pension Fund I",           "investor_type": "Pension Fund",    "weight": 0.03},
+    {"investor_id": "HF013", "investor_name": "Family Office J",          "investor_type": "Family Office",   "weight": 0.03},
+    {"investor_id": "HF014", "investor_name": "HNWI K",                   "investor_type": "HNWI",            "weight": 0.03},
+    {"investor_id": "HF015", "investor_name": "Multi-Family Office L",    "investor_type": "Family Office",   "weight": 0.02}
+]
