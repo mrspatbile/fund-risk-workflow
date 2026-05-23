@@ -1,0 +1,6 @@
+[
+    {"counterparty": "Goldman Sachs",  "type": "Prime Broker",    "exposure_pct": 0.12, "collateral_cover": 0.80},
+    {"counterparty": "Morgan Stanley", "type": "Prime Broker",    "exposure_pct": 0.08, "collateral_cover": 0.80},
+    {"counterparty": "Deutsche Bank",  "type": "ISDA/OTC Deriv.", "exposure_pct": 0.05, "collateral_cover": 0.70},
+    {"counterparty": "BNP Paribas",    "type": "ISDA/OTC Deriv.", "exposure_pct": 0.04, "collateral_cover": 0.70}
+]
