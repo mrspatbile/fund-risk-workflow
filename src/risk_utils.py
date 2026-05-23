@@ -1897,7 +1897,13 @@ _HY_RATINGS = frozenset({
 
 
 def _ptc_apply_trade(positions: pd.DataFrame, trade: dict) -> pd.DataFrame:
-    """Return pro-forma positions after applying the proposed trade."""
+    """Return pro-forma positions after applying the proposed trade.
+
+    pct_financed (0.0–1.0) in the trade dict controls how much of the notional
+    is prime-broker financed vs cash-funded. 1.0 = fully leveraged (no cash
+    reduction); 0.0 = fully cash-funded (cash reduced by full notional).
+    Defaults to 1.0 so calls without the field behave as before.
+    """
     direction = trade['direction'].lower()
     mv_delta  = float(trade['quantity']) * float(trade['price_eur'])
     if direction in ('sell', 'short'):
@@ -1920,10 +1926,44 @@ def _ptc_apply_trade(positions: pd.DataFrame, trade: dict) -> pd.DataFrame:
             'currency'          : trade.get('currency', 'EUR'),
             'adv_eur'           : trade.get('adv_eur', 0.0),
             'is_direct_property': False,
+            'sector'            : trade.get('sector', None),
         })
         pro_forma = pd.concat(
             [pro_forma, pd.DataFrame([new_row])], ignore_index=True
         )
+
+    # pct_financed=0.0: cash-funded (cash reduced, no new borrowing)
+    # pct_financed=1.0: fully PB financed (cash unchanged, borrowing created)
+    pct_financed   = float(trade.get('pct_financed', 1.0))
+    cash_reduction = mv_delta * (1.0 - pct_financed)
+    if cash_reduction != 0.0:
+        cash_mask = pro_forma['asset_class'] == 'Cash'
+        if cash_mask.any():
+            pro_forma.loc[cash_mask, 'market_value_eur'] -= cash_reduction
+
+    # Leveraged portion creates a PB borrowing (EU 231/2013 Recital 13: included in
+    # both gross and commitment at absolute value). Modelled as a 'Borrowing' row
+    # with negative market_value_eur so compute_leverage can pick it up.
+    borrowing_notional = mv_delta * pct_financed
+    if borrowing_notional > 0.0:
+        borrow_mask = pro_forma['asset_class'] == 'Borrowing'
+        if borrow_mask.any():
+            pro_forma.loc[borrow_mask, 'market_value_eur'] -= borrowing_notional
+        else:
+            borrow_row = {col: None for col in pro_forma.columns}
+            borrow_row.update({
+                'asset_class'       : 'Borrowing',
+                'sub_asset_class'   : 'PB Financing',
+                'instrument_name'   : 'Prime Broker Financing',
+                'market_value_eur'  : -borrowing_notional,
+                'adv_eur'           : 0.0,
+                'is_direct_property': False,
+                'is_hedge'          : False,
+            })
+            pro_forma = pd.concat(
+                [pro_forma, pd.DataFrame([borrow_row])], ignore_index=True
+            )
+
     return pro_forma
 
 
@@ -2064,49 +2104,200 @@ def _check_ucits(
     return breaches, metrics
 
 
+def compute_leverage(
+    positions_df: pd.DataFrame,
+    nav: float,
+    bbg=None,
+    deriv_bbg_map: dict | None = None,
+    currency_bbg_map: dict | None = None,
+    external_borrowings_eur: float = 0.0,
+) -> dict:
+    """
+    Compute gross and commitment leverage per EU 231/2013 Articles 7-8.
+
+    Mirrors the Section 4 notebook computation exactly when bbg and maps
+    are provided. Falls back to abs(market_value_eur) for derivatives
+    when bbg is not available (conservative; correct for linear instruments).
+
+    Parameters
+    ----------
+    positions_df     : enriched positions DataFrame
+    nav              : fund NAV in EUR
+    bbg              : MockBloomberg instance (optional)
+    deriv_bbg_map    : dict  instrument_name → BBG ticker
+    currency_bbg_map : dict  CCY → BBG FX ticker  e.g. {'USD': 'EURUSD Curncy'}
+
+    Returns
+    -------
+    dict with keys:
+        gross_leverage, commitment_leverage,
+        gross_exposure, commitment_exposure,
+        long_eq, short_hedge, short_spec, net_eq,
+        bonds, fx_exposure, deriv_notional_commitment, borrowings
+    """
+    df = positions_df.copy()
+    df['abs_exposure'] = df['market_value_eur'].abs()
+
+    # ── derivative notionals ───────────────────────────────────────────────
+    deriv_gross_map:      dict = {}
+    deriv_commitment_map: dict = {}
+
+    for idx, row in df[df['asset_class'] == 'Derivative'].iterrows():
+        use_bbg = (
+            bbg is not None
+            and deriv_bbg_map is not None
+            and row['instrument_name'] in deriv_bbg_map
+        )
+        if use_bbg:
+            ticker  = deriv_bbg_map[row['instrument_name']]
+            bd      = bbg.bdp(ticker, ['DELTA', 'OPT_UNDL_PX', 'CONTRACT_SIZE', 'CRNCY'])
+            delta   = bd.loc[ticker, 'DELTA']
+            undl_px = bd.loc[ticker, 'OPT_UNDL_PX']
+            csize   = bd.loc[ticker, 'CONTRACT_SIZE']
+            ccy     = bd.loc[ticker, 'CRNCY']
+            qty     = row['quantity']
+            fx_rate = 1.0
+            if ccy != 'EUR' and currency_bbg_map and ccy in currency_bbg_map:
+                fx_tkr  = currency_bbg_map[ccy]
+                fx_rate = 1 / bbg.bdp(fx_tkr, ['PX_LAST']).loc[fx_tkr, 'PX_LAST']
+            deriv_gross_map[idx]      = abs(qty) * csize * undl_px * fx_rate
+            deriv_commitment_map[idx] = (
+                delta * qty * csize * undl_px * fx_rate
+                if row.get('is_hedge', 0) != 1 else 0.0
+            )
+        else:
+            deriv_gross_map[idx]      = abs(row['market_value_eur'])
+            deriv_commitment_map[idx] = (
+                row['market_value_eur']
+                if row.get('is_hedge', 0) != 1 else 0.0
+            )
+
+    # ── gross (Article 7) ─────────────────────────────────────────────────
+    # Cash (uninvested) excluded; Borrowing handled separately below.
+    gross_exposure = df.apply(
+        lambda r: deriv_gross_map.get(r.name, 0.0) if r['asset_class'] == 'Derivative'
+        else (0.0 if r['asset_class'] in ('Cash', 'Borrowing') else r['abs_exposure']),
+        axis=1,
+    ).sum()
+
+    # Borrowings — EU 231/2013 Recital 13: all borrowings included at absolute value.
+    # Exception (Recital 14): capital call credit facilities that are temporary and fully
+    # covered by investor commitments are excluded (PE/infra only, not applicable to HF).
+    borrowings = df.loc[df['asset_class'] == 'Borrowing', 'market_value_eur'].abs().sum()
+    borrowings += abs(external_borrowings_eur)
+
+    gross_exposure += borrowings
+    gross_leverage  = gross_exposure / nav if nav else 0.0
+
+    # ── commitment (Article 8) ────────────────────────────────────────────
+    mask_eq    = df['asset_class'] == 'Equity'
+    mask_long  = df['market_value_eur'] >= 0
+    mask_hedge = df['is_hedge'].fillna(0) == 1
+
+    long_eq     = df.loc[mask_eq & mask_long,               'market_value_eur'].sum()
+    short_hedge = df.loc[mask_eq & ~mask_long & mask_hedge,  'market_value_eur'].sum()
+    short_spec  = df.loc[mask_eq & ~mask_long & ~mask_hedge, 'market_value_eur'].abs().sum()
+    net_eq      = abs(long_eq + short_hedge) + short_spec
+
+    bonds = df.loc[
+        df['asset_class'].isin(['Bond', 'Loan', 'CLO']), 'market_value_eur'
+    ].abs().sum()
+
+    fx_exposure = df.loc[
+        (df['asset_class'] == 'FX') & (df['is_hedge'].fillna(0) != 1),
+        'market_value_eur',
+    ].abs().sum()
+
+    deriv_notional_commitment = sum(deriv_commitment_map.values())
+    # Borrowings also added to commitment exposure (Recital 13 applies to both methods).
+    commitment_exposure = net_eq + bonds + fx_exposure + deriv_notional_commitment + borrowings
+    commitment_leverage = commitment_exposure / nav if nav else 0.0
+
+    return {
+        'gross_leverage'            : gross_leverage,
+        'commitment_leverage'       : commitment_leverage,
+        'gross_exposure'            : gross_exposure,
+        'commitment_exposure'       : commitment_exposure,
+        'long_eq'                   : long_eq,
+        'short_hedge'               : short_hedge,
+        'short_spec'                : short_spec,
+        'net_eq'                    : net_eq,
+        'bonds'                     : bonds,
+        'fx_exposure'               : fx_exposure,
+        'deriv_notional_commitment' : deriv_notional_commitment,
+        'borrowings'                : borrowings,
+    }
+
+
 def _check_aifm_hf(
-    pro_forma: pd.DataFrame, nav: float, trade: dict
+    pro_forma: pd.DataFrame,
+    nav: float,
+    trade: dict,
+    counterparties_df=None,
+    bbg=None,
+    deriv_bbg_map: dict | None = None,
+    currency_bbg_map: dict | None = None,
+    positions_before: pd.DataFrame | None = None,
 ) -> tuple:
     breaches: list = []
     metrics:  dict = {}
 
-    # [1] Gross leverage < 300% NAV (EU 231/2013 gross method)
-    gross_lev = pro_forma['market_value_eur'].abs().sum() / nav if nav else 0.0
-    metrics['gross_leverage'] = gross_lev
-    if gross_lev > 3.00:
+    # [1] & [2] Gross and commitment leverage — EU 231/2013 Articles 7-8
+    lev = compute_leverage(pro_forma, nav, bbg=bbg,
+                           deriv_bbg_map=deriv_bbg_map,
+                           currency_bbg_map=currency_bbg_map)
+    metrics.update({
+        'gross_leverage'            : lev['gross_leverage'],
+        'commitment_leverage'       : lev['commitment_leverage'],
+        'gross_exposure'            : lev['gross_exposure'],
+        'commitment_exposure'       : lev['commitment_exposure'],
+        'net_eq'                    : lev['net_eq'],
+        'bonds'                     : lev['bonds'],
+        'fx_exposure'               : lev['fx_exposure'],
+        'deriv_notional_commitment' : lev['deriv_notional_commitment'],
+        'borrowings'                : lev['borrowings'],
+    })
+    if lev['gross_leverage'] > 3.00:
         breaches.append(_breach(
-            'gross_leverage', 3.00, gross_lev, 'x NAV',
-            f'Post-trade gross leverage {gross_lev:.2f}x exceeds 300% NAV RMP limit'
+            'gross_leverage', 3.00, lev['gross_leverage'], 'x NAV',
+            f"Post-trade gross leverage {lev['gross_leverage']:.2f}x exceeds 300% NAV RMP limit"
+        ))
+    if lev['commitment_leverage'] > 2.00:
+        breaches.append(_breach(
+            'commitment_leverage', 2.00, lev['commitment_leverage'], 'x NAV',
+            f"Post-trade commitment leverage {lev['commitment_leverage']:.2f}x exceeds 200% NAV RMP limit"
         ))
 
-    # [2] Commitment leverage < 200% NAV (EU 231/2013 commitment method)
-    # Simplified: |net long + net short| / nav. Proper method requires delta adjustment.
-    long_mv  = pro_forma.loc[pro_forma['market_value_eur'] > 0, 'market_value_eur'].sum()
-    short_mv = abs(pro_forma.loc[pro_forma['market_value_eur'] < 0, 'market_value_eur'].sum())
-    commit_lev = (long_mv + short_mv) / nav if nav else 0.0
-    metrics['commitment_leverage'] = commit_lev
-    if commit_lev > 2.00:
-        breaches.append(_breach(
-            'commitment_leverage', 2.00, commit_lev, 'x NAV',
-            f'Post-trade commitment leverage {commit_lev:.2f}x exceeds 200% NAV RMP limit'
-        ))
-
-    # [3] Single issuer concentration vs RMP limit (25% NAV)
+    # [3] Single-issuer concentration — 25% NAV RMP limit
+    # Only flag if the trade worsened the breach (pre-existing breaches are not the trade's fault).
     issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
+    pre_issuer_exp = _ptc_issuer_exposure(positions_before, nav) if positions_before is not None else pd.Series(dtype=float)
     metrics['max_issuer_pct'] = float(issuer_exp.max()) if len(issuer_exp) else 0.0
     for issuer, pct in issuer_exp[issuer_exp > 25.0].items():
-        breaches.append(_breach(
-            'issuer_concentration', 25.0, float(pct), '% NAV',
-            f'Issuer {issuer}: {pct:.1f}% NAV exceeds RMP single-issuer limit 25%'
-        ))
+        pre_pct = float(pre_issuer_exp.get(issuer, 0.0))
+        if pct > pre_pct:
+            breaches.append(_breach(
+                'issuer_concentration', 25.0, float(pct), '% NAV',
+                f'Issuer {issuer}: {pct:.1f}% NAV exceeds RMP single-issuer limit 25% (was {pre_pct:.1f}%)'
+            ))
 
-    # [4] Sector concentration (30% NAV — RMP internal limit)
-    sector_col = 'sector' if 'sector' in pro_forma.columns else 'asset_class'
+    # [4] Sector concentration — 30% NAV internal RMP limit
+    # Scope: equities and corporate bonds/loans/CLOs by GICS sector.
+    # Government bonds are excluded (sovereign risk monitored separately via country exposure).
+    # FX, derivatives, and cash are excluded as cross-sectoral instruments.
+    if 'sector' in pro_forma.columns:
+        sector_universe = pro_forma[
+            pro_forma['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
+            pro_forma['sector'].notna() &
+            (pro_forma['sector'] != 'Government')
+        ]
+    else:
+        sector_universe = pro_forma[pro_forma['asset_class'] == 'Equity']
+
     sector_exp = (
-        pro_forma
-        .groupby(pro_forma[sector_col].fillna('Unknown'))['market_value_eur']
-        .sum().abs() / nav * 100
-    )
+        sector_universe.groupby('sector')['market_value_eur'].sum().abs() / nav * 100
+    ) if len(sector_universe) else pd.Series(dtype=float)
+
     metrics['max_sector_pct'] = float(sector_exp.max()) if len(sector_exp) else 0.0
     for sector, pct in sector_exp[sector_exp > 30.0].items():
         breaches.append(_breach(
@@ -2115,52 +2306,66 @@ def _check_aifm_hf(
         ))
 
     # [5] Counterparty concentration
+    # Checks existing register exposure + new trade exposure against limit.
+    # Limit: 10% NAV for credit institutions, 5% for others (EU 231/2013 Article 43).
     cpty       = trade.get('counterparty')
     cpty_type  = trade.get('counterparty_type', 'non_credit_institution')
     cpty_limit = 0.10 if cpty_type == 'credit_institution' else 0.05
     if cpty and trade.get('asset_class') == 'Derivative':
-        trade_mv_pct = abs(trade['quantity'] * trade['price_eur']) / nav if nav else 0.0
-        metrics[f'counterparty_{cpty}_pct'] = trade_mv_pct
-        if trade_mv_pct > cpty_limit:
+        trade_pct    = abs(trade['quantity'] * trade['price_eur']) / nav if nav else 0.0
+        existing_pct = 0.0
+        if counterparties_df is not None:
+            mask = counterparties_df['counterparty'] == cpty
+            if mask.any():
+                existing_pct = float(counterparties_df.loc[mask, 'exposure_pct'].iloc[0])
+        total_pct = existing_pct + trade_pct
+        metrics[f'counterparty_{cpty}_existing_pct'] = existing_pct
+        metrics[f'counterparty_{cpty}_trade_pct']    = trade_pct
+        metrics[f'counterparty_{cpty}_total_pct']    = total_pct
+        if total_pct > cpty_limit:
             breaches.append(_breach(
-                'counterparty_exposure', cpty_limit * 100,
-                trade_mv_pct * 100, '% NAV',
-                f'OTC counterparty {cpty} ({cpty_type}): {trade_mv_pct:.1%} NAV — '
+                'counterparty_exposure', cpty_limit * 100, total_pct * 100, '% NAV',
+                f'Counterparty {cpty} ({cpty_type}): existing {existing_pct:.1%} '
+                f'+ trade {trade_pct:.1%} = {total_pct:.1%} NAV — '
                 f'exceeds {cpty_limit:.0%} limit'
             ))
 
-    # [6] Short selling (EU 236/2012) — net short > 0.2% NAV is reportable
-    key = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
-    net_pos  = (
-        pro_forma
-        .groupby(pro_forma[key].fillna(pro_forma['isin']))['market_value_eur']
-        .sum()
-    )
+    # [6] Short selling — EU 236/2012: net short > 0.2% NAV is reportable
+    # Only flag positions that are new or increased by this trade.
+    # Pre-existing reportable shorts are already known and managed separately.
+    key       = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
+    net_pos   = pro_forma.groupby(pro_forma[key].fillna(pro_forma['isin']))['market_value_eur'].sum()
     net_short = net_pos[net_pos < 0]
     metrics['max_net_short_pct'] = float(
         net_short.min() / nav * 100
     ) if (len(net_short) and nav) else 0.0
+
+    if positions_before is not None:
+        pre_net = positions_before.groupby(
+            positions_before[key].fillna(positions_before['isin'])
+        )['market_value_eur'].sum()
+    else:
+        pre_net = pd.Series(dtype=float)
+
     for issuer, mv in net_short.items():
-        short_pct = abs(mv) / nav * 100 if nav else 0.0
-        if short_pct > 0.2:
+        short_pct  = abs(mv) / nav * 100 if nav else 0.0
+        pre_mv     = float(pre_net.get(issuer, 0.0))
+        trade_made_worse = mv < pre_mv  # more negative than before
+        if short_pct > 0.2 and trade_made_worse:
             breaches.append(_breach(
                 'short_selling_eu_236', 0.2, short_pct, '% NAV',
-                f'Net short {issuer}: {short_pct:.2f}% NAV — '
-                f'reportable threshold under EU 236/2012'
+                f'Net short {issuer}: {short_pct:.2f}% NAV — reportable under EU 236/2012'
             ))
 
-    # [7] Liquidity impact — weighted avg days-to-liquidate vs 30-day redemption proxy
+    # [7] Liquidity impact — weighted avg days-to-liquidate vs 30-day redemption horizon
     REDEMPTION_HORIZON = 30
     if 'adv_eur' in pro_forma.columns:
-        liq_df = days_to_liquidate(
-            pro_forma.assign(adv_eur=pro_forma['adv_eur'].fillna(0))
-        )
+        liq_df     = days_to_liquidate(pro_forma.assign(adv_eur=pro_forma['adv_eur'].fillna(0)))
         finite_liq = liq_df[np.isfinite(liq_df['days_to_liquidate'])]
         total_abs  = finite_liq['market_value_eur'].abs().sum()
         wtd_days   = (
             (finite_liq['days_to_liquidate'] * finite_liq['market_value_eur'].abs()).sum()
-            / total_abs
-            if total_abs > 0 else 0.0
+            / total_abs if total_abs > 0 else 0.0
         )
         metrics['wtd_avg_days_to_liquidate'] = round(wtd_days, 1)
         if wtd_days > REDEMPTION_HORIZON:
@@ -2222,10 +2427,14 @@ def _check_aifm_pd(
 
 
 def pre_trade_check(
+    proposed_trade: dict,
     engine,
     fund_id: str,
-    proposed_trade: dict,
     date: str,
+    counterparties_df=None,
+    bbg=None,
+    deriv_bbg_map: dict | None = None,
+    currency_bbg_map: dict | None = None,
 ) -> dict:
     """
     Pre-trade compliance check for UCITS and AIFM funds.
@@ -2286,7 +2495,14 @@ def pre_trade_check(
     if fund_type == 'ucits':
         breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
     elif fund_type == 'aifm_hf':
-        breaches, metrics = _check_aifm_hf(pro_forma, nav, proposed_trade)
+        breaches, metrics = _check_aifm_hf(
+            pro_forma, nav, proposed_trade,
+            counterparties_df=counterparties_df,
+            bbg=bbg,
+            deriv_bbg_map=deriv_bbg_map,
+            currency_bbg_map=currency_bbg_map,
+            positions_before=positions,
+        )
     else:
         breaches, metrics = _check_aifm_pd(pro_forma, nav, proposed_trade)
 
@@ -2333,6 +2549,7 @@ __all__ = [
     'days_to_liquidate',
     'liquidity_buckets',
     'redemption_stress',
+    'compute_leverage',
     'investor_concentration',
     'load_investor_register',
     'load_counterparty',

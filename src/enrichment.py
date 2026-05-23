@@ -455,7 +455,7 @@ def get_risk_ready_df(
             p.currency, p.quantity, p.price,
             p.market_value_eur, p.weight_pct,
             p.adv_eur, p.is_direct_property, p.is_hedge,
-            p.country, p.rating, p.maturity,
+            p.country, p.rating, p.maturity, p.sector,
             -- stress testing sensitivities
             e.beta,
             e.dur_adj_mid,
