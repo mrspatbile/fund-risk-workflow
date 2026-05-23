@@ -12,11 +12,13 @@ build_private_esg_df(fund_id, quarter, asset_type, engine)
     Builds position-level ESG DataFrame for private asset funds (PE or infrastructure).
 
 esg_portfolio_summary(esg_df, nav)
-    Computes portfolio-level weighted ESG metrics and flags.
+    Computes portfolio-level weighted ESG metrics and flags
 
-ESG_THRESHOLD : int
+ESG_THRESHOLD_LOW : int
     Internal RMP threshold below which ESG score is flagged. Default 30.
     Not prescribed by regulation; defined in the Risk Management Policy.
+ 
+ESG_THRESHOLD_HIGH : int
 """
 
 import json
@@ -24,6 +26,8 @@ from pathlib import Path
 
 import pandas as pd
 import numpy as np
+from src.print_html_utils import display_dark_table
+from src.plot_style import C
 from src.database import (
     query_positions,
     PEValuationReport, PEPortfolioCompany, PEFundInvestment,
@@ -31,7 +35,10 @@ from src.database import (
 )
 from sqlalchemy.orm import Session
 
-ESG_THRESHOLD = 30
+# from PRM - policy risk management
+ESG_THRESHOLD_LOW  = 40   
+ESG_THRESHOLD_HIGH = 70   
+
 
 ESG_FIELDS = ['ESG_SCORE', 'ENV_SCORE', 'SOC_SCORE', 'GOV_SCORE',
               'CONTROVERSY_FLAG', 'CARBON_INTENSITY']
@@ -290,7 +297,7 @@ def esg_portfolio_summary(
     wav_carb  = (scored['carbon_intensity'].fillna(0) *
                  scored['esg_exposure_eur']).sum() / total
 
-    low_esg      = scored[scored['esg_score'] < ESG_THRESHOLD]
+    low_esg      = scored[scored['esg_score'] < ESG_THRESHOLD_LOW]
     controversies = esg_df[esg_df['controversy_flag'] == True]
 
     pct_low_esg  = low_esg['esg_exposure_eur'].sum() / total * 100
@@ -308,3 +315,88 @@ def esg_portfolio_summary(
         'pct_controversy': round(pct_controv, 1),
         'controversies' : controversies,
     }
+
+##### PRINT HTML TABLES ##########
+esgl = ESG_THRESHOLD_LOW
+esgh = ESG_THRESHOLD_HIGH
+
+ESG_COL_STYLES = {
+    'esg_score'       : lambda v: None if pd.isna(v) else (C['green'] if v >= esgh else (C['amber'] if v >= esgl else C['red'])),
+    'env_score'       : lambda v: None if pd.isna(v) else (C['green'] if v >= esgh else (C['amber'] if v >= esgl else C['red'])),
+    'soc_score'       : lambda v: None if pd.isna(v) else (C['green'] if v >= esgh else (C['amber'] if v >= esgl else C['red'])),
+    'gov_score'       : lambda v: None if pd.isna(v) else (C['green'] if v >= esgh else (C['amber'] if v >= esgl else C['red'])),
+    'controversy_flag': lambda v: C['red'] if v else None,
+}
+
+ESG_FMT = {
+    'market_value_eur' : '{:,.0f}',
+    'weight_pct'       : '{:.2f}%',
+    'esg_score'        : '{:.0f}',
+    'env_score'        : '{:.0f}',
+    'soc_score'        : '{:.0f}',
+    'gov_score'        : '{:.0f}',
+    'carbon_intensity' : '{:.1f}',
+    'esg_exposure_eur' : '{:,.0f}',
+}
+
+ESG_COL_ALIGN_OVERRIDE = {
+    'esg_score': 'center', 
+    'env_score': 'center',
+    'soc_score': 'center', 
+    'gov_score':  '{:.0f}',
+}
+
+
+def display_esg_assets(esg_df):
+        
+    return display_dark_table(
+        esg_df, 
+        caption='ESG Portfolio Profile',
+        fmt=ESG_FMT, 
+        col_styles=ESG_COL_STYLES,
+        col_align_override=ESG_COL_ALIGN_OVERRIDE,
+        )
+
+def display_esg_summary(esg_df: pd.DataFrame) -> None:
+    scored = esg_df[esg_df['esg_score'].notna()].copy()
+    total  = scored['esg_exposure_eur'].sum()
+
+    if total == 0:
+        return
+
+    wav_esg  = (scored['esg_score']        * scored['esg_exposure_eur']).sum() / total
+    wav_env  = (scored['env_score']         * scored['esg_exposure_eur']).sum() / total
+    wav_soc  = (scored['soc_score']         * scored['esg_exposure_eur']).sum() / total
+    wav_gov  = (scored['gov_score']         * scored['esg_exposure_eur']).sum() / total
+    wav_carb = (scored['carbon_intensity'].fillna(0) * scored['esg_exposure_eur']).sum() / total
+
+    low_esg       = scored[scored['esg_score'] < ESG_THRESHOLD_LOW]
+    controversies = esg_df[esg_df['controversy_flag'] == True]
+    pct_low_esg   = low_esg['esg_exposure_eur'].sum() / total * 100
+    pct_controv   = (controversies['esg_exposure_eur'].sum() /
+                     esg_df['esg_exposure_eur'].sum() * 100
+                     if esg_df['esg_exposure_eur'].sum() > 0 else 0)
+
+    rows = [
+        ('ESG score',           f'{wav_esg:.1f}/100'),
+        ('ENV score',           f'{wav_env:.1f}/100'),
+        ('SOC score',           f'{wav_soc:.1f}/100'),
+        ('GOV score',           f'{wav_gov:.1f}/100'),
+        ('Carbon intensity',    f'{wav_carb:.1f} tCO2/EURm'),
+        ('', ''),
+        ('% exposure', ''),
+        ('Below ESG threshold', f'{pct_low_esg:.1f}%'),
+        ('With controversy',    f'{pct_controv:.1f}%'),
+    ]
+
+    highlight = [6]  # '% exposure' header row
+
+    if len(controversies) > 0:
+        rows.append(('', ''))
+        rows.append(('Controversy flags', ''))
+        highlight.append(len(rows) - 1)
+        for _, row in controversies.iterrows():
+            rows.append((f"  {row['instrument_name']}", f"ESG: {row['esg_score']:.0f}"))
+
+    df = pd.DataFrame(rows, columns=['Metric', 'Value'])
+    display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight)

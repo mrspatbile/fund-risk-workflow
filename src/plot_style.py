@@ -7,7 +7,7 @@ visual identity defined in board_report.py.
 
 Usage
 -----
-    from src.plot_style import C, BUCKET_COLORS, FUND_COLORS
+    from src.plot_style import C, FUND_COLORS
     from src.plot_style import apply_ax_style, section_title, fig_header
     from src.plot_style import pct_color, rag_color, callout_box
 """
@@ -41,7 +41,7 @@ C: dict[str, str] = {
     'cyan'  : '#1a9ed4',
     'cyan2' : '#38bdf8',
     'green' : '#22c55e',
-    'amber' : '#f97316',
+    'amber' : "#c67236ff",
     'amber2': '#ea580c',
     'red'   : '#ef4444',
     'blue'  : '#3b82f6',
