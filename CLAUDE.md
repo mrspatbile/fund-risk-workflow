@@ -145,6 +145,8 @@ The preferred flow for every task:
 4. Make changes one logical step at a time -- not everything at once
 5. After each step, explain what you did and why
 6. After each step, when I consider code done, I will ask you for a commit msg - I will commit myself. The message you pass to me should include the commands: git add and git commit -m
+The commit message must include the Linear issue ID in the format:
+`[LIN-123] short description`. Ask me for the ID if you do not have it.
 
 The developer has a finance background and works at the intersection of finance and technology. Code quality matters here: clean design, good package structure and disciplined progression through Linear issues with references in commits. When making changes, always explain the business logic so it can be verified for regulatory correctness. Do not over-explain technical basics, but never skip the reasoning behind implementation choices.
 
@@ -159,3 +161,28 @@ The developer has a finance background and works at the intersection of finance 
 ## Tone
 
 This is a research and learning project. When I ask why something is done a certain way, in the code or in the regulation, take the time to explain it properly. That is part of the value.
+
+## Hard constraints — never override
+
+- `VALUATION_DATE` is intentionally static at 13/05/2026. Do not change it,
+  do not suggest making it dynamic, do not add date-range logic. All analytics
+  are point-in-time by design.
+- Portfolio positions do not change across funds, except for the PE fund.
+  Do not suggest or introduce position-update logic elsewhere.
+
+## Code style
+
+- PEP 8 throughout.
+- Type hints on all public functions and methods.
+- Docstrings on all public classes and functions. Where a parameter has a
+  non-obvious convention (percent vs decimal, annualised vs daily), state it
+  explicitly in the docstring.
+- No new dependencies without flagging first.
+
+## Scope boundary
+
+This project is a structured learning and research environment. There is a
+separate project, quant-risk-engine, that focuses on production-grade OOP
+design, QuantLib integration, and regulatory capital calculations. Do not
+suggest production patterns, refactors, or architectural changes imported
+from that context. If something works and is clear, it is good enough here.
