@@ -7,7 +7,7 @@ visual identity defined in board_report.py.
 
 Usage
 -----
-    from src.plot_style import C, FUND_COLORS
+    from src.plot_style import C, FUND_COLORS, ACCENT, ACCENT2, ACCENT3
     from src.plot_style import apply_ax_style, section_title, fig_header
     from src.plot_style import pct_color, rag_color, callout_box
 """
@@ -294,7 +294,8 @@ def sup_title(fig: plt.Figure, title: str, fontsize=FONT['section']) -> None:
     fig.suptitle(
         title,
         fontsize=fontsize,
-        fontweight='bold',
+        # fontweight='bold',
+        fontweight=900,
         color=C['cyan'],
         x=0.01,
         ha='left',

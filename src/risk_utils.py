@@ -482,7 +482,8 @@ def exception_report(
     returns_series: pd.Series,
     var_series: pd.Series,
     confidence: float = 0.99,
-    dates: Optional[pd.DatetimeIndex] = None
+    dates: Optional[pd.DatetimeIndex] = None,
+    verbose: bool = True,
 ) -> pd.DataFrame:
     """
     ESMA exception report: documents each VaR breach.
@@ -541,13 +542,13 @@ def exception_report(
         })
 
     report = pd.DataFrame(rows)
-
-    print(f'Exception report ({confidence*100:.0f}% VaR):')
-    print(f'  observations : {n}')
-    print(f'  breaches     : {n_breaches}')
-    print(f'  breach rate  : {breach_rate*100:.2f}%'
-          f' (expected {(1-confidence)*100:.1f}%)')
-    print(f'  action       : {action}')
+    if verbose:
+        print(f'Exception report ({confidence*100:.0f}% VaR):')
+        print(f'  observations : {n}')
+        print(f'  breaches     : {n_breaches}')
+        print(f'  breach rate  : {breach_rate*100:.2f}%'
+            f' (expected {(1-confidence)*100:.1f}%)')
+        print(f'  action       : {action}')
 
     return report
 
@@ -2494,6 +2495,7 @@ def pre_trade_check(
 
     if fund_type == 'ucits':
         breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
+        pre_metrics: dict = {}
     elif fund_type == 'aifm_hf':
         breaches, metrics = _check_aifm_hf(
             pro_forma, nav, proposed_trade,
@@ -2503,8 +2505,27 @@ def pre_trade_check(
             currency_bbg_map=currency_bbg_map,
             positions_before=positions,
         )
+        # Pre-trade baseline metrics for side-by-side comparison in reports.
+        _pre_lev = compute_leverage(positions, nav, bbg=bbg,
+                                    deriv_bbg_map=deriv_bbg_map,
+                                    currency_bbg_map=currency_bbg_map)
+        _pre_iss = _ptc_issuer_exposure(positions, nav)
+        pre_metrics = {
+            'gross_leverage'            : _pre_lev['gross_leverage'],
+            'commitment_leverage'       : _pre_lev['commitment_leverage'],
+            'gross_exposure'            : _pre_lev['gross_exposure'],
+            'commitment_exposure'       : _pre_lev['commitment_exposure'],
+            'net_eq'                    : _pre_lev['net_eq'],
+            'bonds'                     : _pre_lev['bonds'],
+            'fx_exposure'               : _pre_lev['fx_exposure'],
+            'deriv_notional_commitment' : _pre_lev['deriv_notional_commitment'],
+            'borrowings'                : _pre_lev['borrowings'],
+            'max_issuer_pct'            : float(_pre_iss.max()) if len(_pre_iss) else 0.0,
+            'absolute_var_pct'          : _ptc_portfolio_var(positions, nav),
+        }
     else:
         breaches, metrics = _check_aifm_pd(pro_forma, nav, proposed_trade)
+        pre_metrics = {}
 
     return {
         'passed'            : len(breaches) == 0,
@@ -2512,6 +2533,7 @@ def pre_trade_check(
         'fund_type'         : fund_type,
         'proposed_trade'    : proposed_trade,
         'breaches'          : breaches,
+        'pre_trade_metrics' : pre_metrics,
         'post_trade_metrics': metrics,
     }
 

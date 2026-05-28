@@ -25,7 +25,9 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
+from src.nb_utils import save_fig
+from src.plot_style import sup_title, C, ACCENT, ACCENT2, ACCENT3
 from src.print_html_utils import display_dark_table
 from src.plot_style import C
 from src.database import (
@@ -343,7 +345,12 @@ ESG_COL_ALIGN_OVERRIDE = {
     'esg_score': 'center', 
     'env_score': 'center',
     'soc_score': 'center', 
-    'gov_score':  '{:.0f}',
+    'gov_score': 'center', 
+}
+
+ESG_HEADER_ALIGN_OVERRIDE = {
+    'market_value_eur': 'center', 
+    'esg_exposure_eur': 'center', 
 }
 
 
@@ -355,6 +362,7 @@ def display_esg_assets(esg_df):
         fmt=ESG_FMT, 
         col_styles=ESG_COL_STYLES,
         col_align_override=ESG_COL_ALIGN_OVERRIDE,
+        col_header_align_override=ESG_HEADER_ALIGN_OVERRIDE,
         )
 
 def display_esg_summary(esg_df: pd.DataFrame) -> None:
@@ -364,10 +372,10 @@ def display_esg_summary(esg_df: pd.DataFrame) -> None:
     if total == 0:
         return
 
-    wav_esg  = (scored['esg_score']        * scored['esg_exposure_eur']).sum() / total
-    wav_env  = (scored['env_score']         * scored['esg_exposure_eur']).sum() / total
-    wav_soc  = (scored['soc_score']         * scored['esg_exposure_eur']).sum() / total
-    wav_gov  = (scored['gov_score']         * scored['esg_exposure_eur']).sum() / total
+    wav_esg  = (scored['esg_score'] * scored['esg_exposure_eur']).sum() / total
+    wav_env  = (scored['env_score'] * scored['esg_exposure_eur']).sum() / total
+    wav_soc  = (scored['soc_score'] * scored['esg_exposure_eur']).sum() / total
+    wav_gov  = (scored['gov_score'] * scored['esg_exposure_eur']).sum() / total
     wav_carb = (scored['carbon_intensity'].fillna(0) * scored['esg_exposure_eur']).sum() / total
 
     low_esg       = scored[scored['esg_score'] < ESG_THRESHOLD_LOW]
@@ -400,3 +408,55 @@ def display_esg_summary(esg_df: pd.DataFrame) -> None:
 
     df = pd.DataFrame(rows, columns=['Metric', 'Value'])
     display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight)
+
+def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF"):
+
+    esg_scored = esg_df[esg_df['esg_score'].notna()].copy()
+    total_scored_mv = esg_scored['esg_exposure_eur'].sum()
+    ac_esg = esg_scored.groupby('asset_class').agg(
+        wav_esg=('esg_score', lambda x: (x * esg_scored.loc[x.index, 'esg_exposure_eur']).sum() /
+                esg_scored.loc[x.index, 'esg_exposure_eur'].sum()),
+        exposure=('esg_exposure_eur', 'sum')
+    ).reset_index()
+    ac_esg['pct_total'] = ac_esg['exposure'] / total_scored_mv * 100
+
+    fig,(ax1, ax2) = plt.subplots(2, 1, figsize=(12, 5))
+    sup_title(fig, 'ESG Profile by Asset Class', fontsize=18)
+
+    colors = [C['muted'], C['dim'], C['border'], C['border'], C['text'], C['text']]
+    left = 0
+    for i, (_, row) in enumerate(ac_esg.iterrows()):
+        ax1.barh(0, row['pct_total'], left=left,
+                    color=colors[i % len(colors)], alpha=0.85, height=0.2)
+        if row['pct_total'] > 3:
+            ax1.text(left + row['pct_total']/2, 0,
+                        f"{row['asset_class']}\n{row['pct_total']:.1f}%",
+                        ha='center', va='center', fontsize=8, color='white', fontweight='bold')
+        left += row['pct_total']
+
+    ax1.set_xlim(0, 100)
+    ax1.set_yticks([])
+    ax1.set_xlabel('% of ESG-scored exposure', fontsize=9)
+    ax1.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+    ax1.tick_params(labelsize=9, length=0)
+
+    bars = ax2.barh(ac_esg['asset_class'], ac_esg['wav_esg'],
+                        color=[C['amber'] if v < 50 else C['blue2'] if v < 70 else C['green']
+                            for v in ac_esg['wav_esg']],
+                        height=0.4, alpha=0.85)
+    ax2.axvline(ESG_THRESHOLD_LOW, color=ACCENT2, lw=1, linestyle='--',
+                    label=f'Low ESG threshold ({ESG_THRESHOLD_LOW})')
+    ax2.axvline(70, color=ACCENT3, lw=1, linestyle='--', label='Good ESG threshold (70)')
+    ax2.set_xlim(0, 100)
+    ax2.set_xlabel('Weighted avg ESG score', fontsize=9)
+    ax2.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+    ax2.grid(False)
+    ax2.tick_params(labelsize=9, length=0)
+    ax2.legend(fontsize=7)
+    for bar, val in zip(bars, ac_esg['wav_esg']):
+        ax2.text(val + 1, bar.get_y() + bar.get_height()/2,
+                    f'{val:.1f}', va='center', fontsize=9)
+    plt.tight_layout()
+    save_fig(fig, FUND_ID, plot_title)
+    plt.show()
+

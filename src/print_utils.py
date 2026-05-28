@@ -2,6 +2,24 @@ import pandas as pd
 from IPython.display import display, HTML
 from src.risk_utils import stress_historical, redemption_stress
 
+def print_asset_class_weights_n_positions(breakdown, NAV):
+    print(f"{'Asset Class':<20} {'MV (EUR)':>15} {'Weight':>8} {'# Pos':>6}")
+    print('-' * 52)
+    for ac, row in breakdown.iterrows():
+        print(f"{ac:<20} {row['market_value_eur']:>15,.0f} {row['weight_pct']:>7.1f}% {row['n_positions']:>6}")
+    print('-' * 52)
+    print(f"{'NAV':<20} {NAV:>15,.0f} {'100.0%':>8}")
+
+def print_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV):
+    print(f"Fund           : {FUND_ID}")
+    print(f"Valuation date : {VALUATION_DATE}")
+    print(f"Positions      : {len(positions)}") # this is for a single day = VALUATION_DATE
+    print(f"NAV (EUR)      : {NAV:,.0f}")
+    print(f"Asset classes  : {sorted(positions['asset_class'].unique())}")
+    mask_long = risk_df['market_value_eur'] >= 0
+    print(f"Long exposure  : {risk_df[mask_long]['market_value_eur'].sum():,.0f}")
+    print(f"Short exposure : {risk_df[~mask_long]['market_value_eur'].sum():,.0f}")
+
 def print_var_es(var_1d, var_20d, es_1d, es_20d, NAV):
     print(f"{'Metric':<25} {'1d':>10} {'20d':>10}")
     print(f"{'':25} {'(% NAV)':>10} {'(% NAV)':>10}")
@@ -10,6 +28,15 @@ def print_var_es(var_1d, var_20d, es_1d, es_20d, NAV):
     print(f"{'ES Historical':<25} {es_1d*100:>9.2f}% {es_20d*100:>9.2f}%")
     print('-' * 46)
     print(f"{'VaR Hist (EUR)':<25} {var_1d*NAV:>10,.0f} {var_20d*NAV:>10,.0f}")
+
+
+
+def print_esma_report(n, breach_rate, zone):
+    print(f"ESMA regulatory window — last 250 trading days")
+    print(f"Breaches    : {n}")
+    print(f"Breach rate : {breach_rate*100:.2f}% (expected 1.0%)")
+    print(f"ESMA zone   : {zone}")
+    print()
 
 def print_lvar(lvar_result, NAV):
     print(f"VaR (1d 99%)        : {lvar_result['var']*100:.2f}%   EUR {lvar_result['var']*NAV:,.0f}")
