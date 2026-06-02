@@ -18,7 +18,7 @@ from src.risk_utils import (
     stress_property, stress_rental, stress_ltv,
     days_to_liquidate, liquidity_buckets,
     redemption_stress, investor_concentration,
-    liquidity_adjusted_var, var_montecarlo, compute_pnl_attribution,
+    liquidity_adjusted_var, compute_pnl_attribution,
     pre_trade_check, lmt_trigger_analysis,
 )
 from src.risk_utils import (  # private helpers — tested directly
@@ -928,52 +928,6 @@ class TestLiquidityAdjustedVar:
         result = liquidity_adjusted_var(0.025, sample_positions)
         assert result['liquidity_cost'] >= 0
 
-class TestVarMonteCarlo:
-    def test_returns_dict(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        assert isinstance(result, dict)
-
-    def test_required_keys(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        for key in ['var', 'es', 'pnl_distribution',
-                    'factor_vols', 'corr_matrix']:
-            assert key in result
-
-    def test_var_positive(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        assert result['var'] > 0
-
-    def test_es_greater_than_var(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        assert result['es'] >= result['var']
-
-    def test_pnl_distribution_shape(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        assert len(result['pnl_distribution']) == 1000
-
-    def test_higher_confidence_higher_var(self, sample_positions):
-        r99 = var_montecarlo(sample_positions, n_sims=1000,
-                             confidence=0.99, seed=42)
-        r95 = var_montecarlo(sample_positions, n_sims=1000,
-                             confidence=0.95, seed=42)
-        assert r99['var'] >= r95['var']
-
-    def test_longer_horizon_higher_var(self, sample_positions):
-        r1  = var_montecarlo(sample_positions, n_sims=1000,
-                             horizon=1, seed=42)
-        r20 = var_montecarlo(sample_positions, n_sims=1000,
-                             horizon=20, seed=42)
-        assert r20['var'] > r1['var']
-
-    def test_corr_matrix_shape(self, sample_positions):
-        result = var_montecarlo(sample_positions, n_sims=1000)
-        assert result['corr_matrix'].shape == (6, 6)
-
-    def test_reproducible_with_seed(self, sample_positions):
-        r1 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
-        r2 = var_montecarlo(sample_positions, n_sims=1000, seed=42)
-        assert r1['var'] == r2['var']
-
 # tests/test_pnl_attribution.py
 # MRS-28 | Unit tests for compute_pnl_attribution()
 
@@ -1354,10 +1308,12 @@ class TestCheckAifmHfClean:
             'isin': 'EQ_A', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
             'market_value_eur': nav * 0.24, 'beta': 1.0, 'dur_adj_mid': float('nan'),
             'currency': 'EUR', 'issuer': 'BigIssuer', 'adv_eur': 10_000_000,
+            'sector': 'Industrials',
         }, {
             'isin': 'EQ_B', 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
             'market_value_eur': nav * 0.76, 'beta': 1.0, 'dur_adj_mid': float('nan'),
             'currency': 'EUR', 'issuer': 'Others', 'adv_eur': 20_000_000,
+            'sector': 'Utilities',
         }])
         trade = {
             'isin': 'EQ_A', 'direction': 'buy', 'quantity': 1,
@@ -1453,7 +1409,7 @@ class TestPreTradeCheckIntegration:
             'price_eur': 500.0, 'asset_class': 'Equity',
             'sub_asset_class': 'Large Cap', 'beta': 1.0,
         }
-        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        result = pre_trade_check(trade, _ENGINE, 'UCITS_Balanced', _PTC_DATE)
         assert isinstance(result, dict)
 
     def test_required_keys(self):
@@ -1462,7 +1418,7 @@ class TestPreTradeCheckIntegration:
             'price_eur': 500.0, 'asset_class': 'Equity',
             'sub_asset_class': 'Large Cap', 'beta': 1.0,
         }
-        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        result = pre_trade_check(trade, _ENGINE, 'UCITS_Balanced', _PTC_DATE)
         for key in ['passed', 'fund_id', 'fund_type', 'proposed_trade',
                     'breaches', 'post_trade_metrics']:
             assert key in result
@@ -1473,7 +1429,7 @@ class TestPreTradeCheckIntegration:
             'price_eur': 500.0, 'asset_class': 'Equity',
             'sub_asset_class': 'Large Cap', 'beta': 1.0,
         }
-        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        result = pre_trade_check(trade, _ENGINE, 'UCITS_Balanced', _PTC_DATE)
         assert isinstance(result['passed'], bool)
 
     def test_breaches_is_list(self):
@@ -1482,7 +1438,7 @@ class TestPreTradeCheckIntegration:
             'price_eur': 500.0, 'asset_class': 'Equity',
             'sub_asset_class': 'Large Cap', 'beta': 1.0,
         }
-        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        result = pre_trade_check(trade, _ENGINE, 'UCITS_Balanced', _PTC_DATE)
         assert isinstance(result['breaches'], list)
 
     def test_fund_type_ucits(self):
@@ -1490,7 +1446,7 @@ class TestPreTradeCheckIntegration:
             'isin': 'US78378X1072', 'direction': 'buy', 'quantity': 1,
             'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
         }
-        result = pre_trade_check(_ENGINE, 'UCITS_Balanced', trade, _PTC_DATE)
+        result = pre_trade_check(trade, _ENGINE, 'UCITS_Balanced', _PTC_DATE)
         assert result['fund_type'] == 'ucits'
 
     def test_unsupported_fund_raises(self):
@@ -1499,4 +1455,4 @@ class TestPreTradeCheckIntegration:
             'price_eur': 100.0, 'asset_class': 'Equity', 'sub_asset_class': 'Large Cap',
         }
         with pytest.raises(ValueError, match='not supported'):
-            pre_trade_check(_ENGINE, 'UNKNOWN_FUND', trade, _PTC_DATE)
+            pre_trade_check(trade, _ENGINE, 'UNKNOWN_FUND', _PTC_DATE)

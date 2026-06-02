@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from src.esg_utils import (
     build_esg_df, esg_portfolio_summary, build_private_esg_df,
-    ESG_FIELDS, ESG_THRESHOLD
+    ESG_FIELDS, ESG_THRESHOLD_LOW, ESG_THRESHOLD_HIGH
 )
 from src.mock_bloomberg import MockBloomberg
 from src.database import get_engine
@@ -92,7 +92,8 @@ class TestEsgPortfolioSummary:
         assert hf_summary['pct_controversy'] >= 0
 
     def test_esg_threshold_constant(self):
-        assert ESG_THRESHOLD == 30
+        assert ESG_THRESHOLD_LOW == 40
+        assert ESG_THRESHOLD_HIGH == 70
 
 
 class TestBuildPrivateEsgDf:
