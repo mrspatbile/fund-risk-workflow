@@ -1,7 +1,7 @@
 """
 src/annex_iv.py
 ===============
-Annex IV regulatory transparency report — AIFMD Article 110 / EU 231/2013.
+Annex IV regulatory transparency report — AIFMD Art. 110 / EU231/2013.
 Quarterly submission to the CSSF for all AIFM funds.
 
 Usage
@@ -26,8 +26,8 @@ Output (Excel)
 
 Regulatory basis
 ----------------
-    AIFMD Article 110 — Annex IV transparency reporting
-    EU 231/2013 Articles 110-121 — AIFM regulatory reporting requirements
+    AIFMD Art. 110 — Annex IV transparency reporting
+    EU231/2013 Articles 110-121 — AIFM regulatory reporting requirements
     ESMA technical guidance v1.7 (July 2024) — Annex IV field definitions
     AIFMD II (Directive 2024/927/EU) — expanded LMT and delegation disclosures
 """
@@ -270,7 +270,7 @@ def _project_debt_note() -> list[tuple]:
         ('NOTE ON PROJECT-LEVEL DEBT', '', ''),
         ('Portfolio company debt',
             'Excluded from AIFMD leverage (ring-fenced at SPV level)',
-            'Per EU 231/2013 Art. 7, project finance debt is excluded'),
+            'Per EU231/2013 Art. 7, project finance debt is excluded'),
     ]
 
 
@@ -309,7 +309,7 @@ def _build_identification(fund_id: str, quarter: str) -> pd.DataFrame:
         ('Reporting period',   f'Q1 2026 (ended {quarter})'),
         ('Reporting date',     quarter),
         ('Submission date',    datetime.today().strftime('%Y-%m-%d')),
-        ('Regulatory basis',   'AIFMD Art. 110 / EU 231/2013 Annex IV / ESMA v1.7 (Jul 2024)'),
+        ('Regulatory basis',   'AIFMD Art. 110 / EU231/2013 Annex IV / ESMA v1.7 (Jul 2024)'),
         ('',                   ''),
         ('REDEMPTION TERMS',   ''),
         ('Redemption frequency', red['frequency']),
@@ -397,14 +397,15 @@ def _build_risk_measures(pnl: np.ndarray, nav: float, fund_id: str,
             pct_1d = float(r['nav_pct'].iloc[0])
 
     rows = [
-        ('VaR & ES (99% confidence, historical simulation, 250 days)', ''),
+        ('VaR & ES (99%, historical, 250 days)', ''),
         ('VaR 1-day (99%)',  f'{v1*100:.2f}%   {_eur(v1*nav)}'),
         ('VaR 20-day (99%)', f'{v20*100:.2f}%   {_eur(v20*nav)}'),
         ('ES 1-day (99%)',   f'{e1*100:.2f}%   {_eur(e1*nav)}'),
         ('', ''),
         ('LEVERAGE', ''),
-        ('Gross leverage (EU 231/2013 Art. 7)',      _lev_flag(gross_lev,  fund_id, 'gross')),
-        ('Commitment leverage (EU 231/2013 Art. 8)', _lev_flag(commit_lev, fund_id, 'commitment')),
+
+        ('Gross leverage (EU231/2013 Art. 7)',      _lev_flag(gross_lev,  fund_id, 'gross')),
+        ('Commitment leverage (EU231/2013 Art. 8)', _lev_flag(commit_lev, fund_id, 'commitment')),
         ('', ''),
         ('LIQUIDITY HEADLINE', ''),
         ('% NAV liquidatable within 1 day', f'{pct_1d:.1f}%'),
@@ -415,14 +416,15 @@ def _build_risk_measures(pnl: np.ndarray, nav: float, fund_id: str,
 def _build_leverage_detail(gross_lev: float, commit_lev: float, nav: float,
                            fund_id: str, breakdown: pd.DataFrame) -> pd.DataFrame:
     lims = _LEV_LIMITS[fund_id]
-    rows = [('GROSS METHOD — breakdown by source (EU 231/2013 Article 7)', '', '')]
+
+    rows = [('GROSS METHOD — by source (EU231/2013 Art. 7)', '', '')]
     for _, r in breakdown.iterrows():
         rows.append((r['source'], _eur(r['gross_eur']), f"{r['pct_nav']:.2f}% NAV"))
     rows += [
         ('Total gross exposure',        _eur(gross_lev * nav), f"{gross_lev:.2f}x NAV"),
         ('Gross leverage limit (RMP)',  f"{lims['gross']:.1f}x NAV", ''),
         ('', '', ''),
-        ('COMMITMENT METHOD (EU 231/2013 Article 8)', '', ''),
+        ('COMMITMENT METHOD (EU231/2013 Art. 8)', '', ''),
         ('Net nettable exposure',           _eur(commit_lev * nav), f"{commit_lev:.2f}x NAV"),
         ('Commitment leverage limit (RMP)', f"{lims['commitment']:.1f}x NAV", ''),
     ]
@@ -595,7 +597,7 @@ def _build_pe(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
     )
 
     lev_rows = [
-        ('FUND-LEVEL LEVERAGE (EU 231/2013 Article 7)', '', ''),
+        ('FUND-LEVEL LEVERAGE (EU231/2013 Art. 7)', '', ''),
         ('NAV',                                _eur(nav), ''),
         ('Subscription credit facility drawn', _eur(sub_drawn),
             f'{sub_drawn/nav*100:.1f}% NAV' if nav else '—'),
@@ -660,7 +662,7 @@ def _build_infra(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
     lims           = _LEV_LIMITS[fund_id]
 
     lev_rows = [
-        ('FUND-LEVEL LEVERAGE (EU 231/2013 Article 7)', '', ''),
+        ('FUND-LEVEL LEVERAGE (EU231/2013 Art. 7)', '', ''),
         ('Fund NAV',                          _eur(nav),           ''),
         ('Committed capital',                 _eur(committed_eur), ''),
         ('Drawn capital',                     _eur(drawn_eur),     ''),
@@ -678,7 +680,7 @@ def _build_infra(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
             'Project finance structure'),
         ('AIFMD treatment',
             'Project debt excluded from Art. 7 gross leverage',
-            'EU 231/2013 Art. 7 — project finance carve-out'),
+            'EU231/2013 Art. 7 — project finance carve-out'),
     ]
 
     perf_rows = (
@@ -855,7 +857,7 @@ def _write_fund_sheet(wb: Workbook, fund_id: str,
                   f"|   Generated: {datetime.today().strftime('%Y-%m-%d')}",
                   width=5, bg=_BG_SECTION, bold=False, fg=_FG_MUTED)
     _write_header(ws, 3, 1,
-                  'Regulatory basis: AIFMD Art. 110 / EU 231/2013 Annex IV / '
+                  'Regulatory basis: AIFMD Art. 110 / EU231/2013 Annex IV / '
                   'ESMA technical guidance v1.7 (July 2024)',
                   width=5, bg=_BG_SECTION, bold=False, fg=_FG_DIM)
 
@@ -919,7 +921,7 @@ def _write_summary_sheet(wb: Workbook,
     _write_header(ws, 2, 1,
                   f'Reporting period: Q1 2026 ({quarter})   |   '
                   f'Generated: {datetime.today().strftime("%Y-%m-%d")}   |   '
-                  'Regulatory basis: AIFMD Art. 110 / EU 231/2013 Annex IV',
+                  'Regulatory basis: AIFMD Art. 110 / EU231/2013 Annex IV',
                   width=1 + nf, bg=_BG_SECTION, bold=False, fg=_FG_MUTED)
 
     _write_header(ws, 4, 1, 'Key metric', bg=_BG_HEADER)

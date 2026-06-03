@@ -9,7 +9,7 @@ Regulatory context
 ------------------
     AIFMD        : Directive 2011/61/EU
     UCITS        : Directive 2009/65/EC
-    AIFMD II     : Directive 2024/927/EU (LMT tools — Article 16a)
+    AIFMD II     : Directive 2024/927/EU (LMT tools — Art. 16a)
     ESMA LST     : ESMA34-39-897 (liquidity stress testing)
     ESMA backt.  : ESMA34-43-392 (VaR backtesting)
     Annex VI     : AIFMD Level 2 stress testing framework
@@ -1369,7 +1369,7 @@ def lmt_trigger_analysis(
     Simulates 12 months of redemptions for an open-ended fund, modelling
     gate activation, swing pricing, contagion feedback, and suspension
     mechanics per the AIFMD II LMT framework (Directive 2024/927/EU,
-    Article 16a; ESMA Guidelines ESMA34-671404336-1364, April 2025).
+    Art. 16a; ESMA Guidelines ESMA34-671404336-1364, April 2025).
 
     The illiquid sleeve is treated as static (no return, no new investment).
     The liquid sleeve shrinks as redemptions are paid. No new subscriptions.
@@ -1429,7 +1429,7 @@ def lmt_trigger_analysis(
         12 elements are used.
     consecutive_gate_for_suspension : int
         Number of consecutive months the gate must be active before the
-        suspension condition can be evaluated (AIFMD II Article 16a,
+        suspension condition can be evaluated (AIFMD II Art. 16a,
         condition 1). Default 3.
     backlog_pct_for_suspension : float
         Outstanding backlog as a fraction of liquid NAV that must also be
@@ -1760,12 +1760,12 @@ def liquidity_adjusted_var(
 # MRS-28 | P&L Attribution by Risk Factor — Hedge Fund / UCITS
 # ---------------------------------------------------------------------------
 # Regulatory context
-# AIFMD Article 15 requires the risk function to monitor and measure
+# AIFMD Art. 15 requires the risk function to monitor and measure
 # the risk of each position and its contribution to the overall risk
 # profile. CSSF expects the risk manager to explain return and loss
 # drivers by factor. This is a risk governance output, not a direct
 # Annex IV or Annex VI field. It feeds the Board risk report (MRS-37)
-# and supports the AIFMD Article 15 evidence pack.
+# and supports the AIFMD Art. 15 evidence pack.
 #
 # Methodology: sensitivity-based attribution.
 # Regression-based approaches give average historical loadings and
@@ -1942,7 +1942,7 @@ def _ptc_apply_trade(positions: pd.DataFrame, trade: dict) -> pd.DataFrame:
         if cash_mask.any():
             pro_forma.loc[cash_mask, 'market_value_eur'] -= cash_reduction
 
-    # Leveraged portion creates a PB borrowing (EU 231/2013 Recital 13: included in
+    # Leveraged portion creates a PB borrowing (EU231/2013 Recital 13: included in
     # both gross and commitment at absolute value). Modelled as a 'Borrowing' row
     # with negative market_value_eur so compute_leverage can pick it up.
     borrowing_notional = mv_delta * pct_financed
@@ -2044,7 +2044,7 @@ def _check_ucits(
             f'(60/40 benchmark), limit 2.0x'
         ))
 
-    # [3] 5/10/40 rule (UCITSD Article 52)
+    # [3] 5/10/40 rule (UCITSD Art. 52)
     # Scope: excludes government securities and ETFs/funds (apply look-through for ETFs).
     # Government bonds: sovereign risk monitored separately.
     # ETFs/funds: are vehicles, not issuers; constituent look-through applies.
@@ -2075,14 +2075,14 @@ def _check_ucits(
             f'Positions >5% NAV aggregate to {sum_above_5:.1f}% — exceeds 40% bucket limit'
         ))
 
-    # [4] Eligible assets (UCITSD Article 50)
+    # [4] Eligible assets (UCITSD Art. 50)
     asset_class = trade.get('asset_class', '')
     metrics['trade_eligible'] = asset_class not in _UCITS_INELIGIBLE
     if asset_class in _UCITS_INELIGIBLE:
         breaches.append(_breach(
             'eligible_assets_article_50', 1.0, 0.0, 'flag',
             f'{asset_class} ({trade.get("sub_asset_class","")}) is ineligible '
-            f'under UCITSD Article 50 — fund cannot hold this instrument'
+            f'under UCITSD Art. 50 — fund cannot hold this instrument'
         ))
 
     # [5] Counterparty exposure (OTC derivatives)
@@ -2100,7 +2100,7 @@ def _check_ucits(
                 f'exceeds {cpty_limit:.0%} limit'
             ))
 
-    # [6] Borrowing limit < 10% NAV (UCITSD Article 83 — temporary borrowing only)
+    # [6] Borrowing limit < 10% NAV (UCITSD Art. 83 — temporary borrowing only)
     # Proxy: negative cash balances. Real borrowing tracked via prime broker/custodian.
     cash_borrow = pro_forma.loc[
         (pro_forma['asset_class'] == 'Cash') &
@@ -2112,7 +2112,7 @@ def _check_ucits(
     if borrow_pct > 0.10:
         breaches.append(_breach(
             'borrowing_limit', 10.0, borrow_pct * 100, '% NAV',
-            f'Temporary borrowing {borrow_pct:.1%} NAV exceeds UCITSD Article 83 limit 10%'
+            f'Temporary borrowing {borrow_pct:.1%} NAV exceeds UCITSD Art. 83 limit 10%'
         ))
 
     return breaches, metrics
@@ -2127,7 +2127,7 @@ def compute_leverage(
     external_borrowings_eur: float = 0.0,
 ) -> dict:
     """
-    Compute gross and commitment leverage per EU 231/2013 Articles 7-8.
+    Compute gross and commitment leverage per EU231/2013 Articles 7-8.
 
     Mirrors the Section 4 notebook computation exactly when bbg and maps
     are provided. Falls back to abs(market_value_eur) for derivatives
@@ -2186,7 +2186,7 @@ def compute_leverage(
                 if row.get('is_hedge', 0) != 1 else 0.0
             )
 
-    # ── gross (Article 7) ─────────────────────────────────────────────────
+    # ── gross (Art. 7) ─────────────────────────────────────────────────
     # Cash (uninvested) excluded; Borrowing handled separately below.
     gross_exposure = df.apply(
         lambda r: deriv_gross_map.get(r.name, 0.0) if r['asset_class'] == 'Derivative'
@@ -2194,7 +2194,7 @@ def compute_leverage(
         axis=1,
     ).sum()
 
-    # Borrowings — EU 231/2013 Recital 13: all borrowings included at absolute value.
+    # Borrowings — EU231/2013 Recital 13: all borrowings included at absolute value.
     # Exception (Recital 14): capital call credit facilities that are temporary and fully
     # covered by investor commitments are excluded (PE/infra only, not applicable to HF).
     borrowings = df.loc[df['asset_class'] == 'Borrowing', 'market_value_eur'].abs().sum()
@@ -2203,7 +2203,7 @@ def compute_leverage(
     gross_exposure += borrowings
     gross_leverage  = gross_exposure / nav if nav else 0.0
 
-    # ── commitment (Article 8) ────────────────────────────────────────────
+    # ── commitment (Art. 8) ────────────────────────────────────────────
     mask_eq    = df['asset_class'] == 'Equity'
     mask_long  = df['market_value_eur'] >= 0
     mask_hedge = df['is_hedge'].fillna(0) == 1
@@ -2256,7 +2256,7 @@ def _check_aifm_hf(
     breaches: list = []
     metrics:  dict = {}
 
-    # [1] & [2] Gross and commitment leverage — EU 231/2013 Articles 7-8
+    # [1] & [2] Gross and commitment leverage — EU231/2013 Articles 7-8
     lev = compute_leverage(pro_forma, nav, bbg=bbg,
                            deriv_bbg_map=deriv_bbg_map,
                            currency_bbg_map=currency_bbg_map)
@@ -2321,7 +2321,7 @@ def _check_aifm_hf(
 
     # [5] Counterparty concentration
     # Checks existing register exposure + new trade exposure against limit.
-    # Limit: 10% NAV for credit institutions, 5% for others (EU 231/2013 Article 43).
+    # Limit: 10% NAV for credit institutions, 5% for others (EU231/2013 Art. 43).
     cpty       = trade.get('counterparty')
     cpty_type  = trade.get('counterparty_type', 'non_credit_institution')
     cpty_limit = 0.10 if cpty_type == 'credit_institution' else 0.05
@@ -2344,7 +2344,7 @@ def _check_aifm_hf(
                 f'exceeds {cpty_limit:.0%} limit'
             ))
 
-    # [6] Short selling — EU 236/2012: net short > 0.2% NAV is reportable
+    # [6] Short selling — EU236/2012: net short > 0.2% NAV is reportable
     # Only flag positions that are new or increased by this trade.
     # Pre-existing reportable shorts are already known and managed separately.
     key       = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
@@ -2368,7 +2368,7 @@ def _check_aifm_hf(
         if short_pct > 0.2 and trade_made_worse:
             breaches.append(_breach(
                 'short_selling_eu_236', 0.2, short_pct, '% NAV',
-                f'Net short {issuer}: {short_pct:.2f}% NAV — reportable under EU 236/2012'
+                f'Net short {issuer}: {short_pct:.2f}% NAV — reportable under EU236/2012'
             ))
 
     # [7] Liquidity impact — weighted avg days-to-liquidate vs 30-day redemption horizon
@@ -2484,8 +2484,8 @@ def pre_trade_check(
     Regulatory context
     ------------------
     UCITS checks: UCITSD Articles 50, 52, 83; CSSF SRRI framework.
-    AIFM HF:      AIFMD Article 15, EU 231/2013 Articles 6-8.
-    AIFM PD:      AIFMD Article 15, internal RMP concentration limits.
+    AIFM HF:      AIFMD Art. 15, EU231/2013 Articles 6-8.
+    AIFM PD:      AIFMD Art. 15, internal RMP concentration limits.
     Short selling: EU Regulation 236/2012.
     """
     from src.enrichment import get_risk_ready_df
@@ -2508,7 +2508,7 @@ def pre_trade_check(
 
     if fund_type == 'ucits':
         breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
-        # Pre-trade baseline metrics for UCITS (excluding government bonds and ETFs, per Article 52).
+        # Pre-trade baseline metrics for UCITS (excluding government bonds and ETFs, per Art. 52).
         if 'sector' in positions.columns:
             pre_conc_universe = positions[
                 ((positions['sector'].isna()) | (positions['sector'] != 'Government')) &

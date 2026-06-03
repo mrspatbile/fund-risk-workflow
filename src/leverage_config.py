@@ -1,7 +1,7 @@
 """
 leverage_config.py
 ==================
-AIFMD leverage classification mapping per EU 231/2013 Article 7.
+AIFMD leverage classification mapping per EU231/2013 Art. 7.
 
 Keyed by (asset_class, sub_asset_class) tuple for precision.
 

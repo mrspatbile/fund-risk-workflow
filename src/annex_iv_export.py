@@ -1,5 +1,5 @@
 """
-src/annex_vi_export.py
+src/annex_iv_export.py
 ======================
 Annex VI stress test Excel export — CSSF submission format.
 
@@ -29,7 +29,7 @@ Output
 Regulatory basis
 ----------------
     ESMA/2020/1498 (Annex VI) — stress testing guidelines for AIFMs
-    AIFMD Article 15 / Annex IV — risk management and reporting requirements
+    AIFMD Art. 15 / Annex IV — risk management and reporting requirements
 """
 
 from __future__ import annotations

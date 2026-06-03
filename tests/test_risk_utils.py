@@ -1052,7 +1052,7 @@ def _make_hf_positions(nav: float = 50_000_000) -> pd.DataFrame:
     8 equities at 10% each across 4 sectors (2 per sector) + 20% cash = 100% NAV.
     Includes 'sector' column so sector_col='sector' is used in the check.
     Gross/commitment leverage = 1.0x; max issuer = 10%; max sector = 20%. All within limits.
-    Long-only: no EU 236/2012 short-selling flags.
+    Long-only: no EU236/2012 short-selling flags.
     """
     _SECTORS = ['Technology', 'Healthcare', 'Financials', 'Consumer Staples']
     rows = []

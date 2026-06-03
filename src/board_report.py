@@ -4,7 +4,7 @@ src/board_report.py
 Monthly Board Risk Report — AIFM internal governance document.
 
 Produces a multi-page PDF suitable for distribution to the Board and
-Risk Committee under AIFMD Article 15. This is NOT the Annex IV
+Risk Committee under AIFMD Art. 15. This is NOT the Annex IV
 regulatory submission to the CSSF; it is the internal governance record
 that demonstrates the Board is actively receiving and reviewing risk
 information (the document CSSF inspects).
@@ -48,7 +48,7 @@ from src.risk_utils import (
 
 warnings.filterwarnings('ignore')
 
-from src.plot_style import C, BUCKET_COLORS, FUND_COLORS
+from src.plot_style import C,  FUND_COLORS
 
 
 # ── fund configuration ────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ def _section_title(ax: plt.Axes, title: str) -> None:
 def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure:
     fig = _fig(
         'BOARD RISK REPORT',
-        'Monthly Risk Digest — AIFMD Article 15 Internal Governance',
+        'Monthly Risk Digest — AIFMD Art. 15 Internal Governance',
         valuation_date,
     )
 
@@ -427,7 +427,7 @@ def _page_executive(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     # footer
     fig.text(0.03, 0.025,
-             'Internal governance document — produced by the Risk Function under AIFMD Article 15. '
+             'Internal governance document — produced by the Risk Function under AIFMD Art. 15. '
              'Not for external distribution. Not the Annex IV regulatory submission.',
              fontsize=6.5, color=C['dim'], va='bottom')
     return fig
@@ -970,7 +970,7 @@ def generate_board_report(
         d = pdf.infodict()
         d['Title']   = f'Board Risk Report {month_label}'
         d['Author']  = 'Risk Function — AIFM ManCo'
-        d['Subject'] = 'Monthly Risk Report — AIFMD Article 15 Internal Governance'
+        d['Subject'] = 'Monthly Risk Report — AIFMD Art. 15 Internal Governance'
         d['Keywords'] = 'AIFMD, risk, VaR, stress testing, liquidity, board report'
 
     print(f'\nWritten: {out_path}')

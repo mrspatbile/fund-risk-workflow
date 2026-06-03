@@ -27,8 +27,8 @@ Regulatory basis
 ----------------
 IPEV Valuation Guidelines (International Private Equity Valuation)
 ILPA reporting standards
-AIFMD Article 19 (independent valuation)
-EU 231/2013 Articles 46-49 (risk management)
+AIFMD Art. 19 (independent valuation)
+EU231/2013 Articles 46-49 (risk management)
 """
 
 import numpy as np

@@ -438,7 +438,7 @@ class InfraValuationReport(Base):
     External appraiser inputs per asset per quarter.
     This is the governance boundary: the risk management layer consumes
     these reports from an independent appraiser; it does not produce them.
-    Consistent with AIFMD Article 19 and IPEV Valuation Guidelines.
+    Consistent with AIFMD Art. 19 and IPEV Valuation Guidelines.
     """
     __tablename__ = 'infra_valuation_report'
     __table_args__ = (

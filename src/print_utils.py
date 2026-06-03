@@ -51,7 +51,7 @@ def print_lvar(lvar_result, NAV):
 def print_leverage(risk_df, deriv_notional_commitment, commitment_exposure,
                    gross_limit=3.0, borrowings_eur=0.0):
     # gross_limit set in the RMP, so set GROSS_LIMIT = <VALUE> and pass the arg (here defaults to 3.0)
-    # borrowings_eur: PB debit balances / revolving facilities (EU 231/2013 Recital 13)
+    # borrowings_eur: PB debit balances / revolving facilities (EU231/2013 Recital 13)
 
     NAV = risk_df['market_value_eur'].sum()
     gross_leverage      = (risk_df['gross_exposure'].sum() + borrowings_eur) / NAV

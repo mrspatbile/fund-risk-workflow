@@ -25,9 +25,9 @@ stress_nav(engine, fund_id, discount_rate_shock_bps, inflation_shock_pct)
 
 Regulatory basis
 ----------------
-AIFMD Article 15 — liquidity management
-AIFMD Article 19 — independent valuation (appraiser inputs boundary)
-EU 231/2013 Articles 46-49 — risk management
+AIFMD Art. 15 — liquidity management
+AIFMD Art. 19 — independent valuation (appraiser inputs boundary)
+EU231/2013 Articles 46-49 — risk management
 IPEV Valuation Guidelines — yield capitalisation for infra
 """
 

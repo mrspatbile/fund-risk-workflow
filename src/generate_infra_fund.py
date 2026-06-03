@@ -723,7 +723,7 @@ def generate_infra_fund(engine=None) -> None:
             currency             = 'EUR',
             domicile             = 'Luxembourg',
             benchmark            = 'CPI + 4%',
-            aifmd_classification = 'AIFMD Article 4(1)(a) — closed-ended PERE/Infra',
+            aifmd_classification = 'AIFMD Art. 4(1)(a) — closed-ended PERE/Infra',
         ))
 
         # assets and fund investments
