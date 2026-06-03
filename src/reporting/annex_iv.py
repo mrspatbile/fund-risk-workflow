@@ -529,6 +529,34 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
 
     exposures = _build_exposures(risk_df, nav)
 
+    # ── Breakdown section construction ────────────────────────────────────────
+    cols = ['Category', 'NAV (EUR)', '% NAV']
+
+    def _prep(df: pd.DataFrame, label: str) -> pd.DataFrame:
+        d = df.copy().reset_index(drop=True)
+        d.columns = cols
+        d['NAV (EUR)'] = d['NAV (EUR)'].map('{:,.0f}'.format)
+        d['% NAV'] = d['% NAV'].map('{:.2f}%'.format)
+        header = pd.DataFrame([[label, '', '']], columns=cols)
+        return pd.concat([header, d], ignore_index=True)
+
+    df_top5 = exposures['top5_positions'][['name', 'market_value_eur', 'nav_pct']].copy()
+    df_top5['name'] = df_top5['name'].str.replace(r'\(.*?\)', '', regex=True)
+    df_top5.columns = cols
+
+    sep = pd.DataFrame([['', '', '']], columns=cols)
+
+    pieces = [
+        _prep(exposures['asset_class_breakdown'], 'Asset Class'),
+        sep,
+        _prep(exposures['geography_breakdown'], 'Geography'),
+        sep,
+        _prep(exposures['currency_breakdown'], 'Currency'),
+        sep,
+        _prep(df_top5, 'Top 5 positions'),
+    ]
+    breakdown_df = pd.concat(pieces, ignore_index=True)
+
     return {
         'identification'       : _build_identification(fund_id, quarter),
         'asset_class_breakdown': exposures['asset_class_breakdown'],
@@ -541,6 +569,7 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
                                     nav, fund_id, breakdown),
         'liquidity_buckets'    : liq_df,
         'liquidity_terms'      : _build_liquidity_terms(fund_id, nav),
+        'breakdown'            : breakdown_df,
         '_nav'                 : nav,
     }
 
