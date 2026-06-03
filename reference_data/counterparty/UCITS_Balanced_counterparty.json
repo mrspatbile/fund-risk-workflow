@@ -1,0 +1,6 @@
+[
+    {"counterparty": "BNP Paribas",    "type": "OTC Derivatives", "exposure_pct": 0.08, "collateral_cover": 0.85},
+    {"counterparty": "Deutsche Bank",  "type": "OTC Derivatives", "exposure_pct": 0.06, "collateral_cover": 0.85},
+    {"counterparty": "Societe Generale","type": "OTC Derivatives","exposure_pct": 0.04, "collateral_cover": 0.80},
+    {"counterparty": "JP Morgan",      "type": "OTC Derivatives", "exposure_pct": 0.03, "collateral_cover": 0.80}
+]
