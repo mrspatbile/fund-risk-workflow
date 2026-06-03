@@ -11,3 +11,5 @@ notebooks/data/
 reports/
 notebooks/portfolio_management/
 notebooks/old - liquidity_fund_risk.ipynb
+*.egg-info/
+src/cache_old/
