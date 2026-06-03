@@ -6,7 +6,7 @@ Quarterly submission to the CSSF for all AIFM funds.
 
 Usage
 -----
-    from src.reporting.annex_iv import build_annex_iv, export_annex_iv_excel
+    from src.annex_iv import build_annex_iv, export_annex_iv_excel
 
     rpt  = build_annex_iv(engine, 'AIFM_HedgeFund', quarter='2026-03-31')
     rpt['identification']

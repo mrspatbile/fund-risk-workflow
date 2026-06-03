@@ -32,7 +32,6 @@ Regulatory basis
     AIFMD Art. 15 / Annex IV — risk management and reporting requirements
 """
 
-from __future__ import annotations
 
 import os
 from datetime import datetime

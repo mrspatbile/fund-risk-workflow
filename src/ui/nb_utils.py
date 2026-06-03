@@ -13,7 +13,6 @@ Usage
     from src.ui.nb_utils import save_fig, styled_table
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable

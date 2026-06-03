@@ -12,7 +12,6 @@ Usage
     from src.ui.plot_style import pct_color, rag_color, callout_box
 """
 
-from __future__ import annotations
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates

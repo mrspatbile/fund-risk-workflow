@@ -61,7 +61,7 @@ def run(force: bool = False) -> None:
     # step 0: regenerate position Excel files with real prices
     if force:
         print('Regenerating position Excel files with real prices...')
-        from src.generate_positions import (
+        from src.data.generate_positions import (
             generate_hedge_fund, generate_private_debt,
             generate_real_estate, generate_ucits_balanced,
         )
@@ -111,7 +111,7 @@ def run(force: bool = False) -> None:
 
 
     # step 4: generate PE fund data if tables empty
-    from src.generate_pe_fund import generate_pe_fund
+    from src.data.generate_pe_fund import generate_pe_fund
     with engine.connect() as conn:
         n_pe = conn.execute(sa.text('SELECT COUNT(*) FROM pe_funds')).scalar()
     if n_pe == 0:
@@ -121,7 +121,7 @@ def run(force: bool = False) -> None:
         print(f'PE fund data exists. Skipping.')
 
     # step 5: generate infrastructure fund data if tables empty
-    from src.generate_infra_fund import generate_infra_fund
+    from src.data.generate_infra_fund import generate_infra_fund
     with engine.connect() as conn:
         n_infra = conn.execute(sa.text('SELECT COUNT(*) FROM infra_funds')).scalar()
     if n_infra == 0:

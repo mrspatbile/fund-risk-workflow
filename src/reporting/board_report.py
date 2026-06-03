@@ -19,7 +19,6 @@ Usage
     python -m src.board_report
 """
 
-from __future__ import annotations
 
 import os
 import warnings
