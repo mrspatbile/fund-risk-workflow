@@ -2488,7 +2488,7 @@ def pre_trade_check(
     AIFM PD:      AIFMD Art. 15, internal RMP concentration limits.
     Short selling: EU Regulation 236/2012.
     """
-    from src.enrichment import get_risk_ready_df
+    from src.data.enrichment import get_risk_ready_df
 
     _FUND_TYPE = {
         'UCITS_Balanced'   : 'ucits',

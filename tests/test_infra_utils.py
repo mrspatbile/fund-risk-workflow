@@ -15,8 +15,8 @@ Required coverage (MRS-76):
 import pytest
 import pandas as pd
 import numpy as np
-from src.database import get_engine
-from src.infra_utils import (
+from src.data.database import get_engine
+from src.risk.infra_utils import (
     fund_nav_timeseries,
     asset_nav_breakdown,
     infra_multiples,

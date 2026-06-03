@@ -7,9 +7,9 @@ visual identity defined in board_report.py.
 
 Usage
 -----
-    from src.plot_style import C, FUND_COLORS, ACCENT, ACCENT2, ACCENT3
-    from src.plot_style import apply_ax_style, section_title, fig_header
-    from src.plot_style import pct_color, rag_color, callout_box
+    from src.ui.plot_style import C, FUND_COLORS, ACCENT, ACCENT2, ACCENT3
+    from src.ui.plot_style import apply_ax_style, section_title, fig_header
+    from src.ui.plot_style import pct_color, rag_color, callout_box
 """
 
 from __future__ import annotations

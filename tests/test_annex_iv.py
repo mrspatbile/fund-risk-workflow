@@ -15,8 +15,8 @@ Required coverage (MRS-83):
 import os
 import pytest
 import pandas as pd
-from src.database import get_engine
-from src.annex_iv import build_annex_iv, export_annex_iv_excel
+from src.data.database import get_engine
+from src.reporting.annex_iv import build_annex_iv, export_annex_iv_excel
 
 ENGINE  = get_engine()
 QUARTER = '2026-03-31'
@@ -97,7 +97,7 @@ class TestBuildAnnexIvHf:
         assert (rpt['liquidity_buckets']['nav_pct'] >= 0).all()
 
     def test_liquidity_bucket_labels(self, rpt):
-        from src.annex_iv import _BUCKET_ORDER
+        from src.reporting.annex_iv import _BUCKET_ORDER
         assert rpt['liquidity_buckets']['bucket'].tolist() == _BUCKET_ORDER
 
     def test_hf_highly_liquid(self, rpt):

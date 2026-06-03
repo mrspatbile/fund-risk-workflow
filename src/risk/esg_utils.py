@@ -26,11 +26,11 @@ from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from src.nb_utils import save_fig
-from src.plot_style import sup_title, C, ACCENT, ACCENT2, ACCENT3
-from src.print_html_utils import display_dark_table
-from src.plot_style import C
-from src.database import (
+from src.ui.nb_utils import save_fig
+from src.ui.plot_style import sup_title, C, ACCENT, ACCENT2, ACCENT3
+from src.ui.print_html_utils import display_dark_table
+from src.ui.plot_style import C
+from src.data.database import (
     query_positions,
     PEValuationReport, PEPortfolioCompany, PEFundInvestment,
     InfraValuationReport, InfraAsset, InfraFundInvestment,
@@ -178,7 +178,7 @@ def build_private_esg_df(
             f"asset_type must be 'pe' or 'infra', got {asset_type!r}"
         )
 
-    _esg_path = Path(__file__).parent.parent / 'reference_data' / 'esg_scores.json'
+    _esg_path = Path(__file__).parent.parent.parent / 'reference_data' / 'esg_scores.json'
     with open(_esg_path) as _f:
         _esg_ref = json.load(_f)
 

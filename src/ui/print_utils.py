@@ -1,6 +1,6 @@
 import pandas as pd
 from IPython.display import display, HTML
-from src.risk_utils import stress_historical, redemption_stress
+from src.risk.risk_utils import stress_historical, redemption_stress
 
 def print_asset_class_weights_n_positions(breakdown, NAV):
     print(f"{'Asset Class':<20} {'MV (EUR)':>15} {'Weight':>8} {'# Pos':>6}")
@@ -164,7 +164,7 @@ def display_scenarios_2(risk_df, custom=None, add_historical=False):
 
     rows = []
 
-    from src.risk_utils import HISTORICAL_SCENARIOS
+    from src.risk.risk_utils import HISTORICAL_SCENARIOS
 
     if custom:
         for label, result in custom.items():

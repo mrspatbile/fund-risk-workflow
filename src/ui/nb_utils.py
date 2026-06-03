@@ -10,7 +10,7 @@ Keeps notebooks clean by centralising the two most repeated patterns:
 
 Usage
 -----
-    from src.nb_utils import save_fig, styled_table
+    from src.ui.nb_utils import save_fig, styled_table
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from typing import Callable
 import pandas as pd
 from IPython.display import HTML, display
 
-from src.plot_style import C
+from src.ui.plot_style import C
 import dataframe_image as dfi
 
 import asyncio

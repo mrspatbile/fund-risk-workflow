@@ -37,12 +37,12 @@ from typing import Optional
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from src.database import (
+from src.data.database import (
     InfraFund, InfraAsset, InfraFundInvestment,
     InfraCashFlow, InfraNavHistory, InfraValuationReport,
     InfraDebt, InfraCovenant,
 )
-from src.pe_utils import xirr
+from src.risk.pe_utils import xirr
 
 VALUATION_DATE = pd.Timestamp('2026-05-13')
 

@@ -9,7 +9,7 @@ suitable for direct CSSF submission.
 
 Usage
 -----
-    from src.annex_iv_export import generate_annex_iv_report
+    from src.reporting.annex_iv_export import generate_annex_iv_report
     generate_annex_iv_report(engine, valuation_date='2026-05-13')
 
     # or from the command line:
@@ -45,9 +45,9 @@ from openpyxl.styles import (
 )
 from openpyxl.utils import get_column_letter
 
-from src.database import get_engine
-from src.enrichment import get_risk_ready_df
-from src.risk_utils import (
+from src.data.database import get_engine
+from src.data.enrichment import get_risk_ready_df
+from src.risk.risk_utils import (
     HISTORICAL_SCENARIOS,
     stress_equity, stress_rates, stress_credit, stress_fx,
     stress_combined, stress_historical,

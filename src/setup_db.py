@@ -25,9 +25,9 @@ ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 import sqlalchemy as sa
-from src.database import create_db, load_positions, get_engine
-from src.enrichment import enrich_positions
-from src.mock_bloomberg import MockBloomberg as Bloomberg
+from src.data.database import create_db, load_positions, get_engine
+from src.data.enrichment import enrich_positions
+from src.data.mock_bloomberg import MockBloomberg as Bloomberg
 
 FUNDS    = ['AIFM_HedgeFund', 'AIFM_PrivateDebt',
             'AIFM_RealEstate', 'UCITS_Balanced']

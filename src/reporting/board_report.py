@@ -11,8 +11,8 @@ information (the document CSSF inspects).
 
 Usage
 -----
-    from src.board_report import generate_board_report
-    from src.database import get_engine
+    from src.reporting.board_report import generate_board_report
+    from src.data.database import get_engine
     path = generate_board_report(get_engine(), valuation_date='2026-05-13')
 
     # or standalone:
@@ -36,9 +36,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import pandas as pd
 
-from src.database import get_engine, query_nav_history
-from src.enrichment import get_risk_ready_df
-from src.risk_utils import (
+from src.data.database import get_engine, query_nav_history
+from src.data.enrichment import get_risk_ready_df
+from src.risk.risk_utils import (
     HISTORICAL_SCENARIOS,
     var_historical, var_scale, es_historical, es_scale,
     stress_equity, stress_rates, stress_credit,
@@ -48,7 +48,7 @@ from src.risk_utils import (
 
 warnings.filterwarnings('ignore')
 
-from src.plot_style import C,  FUND_COLORS
+from src.ui.plot_style import C,  FUND_COLORS
 
 
 # ── fund configuration ────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ Quarterly submission to the CSSF for all AIFM funds.
 
 Usage
 -----
-    from src.annex_iv import build_annex_iv, export_annex_iv_excel
+    from src.reporting.annex_iv import build_annex_iv, export_annex_iv_excel
 
     rpt  = build_annex_iv(engine, 'AIFM_HedgeFund', quarter='2026-03-31')
     rpt['identification']
@@ -45,7 +45,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
-from src.database import (
+from src.data.database import (
     FUND_METADATA,
     InfraAsset,
     InfraDebt,
@@ -61,8 +61,8 @@ from src.database import (
     get_engine,
     query_nav_history,
 )
-from src.enrichment import get_risk_ready_df
-from src.infra_utils import (
+from src.data.enrichment import get_risk_ready_df
+from src.risk.infra_utils import (
     asset_nav_breakdown,
     concentration_by_sector,
     duration_profile,
@@ -70,9 +70,9 @@ from src.infra_utils import (
     infra_irr,
     infra_multiples,
 )
-from src.leverage_config import INSTRUMENT_SOURCE
-from src.pe_utils import fund_irr, pe_multiples
-from src.risk_utils import (
+from src.risk.leverage_config import INSTRUMENT_SOURCE
+from src.risk.pe_utils import fund_irr, pe_multiples
+from src.risk.risk_utils import (
     days_to_liquidate,
     es_historical,
     investor_concentration,

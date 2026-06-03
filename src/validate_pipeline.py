@@ -23,14 +23,14 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from src.mock_bloomberg import MockBloomberg
-from src.database import (
+from src.data.mock_bloomberg import MockBloomberg
+from src.data.database import (
     create_db, load_fund_metadata, load_positions,
     load_instruments, get_engine, query_positions,
     query_nav_history, query_asset_class_breakdown,
 )
-from src.enrichment import enrich_positions, get_risk_ready_df
-from src.risk_utils import (
+from src.data.enrichment import enrich_positions, get_risk_ready_df
+from src.risk.risk_utils import (
     var_historical, var_parametric, var_scale,
     es_historical, es_parametric,
     kupiec_test, christoffersen_test,

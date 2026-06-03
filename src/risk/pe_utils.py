@@ -38,7 +38,7 @@ from typing import Optional
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from src.database import (
+from src.data.database import (
     PEFund, PEPortfolioCompany, PEFundInvestment,
     PECashFlow, PENavHistory, PEValuationReport
 )

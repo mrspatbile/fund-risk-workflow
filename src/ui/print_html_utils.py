@@ -1,8 +1,8 @@
 from IPython.display import display, HTML
 import re
 import pandas as pd
-from src.plot_style import C
-from src.risk_utils import redemption_stress
+from src.ui.plot_style import C
+from src.risk.risk_utils import redemption_stress
 
 
 def _xnav(prefix: str = '') -> str:
@@ -821,7 +821,7 @@ def display_historical_scenarios(historical_scenarios: dict):
 
 def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False):
     """Render stress scenario P&L results — custom and/or historical."""
-    from src.risk_utils import HISTORICAL_SCENARIOS, stress_historical
+    from src.risk.risk_utils import HISTORICAL_SCENARIOS, stress_historical
     NAV  = risk_df['market_value_eur'].sum()
     rows = []
 

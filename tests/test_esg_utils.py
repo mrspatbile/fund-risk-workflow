@@ -7,13 +7,13 @@ Run with: python3 -m pytest tests/test_esg_utils.py -v
 import pytest
 import pandas as pd
 import numpy as np
-from src.esg_utils import (
+from src.risk.esg_utils import (
     build_esg_df, esg_portfolio_summary, build_private_esg_df,
     ESG_FIELDS, ESG_THRESHOLD_LOW, ESG_THRESHOLD_HIGH
 )
-from src.mock_bloomberg import MockBloomberg
-from src.database import get_engine
-from src.enrichment import get_risk_ready_df
+from src.data.mock_bloomberg import MockBloomberg
+from src.data.database import get_engine
+from src.data.enrichment import get_risk_ready_df
 
 
 ENGINE  = get_engine()
