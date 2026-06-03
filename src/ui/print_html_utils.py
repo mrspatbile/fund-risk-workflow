@@ -22,6 +22,7 @@ def display_dark_table(
     highlight_rows            : list | None = None,
     col_header_align_override : dict | None = None,
     col_widths : dict | None = None,  # e.g. {'metric': '200px', 'value': '100px'}
+    spacer_width              : str | None = None,  # e.g. '100px' — adds invisible spacer column
 ):
     """
     Render a DataFrame as a dark-themed styled HTML table in Jupyter.
@@ -67,6 +68,12 @@ def display_dark_table(
         e.g. {'market_value_eur': 'center'} keeps cells right-aligned
         but centres the header.
 
+    spacer_width : str, optional
+        Width of invisible spacer column (last column). Useful for normalizing
+        table widths across multiple tables with different content.
+        e.g. '100px' adds an invisible 100px column at the end.
+        Column is hidden (visibility: hidden) but takes up space.
+
     Notes
     -----
     - Index is always hidden.
@@ -78,7 +85,13 @@ def display_dark_table(
               'Env', 'Soc', 'Gov', 'Pai', 'Hhi', 'Pb', 'Id', 'Qtd'}
 
     def _fmt_col(col):
+        # Spacer column header should be empty
+        if col == '__spacer__':
+            return ''
         col = col.replace('_', ' ').replace('pct', '%')
+        # Normalize all NAV % variants to % NAV
+        col = col.replace('NAV %', '% NAV')
+        col = col.replace('nav %', '% NAV')
         # Standalone 'n' (count columns: n_obs, n_positions …) → qtd
         col = re.sub(r'\bn\b', 'qtd', col)
         if 'eur' in col.lower() and '(eur)' not in col.lower():
@@ -95,6 +108,17 @@ def display_dark_table(
     df = df.replace(0, float('nan'))
     df_display          = df.rename(columns={c: _fmt_col(c) for c in df.columns})
     col_map             = dict(zip(df.columns, df_display.columns))
+
+    # Add invisible spacer column if requested
+    # spacer_width controls the visual width via repeated characters (e.g. '_' * 80)
+    if spacer_width:
+        spacer_col = '__spacer__'
+        # Parse spacer_width as number of characters (e.g. '80' → 80 chars)
+        try:
+            n_chars = int(spacer_width.replace('px', '').strip())
+            df_display[spacer_col] = '_' * n_chars
+        except:
+            df_display[spacer_col] = ''
     col_styles_remapped = {col_map[k]: v for k, v in col_styles.items() if k in col_map} if col_styles else None
     fmt_remapped        = {col_map.get(k, k): v for k, v in fmt.items()} if fmt else None
 
@@ -169,6 +193,18 @@ def display_dark_table(
         ]},
     ]
 
+    # Hide spacer column text but keep width (text color = background, so invisible)
+    if spacer_width and '__spacer__' in df_display.columns:
+        spacer_col_idx = df_display.columns.get_loc('__spacer__') + 1
+        table_styles.append({
+            'selector': f'thead th:nth-child({spacer_col_idx})',
+            'props'   : [('color', '#2F3245')]  # Header bg color — text invisible
+        })
+        table_styles.append({
+            'selector': f'td:nth-child({spacer_col_idx})',
+            'props'   : [('color', '#1a1f2e')]  # Row bg color — text invisible, keeps width
+        })
+
     aligns = _col_align(df_display)
     if col_align_override:
         for col, align in col_align_override.items():
@@ -206,7 +242,6 @@ def display_dark_table(
                     'selector': f'thead th:nth-child({col_idx})',
                     'props'   : [('text-align', f'{align} !important')]
                 })
-        
 
     styled = df_display.style.apply(_style, axis=None).set_table_styles(table_styles)
 
@@ -664,7 +699,40 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
     display(HTML(table))
 
 
-def display_redemption_stress(fund_id, notice, redstress, NAV):
+def display_redemption_stress(
+    fund_id,
+    notice_days,
+    redemption_scenarios,
+    nav,
+    risk_df_liq
+):
+    """
+    Compute and display redemption stress scenarios.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier
+    notice_days : int
+        Contractual notice period (days)
+    redemption_scenarios : list of tuples
+        [(pct, label), ...] e.g. [(0.10, 'Normal'), (0.25, 'Large')]
+    nav : float
+        Fund NAV in EUR
+    risk_df_liq : pd.DataFrame
+        Positions with liquidity_bucket column
+    """
+    from src.risk.risk_utils import redemption_stress
+
+    # Compute redemption stress for each scenario
+    redstress = {}
+    for _pct, _label in redemption_scenarios:
+        _r = redemption_stress(risk_df_liq, nav, redemption_pct=_pct, notice_days=notice_days)
+        _r['label'] = f'{_label} ({int(_pct*100)}%)'
+        _r['gap'] = f"+{_r['liquidity_gap_eur']/1e6:.1f}M" if _r['liquidity_gap_eur'] >= 0 else f"{_r['liquidity_gap_eur']/1e6:.1f}M"
+        redstress[_pct] = _r
+
+    # Display
     rows = []
     for _, v in redstress.items():
         rows.append({
@@ -678,9 +746,79 @@ def display_redemption_stress(fund_id, notice, redstress, NAV):
     df = pd.DataFrame(rows)
     display_dark_table(
         df,
-        caption=f'Redemption Stress — {fund_id}  |  NAV: EUR {NAV:,.0f}  |  Notice: {notice}d',
+        caption=f'Redemption Stress — {fund_id}  |  NAV: EUR {nav:,.0f}  |  Notice: {notice_days}d',
         fmt={'redemption_eur': '{:,.0f}', 'liquid_eur': '{:,.0f}', 'coverage': '{:.2f}x'},
         col_styles={'coverage': lambda v: C['green'] if isinstance(v, float) and v >= 1.0 else C['red']},
+    )
+
+
+def display_combined_stress_mkt_plus_liq(
+    risk_df,
+    risk_df_liq,
+    nav,
+    notice_days,
+    delta_equity=-0.20,
+    redemption_pct=0.25,
+):
+    """
+    Display combined stress scenario: market shock + simultaneous redemption.
+
+    Stress test: equity market moves by delta_equity (e.g. -20%) AND
+    investors simultaneously redeem redemption_pct of NAV.
+
+    Parameters
+    ----------
+    risk_df : pd.DataFrame
+        Risk-ready positions (for stress_equity computation)
+    risk_df_liq : pd.DataFrame
+        Positions with liquidity buckets (for liquid asset calculation)
+    nav : float
+        Fund NAV in EUR
+    notice_days : int
+        Contractual notice period (days)
+    delta_equity : float, optional
+        Equity market shock (e.g. -0.20 for -20%). Default -0.20.
+    redemption_pct : float, optional
+        Redemption as fraction of NAV (e.g. 0.25 for 25%). Default 0.25.
+    """
+    from src.risk.risk_utils import stress_equity, redemption_stress
+
+    # Market stress
+    comb_eq = stress_equity(risk_df, delta_equity=delta_equity)
+    comb_mkt_eur = comb_eq['stressed_pnl_eur']
+    comb_nav_st = nav + comb_mkt_eur
+
+    # Redemption stress at base redemption_pct
+    base_red = redemption_stress(risk_df_liq, nav, redemption_pct=redemption_pct, notice_days=notice_days)
+
+    # Combined: liquid assets shrink by market stress
+    comb_liquid_st = base_red['liquid_assets_eur'] * (1 - abs(delta_equity))
+    comb_redeem_eur = nav * redemption_pct
+    comb_gap_st = comb_liquid_st - comb_redeem_eur
+    comb_cov_st = comb_liquid_st / comb_redeem_eur if comb_redeem_eur > 0 else float('inf')
+    comb_action = 'Can meet redemption' if comb_gap_st >= 0 else 'Gate / partial suspension required'
+
+    # Display
+    rows = [
+        {'Metric': 'Market shock', 'Value': f'Equity {delta_equity*100:.0f}%', 'EUR': '', 'Status': ''},
+        {'Metric': 'Stressed NAV (post-market)', 'Value': '', 'EUR': f'{comb_nav_st:,.0f}', 'Status': ''},
+        {'Metric': '', 'Value': '', 'EUR': '', 'Status': ''},
+        {'Metric': 'Redemption stress', 'Value': f'{redemption_pct*100:.0f}% NAV', 'EUR': f'{comb_redeem_eur:,.0f}', 'Status': ''},
+        {'Metric': 'Liquid assets (post-market)', 'Value': '', 'EUR': f'{comb_liquid_st:,.0f}', 'Status': ''},
+        {'Metric': 'Liquidity gap', 'Value': '', 'EUR': f'{comb_gap_st:,.0f}', 'Status': comb_action},
+        {'Metric': 'Coverage ratio', 'Value': f'{comb_cov_st:.2f}x', 'EUR': '', 'Status': '✓ OK' if comb_cov_st >= 1.0 else '⚠ SHORTFALL'},
+    ]
+
+    df = pd.DataFrame(rows)
+    display_dark_table(
+        df,
+        caption=f'Combined Stress Test — Market + Liquidity  |  NAV: EUR {nav:,.0f}',
+        col_styles={
+            'Status': lambda v: (
+                C['green'] if isinstance(v, str) and ('✓' in v or 'Can meet' in v) else
+                C['red'] if isinstance(v, str) and ('⚠' in v or 'Gate' in v) else None
+            )
+        },
     )
 
 
@@ -729,47 +867,6 @@ def display_counterparty_stress(NAV, _cp_hf, _worst_cp, _cp_loss_eur, _cp_loss_p
                 C['green'] if isinstance(v, str) and '✓' in v else None
             ),
         },
-    )
-
-
-def display_combined_stress_mkt_plus_liq(NAV, _comb_mkt_eur, _comb_nav_st,
-                                         _comb_redeem_eur, _comb_liquid_st,
-                                         _comb_gap_st, _comb_action, _comb_cov_st):
-    _total_stress = _comb_mkt_eur - max(0.0, -_comb_gap_st)
-    _total_pct    = _total_stress / NAV * 100
-
-    rows        = []
-    sep_indices = []
-
-    sep_indices.append(len(rows))
-    rows.append(('MARKET SHOCK  —  EQUITY −20%', ''))
-    rows.append(('  Portfolio P&L',  f"EUR {_comb_mkt_eur/1e6:,.1f}M   ({_comb_mkt_eur/NAV*100:.1f}% NAV)"))
-    rows.append(('  Stressed NAV',   f"EUR {_comb_nav_st/1e6:,.1f}M"))
-
-    sep_indices.append(len(rows))
-    rows.append(('LIQUIDITY IMPACT  —  25% REDEMPTION, LIQUID ASSETS −20%', ''))
-    rows.append(('  Redemption',    f"EUR {_comb_redeem_eur/1e6:,.1f}M   (25% pre-stress NAV)"))
-    rows.append(('  Liquid assets', f"EUR {_comb_liquid_st/1e6:,.1f}M   (post equity shock)"))
-    rows.append(('  Liquidity gap', f"EUR {_comb_gap_st/1e6:,.1f}M   |   Coverage: {_comb_cov_st:.2f}×"))
-    rows.append(('  Action',        _comb_action))
-
-    sep_indices.append(len(rows))
-    rows.append(('TOTAL COMBINED IMPACT', ''))
-    rows.append(('  Impact on NAV', f"EUR {_total_stress/1e6:,.1f}M   ({_total_pct:.1f}% of NAV)"))
-    rows.append(('  Regulatory note', 'ESMA/2020/1498 §48 — combined stress is a mandatory Annex VI scenario'))
-
-    df = pd.DataFrame(rows, columns=['Metric', 'Value'])
-    display_dark_table(
-        df,
-        caption=f'Combined Stress — Equity −20% + 25% Redemption  |  Baseline NAV: EUR {NAV/1e6:,.1f}M',
-        highlight_rows=sep_indices,
-        col_styles={'Value': lambda v: (
-            C['red']   if isinstance(v, str) and v.startswith('EUR') and '-' in v else
-            C['red']   if isinstance(v, str) and v.startswith('-') else
-            C['amber'] if isinstance(v, str) and 'ESMA' in v else None
-        )},
-        col_align_override={'Value': 'right'},
-        col_widths={'Metric': '240px', 'Value': '260px'},
     )
 
 

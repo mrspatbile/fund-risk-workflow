@@ -1276,6 +1276,59 @@ def liquidity_buckets(
     return df
 
 
+def compute_liquidity_profile(
+    risk_df: pd.DataFrame,
+    nav: float,
+    pct_adv: float = 0.25,
+) -> dict:
+    """
+    Compute liquidity profile — ESMA buckets with summary statistics.
+
+    Combines days_to_liquidate() and liquidity_buckets() with aggregation.
+
+    Parameters
+    ----------
+    risk_df : pd.DataFrame
+        Risk-ready positions with market_value_eur, adv_eur, asset_class columns
+    nav : float
+        Fund NAV in EUR
+    pct_adv : float, optional
+        Max % of ADV tradeable per day without market impact. Default 0.25 (25%).
+
+    Returns
+    -------
+    dict with keys:
+        risk_df_liq : pd.DataFrame
+            Positions with added columns: days_to_liquidate, liquidity_bucket
+        bucket_full : pd.DataFrame
+            Liquidity summary by bucket (ESMA standard order)
+    """
+
+    # Compute days to liquidate and assign buckets
+    risk_df_liq = days_to_liquidate(risk_df, pct_adv=pct_adv)
+    risk_df_liq = liquidity_buckets(risk_df_liq)
+
+    # Aggregate by bucket
+    bucket_order = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
+
+    bucket_summary = risk_df_liq.groupby('liquidity_bucket').agg(
+        market_value_eur=('market_value_eur', 'sum'),
+        abs_exposure=('market_value_eur', lambda x: x.abs().sum()),
+        n_positions=('isin', 'count')
+    ).reset_index()
+
+    bucket_summary['pct_nav_net'] = bucket_summary['market_value_eur'] / nav * 100
+    bucket_summary['pct_nav_abs'] = bucket_summary['abs_exposure'] / nav * 100
+
+    # Reindex to standard ESMA order, fill missing buckets with 0
+    bucket_full = bucket_summary.set_index('liquidity_bucket').reindex(bucket_order).fillna(0).reset_index()
+
+    return {
+        'risk_df_liq': risk_df_liq,
+        'bucket_full': bucket_full,
+    }
+
+
 def redemption_stress(
     positions: pd.DataFrame,
     nav: float,
