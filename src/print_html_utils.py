@@ -872,6 +872,9 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
 
     def _fmt(k: str, v) -> str:
         if not isinstance(v, float): return str(v)
+        # Show "—" for zero values
+        if v == 0.0:
+            return '—'
         k = k.lower()
         if any(x in k for x in ('leverage', 'multiplier')): return f'{v:.2f}×'
         if any(x in k for x in ('exposure', 'bonds', 'net_eq', 'borrowing',
@@ -911,10 +914,15 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
                 f'<td colspan="2" style="{_FONT}{_PAD}color:{vc};text-align:left;border-bottom:{_BORDER};">{value}</td>'
                 '</tr>')
 
-    def _metric(label, pre_v, post_v, n):
+    def _metric(label, pre_v, post_v, n, metric_key=None):
         bg  = _BG_E if n % 2 == 0 else _BG_O
         pc  = C['green'] if '✓' in post_v or (post_v and '⚠' not in post_v and '✗' not in post_v) else _TXT
-        psc = C['red'] if '⚠' in post_v or '✗' in post_v else _TXT
+        # Check if this metric is related to any breach
+        is_breach_metric = False
+        if metric_key and result['breaches']:
+            breach_checks = [b['check'] for b in result['breaches']]
+            is_breach_metric = any(metric_key in check for check in breach_checks)
+        psc = C['red'] if is_breach_metric else _TXT
         return (f'<tr style="background:{bg};">'
                 f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">{label}</td>'
                 f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:right;border-bottom:{_BORDER};">{pre_v}</td>'
@@ -960,7 +968,7 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
         '</tr>'
     )
     for k, v in result['post_trade_metrics'].items():
-        rows_html.append(_metric(f'&nbsp;&nbsp;{k}', _fmt(k, pre[k]) if k in pre else '', _fmt(k, v), n))
+        rows_html.append(_metric(f'&nbsp;&nbsp;{k}', _fmt(k, pre[k]) if k in pre else '', _fmt(k, v), n, metric_key=k))
         n += 1
 
     # — breaches —————————————————————————————————————————————————
@@ -979,4 +987,54 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
     table = (
         f'<table style="border-collapse:collapse;width:100%;background:{_BG_E};">'
         f'{caption_html}{colgroup}<tbody>{"".join(rows_html)}</tbody></table>'
+    )
+    display(HTML(table))
+
+
+## UCITS EXCLUSIVE
+
+
+def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp_loss_pct):
+    status = '⚠ BREACH' if _cp_loss_pct > 0.10 else '✓ Within limit'
+
+    cp = _cp_ucits[['counterparty', 'type', 'exposure_eur',
+                     'collateral_eur', 'net_exposure_eur', 'net_pct_nav']].copy()
+    cp['exposure_eur']     = cp['exposure_eur'].map('{:,.0f}'.format)
+    cp['collateral_eur']   = cp['collateral_eur'].map('{:,.0f}'.format)
+    cp['net_exposure_eur'] = cp['net_exposure_eur'].map('{:,.0f}'.format)
+    cp['net_pct_nav_raw']  = cp['net_pct_nav']
+    cp['net_pct_nav']      = cp['net_pct_nav'].map('{:.1%}'.format)
+
+    def _srow(**kw):
+        base = {c: '' for c in cp.columns}
+        base['net_pct_nav_raw'] = float('nan')
+        base.update(kw)
+        return base
+
+    cp = pd.concat([cp, pd.DataFrame([
+        _srow(),
+        _srow(counterparty='WORST-CASE COUNTERPARTY DEFAULT'),
+        _srow(counterparty='  Counterparty',                   type=_worst_cp['counterparty']),
+        _srow(counterparty='  Net exposure (post-collateral)', type=f"EUR {_cp_loss_eur:,.0f}"),
+        _srow(counterparty='  % of NAV',                      type=f'{_cp_loss_pct*100:.1f}%'),
+        _srow(counterparty='  UCITS limit',                   type='10% NAV  (UCITS Dir. Art. 52)'),
+        _srow(counterparty='  Status',                        type=status),
+    ])], ignore_index=True)
+
+    sep_idx = len(_cp_ucits) + 1
+
+    display_dark_table(
+        cp.drop(columns=['net_pct_nav_raw']),
+        caption=f'Counterparty Exposure — NAV: EUR {NAV:,.0f}',
+        highlight_rows=[sep_idx],
+        col_styles={
+            'net_pct_nav': lambda v: (
+                C['red']   if isinstance(v, str) and '⚠' in v else
+                C['green'] if isinstance(v, str) and '✓' in v else None
+            ),
+            'type': lambda v: (
+                C['red']   if isinstance(v, str) and '⚠' in v else
+                C['green'] if isinstance(v, str) and '✓' in v else None
+            ),
+        },
     )

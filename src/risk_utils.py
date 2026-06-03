@@ -2045,7 +2045,20 @@ def _check_ucits(
         ))
 
     # [3] 5/10/40 rule (UCITSD Article 52)
-    issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
+    # Scope: excludes government securities and ETFs/funds (apply look-through for ETFs).
+    # Government bonds: sovereign risk monitored separately.
+    # ETFs/funds: are vehicles, not issuers; constituent look-through applies.
+    if 'sector' in pro_forma.columns:
+        conc_universe = pro_forma[
+            ((pro_forma['sector'].isna()) | (pro_forma['sector'] != 'Government')) &
+            (~pro_forma.get('sub_asset_class', '').isin(['ETF', 'Fund']))
+        ]
+    else:
+        conc_universe = pro_forma[
+            ~pro_forma.get('sub_asset_class', '').isin(['ETF', 'Fund'])
+        ]
+
+    issuer_exp = _ptc_issuer_exposure(conc_universe, nav)
     above_10   = issuer_exp[issuer_exp > 10.0]
     above_5    = issuer_exp[issuer_exp >  5.0]
     sum_above_5 = float(above_5.sum())
@@ -2495,7 +2508,26 @@ def pre_trade_check(
 
     if fund_type == 'ucits':
         breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
-        pre_metrics: dict = {}
+        # Pre-trade baseline metrics for UCITS (excluding government bonds and ETFs, per Article 52).
+        if 'sector' in positions.columns:
+            pre_conc_universe = positions[
+                ((positions['sector'].isna()) | (positions['sector'] != 'Government')) &
+                (~positions.get('sub_asset_class', '').isin(['ETF', 'Fund']))
+            ]
+        else:
+            pre_conc_universe = positions[
+                ~positions.get('sub_asset_class', '').isin(['ETF', 'Fund'])
+            ]
+        _pre_iss = _ptc_issuer_exposure(pre_conc_universe, nav)
+        _pre_above_5 = _ptc_issuer_exposure(pre_conc_universe, nav)
+        _pre_above_5 = _pre_above_5[_pre_above_5 > 5.0]
+        pre_metrics = {
+            'absolute_var_pct'        : _ptc_portfolio_var(positions, nav),
+            'relative_var_multiplier' : _ptc_portfolio_var(positions, nav) / _ptc_reference_var() if _ptc_reference_var() > 0 else 0.0,
+            'reference_var_pct'       : _ptc_reference_var(),
+            'max_issuer_pct'          : float(_pre_iss.max()) if len(_pre_iss) else 0.0,
+            'sum_above_5pct_issuers'  : float(_pre_above_5.sum()),
+        }
     elif fund_type == 'aifm_hf':
         breaches, metrics = _check_aifm_hf(
             pro_forma, nav, proposed_trade,
