@@ -71,7 +71,7 @@ HISTORICAL_SCENARIOS = {
         },
     }
 
-_DIR = Path(__file__).parent.parent 
+_DIR = Path(__file__).parent.parent.parent  # src/risk/ -> project root 
 
 
 # ================================================================
