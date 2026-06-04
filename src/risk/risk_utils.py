@@ -2305,6 +2305,7 @@ def _check_aifm_hf(
     deriv_bbg_map: dict | None = None,
     currency_bbg_map: dict | None = None,
     positions_before: pd.DataFrame | None = None,
+    nav_before: float | None = None,
 ) -> tuple:
     breaches: list = []
     metrics:  dict = {}
@@ -2340,6 +2341,16 @@ def _check_aifm_hf(
     issuer_exp = _ptc_issuer_exposure(pro_forma, nav)
     pre_issuer_exp = _ptc_issuer_exposure(positions_before, nav) if positions_before is not None else pd.Series(dtype=float)
     metrics['max_issuer_pct'] = float(issuer_exp.max()) if len(issuer_exp) else 0.0
+
+    # Add exposure % for the specific issuer in this trade
+    # Use same grouping key as issuer_exp
+    issuer_key = 'issuer' if 'issuer' in pro_forma.columns else 'isin'
+    trade_issuer = trade.get(issuer_key) or trade.get('underlying_risk') or trade.get('issuer')
+    if trade_issuer:
+        metrics['trade_issuer_pct'] = float(issuer_exp.get(trade_issuer, 0.0))
+    else:
+        metrics['trade_issuer_pct'] = 0.0
+
     for issuer, pct in issuer_exp[issuer_exp > 25.0].items():
         pre_pct = float(pre_issuer_exp.get(issuer, 0.0))
         if pct > pre_pct:
@@ -2352,6 +2363,7 @@ def _check_aifm_hf(
     # Scope: equities and corporate bonds/loans/CLOs by GICS sector.
     # Government bonds are excluded (sovereign risk monitored separately via country exposure).
     # FX, derivatives, and cash are excluded as cross-sectoral instruments.
+    # Only flag if trade worsened the breach (pre-existing breaches are not the trade's fault).
     if 'sector' in pro_forma.columns:
         sector_universe = pro_forma[
             pro_forma['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
@@ -2365,12 +2377,36 @@ def _check_aifm_hf(
         sector_universe.groupby('sector')['market_value_eur'].sum().abs() / nav * 100
     ) if len(sector_universe) else pd.Series(dtype=float)
 
+    # Compute pre-trade sector exposure for comparison
+    if positions_before is not None and 'sector' in positions_before.columns:
+        pre_sector_universe = positions_before[
+            positions_before['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
+            positions_before['sector'].notna() &
+            (positions_before['sector'] != 'Government')
+        ]
+    else:
+        pre_sector_universe = positions_before[positions_before['asset_class'] == 'Equity'] if positions_before is not None else None
+
+    pre_sector_exp = (
+        pre_sector_universe.groupby('sector')['market_value_eur'].sum().abs() / nav * 100
+    ) if (pre_sector_universe is not None and len(pre_sector_universe)) else pd.Series(dtype=float)
+
     metrics['max_sector_pct'] = float(sector_exp.max()) if len(sector_exp) else 0.0
+
+    # Add exposure % for the specific sector in this trade
+    trade_sector = trade.get('sector')
+    if trade_sector:
+        metrics['trade_sector_pct'] = float(sector_exp.get(trade_sector, 0.0))
+    else:
+        metrics['trade_sector_pct'] = 0.0
+
     for sector, pct in sector_exp[sector_exp > 30.0].items():
-        breaches.append(_breach(
-            'sector_concentration', 30.0, float(pct), '% NAV',
-            f'Sector {sector}: {pct:.1f}% NAV exceeds internal RMP limit 30%'
-        ))
+        pre_pct = float(pre_sector_exp.get(sector, 0.0))
+        if pct > pre_pct:  # Only flag if trade worsened it
+            breaches.append(_breach(
+                'sector_concentration', 30.0, float(pct), '% NAV',
+                f'Sector {sector}: {pct:.1f}% NAV exceeds internal RMP limit 30% (was {pre_pct:.1f}%)'
+            ))
 
     # [5] Counterparty concentration
     # Checks existing register exposure + new trade exposure against limit.
@@ -2558,9 +2594,10 @@ def pre_trade_check(
     positions = get_risk_ready_df(engine, fund_id, date)
     nav       = float(positions['market_value_eur'].sum())
     pro_forma = _ptc_apply_trade(positions, proposed_trade)
+    nav_post  = float(pro_forma['market_value_eur'].sum())  # NAV after adding the trade
 
     if fund_type == 'ucits':
-        breaches, metrics = _check_ucits(pro_forma, nav, proposed_trade)
+        breaches, metrics = _check_ucits(pro_forma, nav_post, proposed_trade)
         # Pre-trade baseline metrics for UCITS (excluding government bonds and ETFs, per Art. 52).
         if 'sector' in positions.columns:
             pre_conc_universe = positions[
@@ -2583,18 +2620,57 @@ def pre_trade_check(
         }
     elif fund_type == 'aifm_hf':
         breaches, metrics = _check_aifm_hf(
-            pro_forma, nav, proposed_trade,
+            pro_forma, nav_post, proposed_trade,
             counterparties_df=counterparties_df,
             bbg=bbg,
             deriv_bbg_map=deriv_bbg_map,
             currency_bbg_map=currency_bbg_map,
             positions_before=positions,
+            nav_before=nav,
         )
         # Pre-trade baseline metrics for side-by-side comparison in reports.
         _pre_lev = compute_leverage(positions, nav, bbg=bbg,
                                     deriv_bbg_map=deriv_bbg_map,
                                     currency_bbg_map=currency_bbg_map)
         _pre_iss = _ptc_issuer_exposure(positions, nav)
+
+        # Pre-trade sector exposure
+        if 'sector' in positions.columns:
+            _pre_sector_universe = positions[
+                positions['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
+                positions['sector'].notna() &
+                (positions['sector'] != 'Government')
+            ]
+        else:
+            _pre_sector_universe = positions[positions['asset_class'] == 'Equity']
+        _pre_sector_exp = (
+            _pre_sector_universe.groupby('sector')['market_value_eur'].sum().abs() / nav * 100
+        ) if len(_pre_sector_universe) else pd.Series(dtype=float)
+
+        # Pre-trade net short
+        _key = 'issuer' if 'issuer' in positions.columns else 'isin'
+        _pre_net_pos = positions.groupby(positions[_key].fillna(positions['isin']))['market_value_eur'].sum()
+        _pre_net_short = _pre_net_pos[_pre_net_pos < 0]
+
+        # Pre-trade weighted days to liquidate
+        _pre_wtd_days = 0.0
+        if 'adv_eur' in positions.columns:
+            _pre_liq_df = days_to_liquidate(positions.assign(adv_eur=positions['adv_eur'].fillna(0)))
+            _pre_finite_liq = _pre_liq_df[np.isfinite(_pre_liq_df['days_to_liquidate'])]
+            _pre_total_abs = _pre_finite_liq['market_value_eur'].abs().sum()
+            _pre_wtd_days = (
+                (_pre_finite_liq['days_to_liquidate'] * _pre_finite_liq['market_value_eur'].abs()).sum()
+                / _pre_total_abs if _pre_total_abs > 0 else 0.0
+            )
+
+        # Pre-trade trade issuer/sector exposure
+        _issuer_key = 'issuer' if 'issuer' in positions.columns else 'isin'
+        _trade_issuer = proposed_trade.get(_issuer_key) or proposed_trade.get('underlying_risk') or proposed_trade.get('issuer')
+        _trade_issuer_pct = float(_pre_iss.get(_trade_issuer, 0.0)) if _trade_issuer else 0.0
+
+        _trade_sector = proposed_trade.get('sector')
+        _trade_sector_pct = float(_pre_sector_exp.get(_trade_sector, 0.0)) if _trade_sector else 0.0
+
         pre_metrics = {
             'gross_leverage'            : _pre_lev['gross_leverage'],
             'commitment_leverage'       : _pre_lev['commitment_leverage'],
@@ -2606,20 +2682,103 @@ def pre_trade_check(
             'deriv_notional_commitment' : _pre_lev['deriv_notional_commitment'],
             'borrowings'                : _pre_lev['borrowings'],
             'max_issuer_pct'            : float(_pre_iss.max()) if len(_pre_iss) else 0.0,
+            'trade_issuer_pct'          : _trade_issuer_pct,
             'absolute_var_pct'          : _ptc_portfolio_var(positions, nav),
+            'max_sector_pct'            : float(_pre_sector_exp.max()) if len(_pre_sector_exp) else 0.0,
+            'trade_sector_pct'          : _trade_sector_pct,
+            'max_net_short_pct'         : float(_pre_net_short.min() / nav * 100) if (len(_pre_net_short) and nav) else 0.0,
+            'wtd_avg_days_to_liquidate' : round(_pre_wtd_days, 1),
         }
     else:
-        breaches, metrics = _check_aifm_pd(pro_forma, nav, proposed_trade)
+        breaches, metrics = _check_aifm_pd(pro_forma, nav_post, proposed_trade)
         pre_metrics = {}
 
+    # Build issuer and sector exposure breakdowns for display
+    issuer_exp = _ptc_issuer_exposure(pro_forma, nav_post)
+    issuer_exposures_post = issuer_exp[issuer_exp > 0].round(1).to_dict()
+
+    pre_issuer_exp = _ptc_issuer_exposure(positions, nav) if len(positions) else pd.Series(dtype=float)
+    issuer_exposures_pre = pre_issuer_exp[pre_issuer_exp > 0].round(1).to_dict()
+
+    # Sector exposures (only for AIFM HF which has sectors)
+    sector_exposures_post = {}
+    sector_exposures_pre = {}
+    if fund_type == 'aifm_hf' and 'sector' in pro_forma.columns:
+        sector_universe_post = pro_forma[
+            pro_forma['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
+            pro_forma['sector'].notna() &
+            (pro_forma['sector'] != 'Government')
+        ]
+        sector_exp_post = (
+            sector_universe_post.groupby('sector')['market_value_eur'].sum().abs() / nav_post * 100
+        ) if len(sector_universe_post) else pd.Series(dtype=float)
+        sector_exposures_post = sector_exp_post[sector_exp_post > 0].round(1).to_dict()
+
+        sector_universe_pre = positions[
+            positions['asset_class'].isin(['Equity', 'Bond', 'Loan', 'CLO']) &
+            positions['sector'].notna() &
+            (positions['sector'] != 'Government')
+        ]
+        sector_exp_pre = (
+            sector_universe_pre.groupby('sector')['market_value_eur'].sum().abs() / nav * 100
+        ) if len(sector_universe_pre) else pd.Series(dtype=float)
+        sector_exposures_pre = sector_exp_pre[sector_exp_pre > 0].round(1).to_dict()
+
     return {
-        'passed'            : len(breaches) == 0,
-        'fund_id'           : fund_id,
-        'fund_type'         : fund_type,
-        'proposed_trade'    : proposed_trade,
-        'breaches'          : breaches,
-        'pre_trade_metrics' : pre_metrics,
-        'post_trade_metrics': metrics,
+        'passed'                  : len(breaches) == 0,
+        'fund_id'                 : fund_id,
+        'fund_type'               : fund_type,
+        'proposed_trade'          : proposed_trade,
+        'breaches'                : breaches,
+        'pre_trade_metrics'       : pre_metrics,
+        'post_trade_metrics'      : metrics,
+        'issuer_exposures_pre'    : issuer_exposures_pre,
+        'issuer_exposures_post'   : issuer_exposures_post,
+        'sector_exposures_pre'    : sector_exposures_pre,
+        'sector_exposures_post'   : sector_exposures_post,
+    }
+
+
+def compute_counterparty_stress(fund_id: str, engine, nav: float) -> dict:
+    """
+    Compute counterparty stress metrics: exposures, collateral, net exposure, and worst case.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier.
+    engine : sa.Engine
+        SQLAlchemy engine for database access.
+    nav : float
+        Net asset value.
+
+    Returns
+    -------
+    dict with keys:
+        'cp_df' : pd.DataFrame - counterparty register with computed columns
+        'worst_cp' : pd.Series - worst counterparty row
+        'loss_eur' : float - net exposure of worst counterparty (EUR)
+        'loss_pct' : float - net exposure of worst counterparty (% NAV)
+    """
+    # Load counterparty register
+    cp_df = load_counterparty(fund_id)
+
+    # Compute exposure and collateral columns
+    cp_df['exposure_eur'] = cp_df['exposure_pct'] * nav
+    cp_df['collateral_eur'] = cp_df['exposure_eur'] * cp_df['collateral_cover']
+    cp_df['net_exposure_eur'] = cp_df['exposure_eur'] * (1 - cp_df['collateral_cover'])
+    cp_df['loss_pct_nav'] = cp_df['net_exposure_eur'] / nav
+
+    # Find worst counterparty
+    worst_cp = cp_df.loc[cp_df['net_exposure_eur'].idxmax()]
+    loss_eur = worst_cp['net_exposure_eur']
+    loss_pct = worst_cp['loss_pct_nav']
+
+    return {
+        'cp_df': cp_df,
+        'worst_cp': worst_cp,
+        'loss_eur': loss_eur,
+        'loss_pct': loss_pct,
     }
 
 
@@ -2665,4 +2824,6 @@ __all__ = [
     'compute_pnl_attribution',
     # pre-trade compliance
     'pre_trade_check',
+    # counterparty stress
+    'compute_counterparty_stress',
 ]

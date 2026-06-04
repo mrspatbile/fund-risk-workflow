@@ -1,8 +1,10 @@
 from IPython.display import display, HTML
 import re
 import pandas as pd
+from datetime import datetime, timedelta
 from src.ui.plot_style import C
 from src.risk.risk_utils import redemption_stress
+from src.config import VALUATION_DATE
 
 
 def _xnav(prefix: str = '') -> str:
@@ -124,9 +126,9 @@ def display_dark_table(
 
     def _style(df):
         styles = []
-        for i, row in df.iterrows():
+        for row_num, (i, row) in enumerate(df.iterrows()):
             is_highlight   = highlight_rows and i in highlight_rows
-            bg             = "#36394F" if is_highlight else ('#1a1f2e' if i % 2 == 0 else '#141929')
+            bg             = "#36394F" if is_highlight else ('#1a1f2e' if row_num % 2 == 0 else '#141929')
             color          = '#587580' if is_highlight else C['muted']
             fw             = 'bold'   if is_highlight else 'normal'
             text_transform = 'uppercase' if is_highlight else 'none'
@@ -822,7 +824,24 @@ def display_combined_stress_mkt_plus_liq(
     )
 
 
-def display_counterparty_stress(NAV, _cp_hf, _worst_cp, _cp_loss_eur, _cp_loss_pct):
+def display_counterparty_stress(NAV, **kwargs):
+    """
+    Display counterparty stress table.
+
+    Parameters
+    ----------
+    NAV : float
+        Net asset value.
+    **kwargs : dict
+        Expected keys: 'cp_df', 'worst_cp', 'loss_eur', 'loss_pct'.
+        Or pass individual arguments: cp_df, worst_cp, loss_eur, loss_pct.
+    """
+    # Handle both dict unpacking and individual arguments
+    _cp_hf = kwargs.get('cp_df')
+    _worst_cp = kwargs.get('worst_cp')
+    _cp_loss_eur = kwargs.get('loss_eur')
+    _cp_loss_pct = kwargs.get('loss_pct')
+
     status  = '⚠ BREACH' if _cp_loss_pct > 0.05 else '✓ Within limit'
 
     # Pre-format all numeric columns as strings so summary rows stay blank.
@@ -956,10 +975,28 @@ def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool 
         highlight_rows=[worst],
         col_widths={'Scenario': '260px'},
     )
+def display_ptc(result: dict, test_number: int | None = None,
+                col_widths_trade: dict | None = None,
+                col_widths_metrics: dict | None = None,
+                col_widths_breaches: dict | None = None) -> None:
+    """Render pre-trade check as 3 separate independent tables.
 
+    Table 1 (Trade Details): 4 columns
+    Table 2 (Metrics): 3 columns (metric | pre-trade | post-trade)
+    Table 3 (Breaches): 2 columns
 
-def display_ptc(result: dict, test_number: int | None = None) -> None:
-    """Render a pre-trade check result as a hand-built HTML table with colspan."""
+    Parameters
+    ----------
+    col_widths_trade : dict, optional
+        Column widths for trade table: {'label': 'XXXpx', 'value': 'XXXpx', ...}
+    col_widths_metrics : dict, optional
+        Column widths for metrics table: {'metric': 'XXXpx', 'pre': 'XXXpx', 'post': 'XXXpx'}
+    col_widths_breaches : dict, optional
+        Column widths for breaches table: {'item': 'XXXpx', 'value': 'XXXpx'}
+    """
+    from datetime import datetime, timedelta
+    import pandas as pd
+
     t        = result['proposed_trade']
     notional = abs(t['quantity'] * t['price_eur'])
     status   = '✓  PASSED' if result['passed'] else '✗  FAILED'
@@ -969,9 +1006,7 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
 
     def _fmt(k: str, v) -> str:
         if not isinstance(v, float): return str(v)
-        # Show "—" for zero values
-        if v == 0.0:
-            return '—'
+        if v == 0.0: return '—'
         k = k.lower()
         if any(x in k for x in ('leverage', 'multiplier')): return f'{v:.2f}×'
         if any(x in k for x in ('exposure', 'bonds', 'net_eq', 'borrowing',
@@ -980,115 +1015,385 @@ def display_ptc(result: dict, test_number: int | None = None) -> None:
         if v > 10_000: return f'{v:,.0f}'
         return f'{v:.2f}'
 
-    # — shared styles ——————————————————————————————————————————————
+    # Shared styles
     _BG_E   = '#1a1f2e'
     _BG_O   = '#141929'
     _BG_SEP = '#36394F'
-    _BG_HDR = '#2F3245'
     _TXT    = '#9ca3af'
-    _HDR_C  = '#a5cfdf'
     _SEP_C  = '#587580'
     _BORDER = '1px solid #0f1729'
     _FONT   = 'font-family:Arial,sans-serif;font-size:11px;'
     _PAD    = 'padding:5px 12px;'
 
-    def _sep(label, colspan=3):
-        return (f'<tr style="background:{_BG_SEP};">'
-                f'<td colspan="{colspan}" style="{_FONT}{_PAD}color:{_SEP_C};'
-                f'font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;'
-                f'text-align:left;border-bottom:{_BORDER};">{label}</td></tr>')
+    # ═════════════════════════════════════════════════════════════════════════
+    # TABLE 1: TRADE DETAILS (4 columns)
+    # ═════════════════════════════════════════════════════════════════════════
 
-    def _spacer(n, colspan=3):
-        bg = _BG_E if n % 2 == 0 else _BG_O
-        return f'<tr style="background:{bg};"><td colspan="{colspan}" style="padding:3px;border-bottom:{_BORDER};"></td></tr>'
+    if col_widths_trade is None:
+        col_widths_trade = {'label1': '80px', 'value1': '50px', 'label2': '150px', 'value2': '100px'}
 
-    def _detail(label, value, n, val_color=None, label_color=None):
-        bg   = _BG_E if n % 2 == 0 else _BG_O
-        lc   = label_color or _TXT
-        vc   = val_color   or _TXT
-        return (f'<tr style="background:{bg};">'
-                f'<td style="{_FONT}{_PAD}color:{lc};text-align:left;border-bottom:{_BORDER};">{label}</td>'
-                f'<td colspan="2" style="{_FONT}{_PAD}color:{vc};text-align:left;border-bottom:{_BORDER};">{value}</td>'
-                '</tr>')
+    # Compute settlement date
+    val_date = pd.to_datetime(VALUATION_DATE)
+    settlement_date = (val_date + timedelta(days=2)).strftime('%Y-%m-%d')
+    counterparty = t.get('counterparty', '—')
+    underlying_risk = t.get('underlying_risk', '—')
 
-    def _metric(label, pre_v, post_v, n, metric_key=None):
-        bg  = _BG_E if n % 2 == 0 else _BG_O
-        pc  = C['green'] if '✓' in post_v or (post_v and '⚠' not in post_v and '✗' not in post_v) else _TXT
-        # Check if this metric is related to any breach
-        is_breach_metric = False
-        if metric_key and result['breaches']:
-            breach_checks = [b['check'] for b in result['breaches']]
-            is_breach_metric = any(metric_key in check for check in breach_checks)
-        psc = C['red'] if is_breach_metric else _TXT
-        return (f'<tr style="background:{bg};">'
-                f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">{label}</td>'
-                f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:right;border-bottom:{_BORDER};">{pre_v}</td>'
-                f'<td style="{_FONT}{_PAD}color:{psc};text-align:right;border-bottom:{_BORDER};">{post_v}</td>'
-                '</tr>')
+    trade_rows = []
+    trade_data = [
+        ('Fund', result['fund_id'], 'Trade Date', VALUATION_DATE),
+        ('Trade', f"{t['direction'].upper()}  {t['quantity']:,} × {t['isin']}", 'Settlement', settlement_date),
+        ('Notional', f"EUR {notional:,.0f}   @   EUR {t['price_eur']:,.2f}", 'Counterparty', counterparty),
+        ('Result', status, 'Underlying Risk', underlying_risk),
+    ]
 
-    rows_html = []
-    n = 0
+    result_color = C['green'] if '✓' in status else C['red']
 
-    # — colgroup — defines the 3-column layout
-    colgroup = '<colgroup><col style="width:220px;"><col style="width:120px;"><col style="width:150px;"></colgroup>'
+    for label1, val1, label2, val2 in trade_data:
+        bg = _BG_E if len(trade_rows) % 2 == 0 else _BG_O
+        val1_color = result_color if label1 == 'Result' else _TXT
+        trade_rows.append(
+            f'<tr style="background:{bg};">'
+            f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:right;border-bottom:{_BORDER};">{label1}</td>'
+            f'<td style="{_FONT}{_PAD}color:{val1_color};text-align:left;border-bottom:{_BORDER};">{val1}</td>'
+            f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:right;border-bottom:{_BORDER};">{label2}</td>'
+            f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">{val2}</td>'
+            '</tr>'
+        )
 
-    # — caption & thead ——————————————————————————————————————————
-    caption_html = (
-        f'<caption style="color:{C["cyan"]};font-size:14px;font-weight:bold;'
-        f'text-align:left;font-family:Helvetica Neue,Arial,sans-serif;'
-        f'padding-bottom:8px;background:#1a2540;">{cap_txt}</caption>'
+    colgroup_trade = (
+        f'<colgroup>'
+        f'<col style="width:{col_widths_trade["label1"]};"><col style="width:{col_widths_trade["value1"]};"> '
+        f'<col style="width:{col_widths_trade["label2"]};"><col style="width:{col_widths_trade["value2"]};"> '
+        f'</colgroup>'
     )
-    # no column headers — table structure is self-describing via separators
 
-    # — trade details (no pre/post header here) ———————————————————
-    rows_html.append(_sep('FUND AND POTENTIAL TRADE DETAILS'))
-    for label, val in [
-        ('Fund',     result['fund_id']),
-        ('Trade',    f"{t['direction'].upper()}  {t['quantity']:,} × {t['isin']}"),
-        ('Notional', f"EUR {notional:,.0f}   @   EUR {t['price_eur']:,.2f}"),
-        ('Result',   status),
-    ]:
-        vc = C['green'] if '✓' in val else C['red'] if '✗' in val else _TXT
-        rows_html.append(_detail(f'&nbsp;&nbsp;{label}', val, n, val_color=vc)); n += 1
-
-    # — metrics (pre vs post) ————————————————————————————————————
-    rows_html.append(_spacer(n)); n += 1
-    # separator doubles as column header for this section
-    rows_html.append(
-        f'<tr style="background:{_BG_SEP};">'
-        f'<td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;letter-spacing:0.05em;'
-        f'text-transform:uppercase;text-align:left;border-bottom:{_BORDER};">METRICS</td>'
-        f'<td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;letter-spacing:0.05em;'
-        f'text-transform:uppercase;text-align:right;border-bottom:{_BORDER};">PRE-TRADE</td>'
-        f'<td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;letter-spacing:0.05em;'
-        f'text-transform:uppercase;text-align:right;border-bottom:{_BORDER};">POST-TRADE</td>'
-        '</tr>'
+    table1_html = (
+        f'<table style="border-collapse:collapse;width:auto;table-layout:fixed;background:{_BG_E};">'
+        f'<caption style="color:{C["cyan"]};font-size:14px;font-weight:bold;text-align:left;'
+        f'font-family:Helvetica Neue,Arial,sans-serif;padding-bottom:8px;background:#1a2540;">{cap_txt}</caption>'
+        f'{colgroup_trade}'
+        f'<tbody>'
+        f'<tr style="background:{_BG_SEP};"><td colspan="4" style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;'
+        f'letter-spacing:0.05em;text-transform:uppercase;text-align:left;border-bottom:{_BORDER};">FUND AND TRADE DETAILS</td></tr>'
+        f'{"".join(trade_rows)}'
+        f'</tbody></table>'
     )
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # TABLE 2: METRICS (3 columns)
+    # ═════════════════════════════════════════════════════════════════════════
+
+    if col_widths_metrics is None:
+        col_widths_metrics = {'metric': '120px', 'pre': '150px', 'post': '130px'}
+
+    # Limit thresholds for breach detection
+    _LIMITS = {
+        'gross_leverage': 3.0,
+        'commitment_leverage': 2.0,
+        'max_issuer_pct': 25.0,
+        'trade_issuer_pct': 25.0,
+        'max_sector_pct': 30.0,
+        'trade_sector_pct': 30.0,
+        'max_net_short_pct': 0.2,
+        'wtd_avg_days_to_liquidate': 30.0,
+    }
+
+    metrics_rows = []
     for k, v in result['post_trade_metrics'].items():
-        rows_html.append(_metric(f'&nbsp;&nbsp;{k}', _fmt(k, pre[k]) if k in pre else '', _fmt(k, v), n, metric_key=k))
-        n += 1
+        bg = _BG_E if len(metrics_rows) % 2 == 0 else _BG_O
+        pre_fmt = _fmt(k, pre[k]) if k in pre else ''
+        post_fmt = _fmt(k, v)
 
-    # — breaches —————————————————————————————————————————————————
-    rows_html.append(_spacer(n)); n += 1
-    if result['breaches']:
-        rows_html.append(_sep(f"BREACHES DETECTED  ({len(result['breaches'])})"))
-        for b in result['breaches']:
-            rows_html.append(_spacer(n)); n += 1
-            rows_html.append(_detail(f'&nbsp;&nbsp;⚠&nbsp;{b["check"]}', '', n, label_color=C['red'])); n += 1
-            rows_html.append(_detail('&nbsp;&nbsp;&nbsp;&nbsp;Limit',  f"{b['limit']} {b['unit']}",  n)); n += 1
-            rows_html.append(_detail('&nbsp;&nbsp;&nbsp;&nbsp;Actual', f"{b['actual']} {b['unit']}", n)); n += 1
-            rows_html.append(_detail('&nbsp;&nbsp;&nbsp;&nbsp;Detail', b['message'],                 n)); n += 1
-    else:
-        rows_html.append(_sep('NO LIMIT BREACHES — TRADE APPROVED', colspan=3))
+        # Check if pre-trade metric breached limit
+        pre_color = _TXT
+        pre_breached = False
+        if pre_fmt and k in _LIMITS:
+            try:
+                pre_val = float(pre[k])
+                if pre_val > _LIMITS[k]:
+                    pre_fmt = f'⚠ {pre_fmt}'
+                    pre_color = '#fbbf24'  # yellow for pre-existing breach
+                    pre_breached = True
+            except (ValueError, TypeError, KeyError):
+                pass
 
-    table = (
-        f'<table style="border-collapse:collapse;width:100%;background:{_BG_E};">'
-        f'{caption_html}{colgroup}<tbody>{"".join(rows_html)}</tbody></table>'
+        # Check if post-trade metric breached limit
+        post_breached = False
+        if k in _LIMITS:
+            try:
+                post_val = float(v)
+                post_breached = post_val > _LIMITS[k]
+            except (ValueError, TypeError, KeyError):
+                pass
+
+        # Detect changes
+        changed = (pre_fmt != post_fmt) and pre_fmt != ''
+
+        # Determine if metric improved (for "lower is better" metrics)
+        improved = False
+        if changed and not post_breached:
+            try:
+                pre_val = float(str(pre[k]))
+                post_val = float(v)
+                # Lower is better for: concentrations, short exposure, days to liquidate, leverage
+                lower_is_better = any(
+                    x in k.lower() for x in ('pct', 'leverage', 'exposure', 'short', 'days')
+                )
+                improved = (post_val < pre_val) if lower_is_better else False
+            except (ValueError, TypeError, KeyError):
+                improved = False
+
+        # Determine if breach worsened (for metrics where higher is worse)
+        worsened = False
+        if pre_breached and post_breached and changed:
+            try:
+                pre_val = float(pre[k])
+                post_val = float(v)
+                # For concentrations/leverage, higher is worse
+                worsened = post_val > pre_val
+            except (ValueError, TypeError, KeyError):
+                worsened = False
+
+        # Apply styling based on breach status — bold only if value changed
+        if pre_breached and post_breached:
+            if worsened:
+                # Breach worsened — red + bold
+                post_color = C['red']
+                post_weight = 'font-weight:bold;' if changed else ''
+            else:
+                # Breach continued but not worse — yellow, no bold, with ⚠
+                post_fmt = f'⚠ {post_fmt}'
+                post_color = '#fbbf24'
+                post_weight = ''
+        elif not pre_breached and post_breached:
+            # New breach — red + bold
+            post_color = C['red']
+            post_weight = 'font-weight:bold;'
+        elif changed:
+            # Changed (improved or just changed, no breach) — white + bold
+            post_color = '#ffffff'
+            post_weight = 'font-weight:bold;'
+        else:
+            # Unchanged — normal
+            post_color = _TXT
+            post_weight = ''
+
+        metrics_rows.append(
+            f'<tr style="background:{bg};">'
+            f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">&nbsp;&nbsp;{k}</td>'
+            f'<td style="{_FONT}{_PAD}color:{pre_color};text-align:right;border-bottom:{_BORDER};">{pre_fmt}</td>'
+            f'<td style="{_FONT}{_PAD}color:{post_color};{post_weight}text-align:right;border-bottom:{_BORDER};">{post_fmt}</td>'
+            '</tr>'
+        )
+
+    colgroup_metrics = (
+        f'<colgroup>'
+        f'<col style="width:{col_widths_metrics["metric"]};"><col style="width:{col_widths_metrics["pre"]};"><col style="width:{col_widths_metrics["post"]};"> '
+        f'</colgroup>'
     )
-    display(HTML(table))
+
+    table2_html = (
+        f'<table style="border-collapse:collapse;width:auto;table-layout:fixed;background:{_BG_E};margin-top:15px;">'
+        f'{colgroup_metrics}'
+        f'<tbody>'
+        f'<tr style="background:{_BG_SEP};"><td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;'
+        f'letter-spacing:0.05em;text-transform:uppercase;text-align:left;border-bottom:{_BORDER};">METRICS</td>'
+        f'<td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;'
+        f'text-align:right;border-bottom:{_BORDER};">PRE-TRADE</td>'
+        f'<td style="{_FONT}{_PAD}color:{_SEP_C};font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;'
+        f'text-align:right;border-bottom:{_BORDER};">POST-TRADE</td></tr>'
+        f'{"".join(metrics_rows)}'
+        f'</tbody></table>'
+    )
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # TABLE 3: BREACHES & PRE-EXISTING LIMITS
+    # ═════════════════════════════════════════════════════════════════════════
+
+    if col_widths_breaches is None:
+        col_widths_breaches = {'item': '100px', 'value': '350px'}
+
+    # Detect pre-existing breaches in concentration metrics
+    pre_existing_sector_breaches = []
+    pre_existing_issuer_breaches = []
+
+    # Check sector breaches from pre-trade exposures
+    sector_exp_pre = result.get('sector_exposures_pre', {})
+    for sector, pct in sector_exp_pre.items():
+        if pct > 30.0:
+            pre_existing_sector_breaches.append(f"{sector}: {pct:.1f}%")
+
+    # Check issuer breaches from pre-trade exposures
+    issuer_exp_pre = result.get('issuer_exposures_pre', {})
+    for issuer, pct in issuer_exp_pre.items():
+        if pct > 25.0:
+            pre_existing_issuer_breaches.append(f"{issuer}: {pct:.1f}%")
+
+    breaches_rows = []
+
+    if result['breaches']:
+        # Trade caused new breaches — show in red
+        for b in result['breaches']:
+            breaches_rows.append(
+                f'<tr style="background:{_BG_SEP};"><td colspan="2" style="{_FONT}{_PAD}color:{C["red"]};'
+                f'font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;text-align:left;border-bottom:{_BORDER};">✗&nbsp;{b["check"]}</td></tr>'
+            )
+            for label, value in [
+                ('Limit', f"{b['limit']}{b['unit']}"),
+                ('Post Trade', f"{float(b['actual']):.1f}{b['unit']}"),
+                ('Detail', b['message']),
+            ]:
+                bg = _BG_E if len(breaches_rows) % 2 == 0 else _BG_O
+                breaches_rows.append(
+                    f'<tr style="background:{bg};">'
+                    f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">&nbsp;&nbsp;&nbsp;&nbsp;{label}</td>'
+                    f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">{value}</td>'
+                    '</tr>'
+                )
+    else:
+        # Trade approved — check if there are pre-existing breaches
+        if pre_existing_sector_breaches or pre_existing_issuer_breaches:
+            # Yellow — approved but pre-existing breaches
+            status_color = '#fbbf24'  # yellow
+            status_text = 'TRADE APPROVED — verify no related breaches below'
+        else:
+            # Green — no breaches at all
+            status_color = C['green']
+            status_text = 'NO LIMIT BREACHES — TRADE APPROVED'
+
+        breaches_rows.append(
+            f'<tr style="background:{_BG_SEP};"><td colspan="2" style="{_FONT}{_PAD}color:{status_color};'
+            f'font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;text-align:left;border-bottom:{_BORDER};">{status_text}</td></tr>'
+        )
+
+        # Show pre-existing breaches if any
+        if pre_existing_sector_breaches:
+            bg = _BG_E if len(breaches_rows) % 2 == 0 else _BG_O
+            breaches_rows.append(
+                f'<tr style="background:{bg};">'
+                f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">Sector breaches</td>'
+                f'<td style="{_FONT}{_PAD}color:#fbbf24;text-align:left;border-bottom:{_BORDER};">{", ".join(pre_existing_sector_breaches)}</td>'
+                '</tr>'
+            )
+
+        if pre_existing_issuer_breaches:
+            bg = _BG_E if len(breaches_rows) % 2 == 0 else _BG_O
+            breaches_rows.append(
+                f'<tr style="background:{bg};">'
+                f'<td style="{_FONT}{_PAD}color:{_TXT};text-align:left;border-bottom:{_BORDER};">Issuer/short breaches</td>'
+                f'<td style="{_FONT}{_PAD}color:#fbbf24;text-align:left;border-bottom:{_BORDER};">{", ".join(pre_existing_issuer_breaches)}</td>'
+                '</tr>'
+            )
+
+    colgroup_breaches = (
+        f'<colgroup>'
+        f'<col style="width:{col_widths_breaches["item"]};"><col style="width:{col_widths_breaches["value"]};"> '
+        f'</colgroup>'
+    )
+
+    table3_html = (
+        f'<table style="border-collapse:collapse;width:auto;table-layout:fixed;background:{_BG_E};margin-top:15px;">'
+        f'{colgroup_breaches}'
+        f'<tbody>'
+        f'{"".join(breaches_rows)}'
+        f'</tbody></table>'
+    )
+
+    # Display all 3 tables
+    display(HTML(table1_html))
+    display(HTML(table2_html))
+    display(HTML(table3_html))
 
 
-## UCITS EXCLUSIVE
+def display_asset_class_breakdown(df: pd.DataFrame) -> None:
+    """
+    Display asset class breakdown with market value, position count, and weight.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Risk DataFrame with columns: asset_class, market_value_eur, isin.
+
+    Returns
+    -------
+    None
+        Displays table via IPython.display.
+    """
+    # Compute NAV from DataFrame
+    nav = float(df['market_value_eur'].sum())
+
+    # Group by asset class
+    breakdown = df.groupby('asset_class').agg(
+        market_value_eur=('market_value_eur', 'sum'),
+        n_positions=('isin', 'count'),
+    ).sort_values('market_value_eur', ascending=False)
+
+    breakdown['weight_pct'] = breakdown['market_value_eur'] / nav * 100
+
+    # Format columns
+    breakdown['market_value_eur'] = breakdown['market_value_eur'].map('{:,.0f}'.format)
+    breakdown['weight_pct'] = breakdown['weight_pct'].map('{:.2f}%'.format)
+    breakdown['n_positions'] = breakdown['n_positions'].map('{:d}'.format)
+
+    # Rename for display
+    breakdown.columns = ['Market Value (EUR)', '# Positions', '% NAV']
+
+    display_dark_table(
+        breakdown,
+        caption='Asset Class Breakdown',
+        col_align_override={'Asset Class': 'left',
+                           'Market Value (EUR)': 'right',
+                           '# Positions': 'right',
+                           '% NAV': 'right'}
+    )
+
+
+def display_top_positions(df: pd.DataFrame, n_top: int = 100) -> None:
+    """
+    Display top N positions as an HTML table with asset class, issuer, market value, and weight.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Risk DataFrame with columns: asset_class, issuer, market_value_eur.
+    n_top : int
+        Number of top positions to display. Default: 100.
+
+    Returns
+    -------
+    None
+        Displays table via IPython.display.
+    """
+    # Compute NAV from DataFrame
+    nav = float(df['market_value_eur'].sum())
+
+    # Select available columns
+    cols = ['asset_class', 'issuer', 'market_value_eur']
+    available_cols = [col for col in cols if col in df.columns]
+
+    # Sort by market value descending and take top N
+    top_pos = df.nlargest(n_top, 'market_value_eur')[available_cols].copy()
+
+    top_pos['weight_pct'] = top_pos['market_value_eur'] / nav * 100
+
+    # Format columns
+    top_pos['market_value_eur'] = top_pos['market_value_eur'].map('{:,.0f}'.format)
+    top_pos['weight_pct'] = top_pos['weight_pct'].map('{:.2f}%'.format)
+
+    # Rename for display
+    col_names = {'asset_class': 'Asset Class', 'issuer': 'Issuer',
+                 'market_value_eur': 'Market Value (EUR)', 'weight_pct': '% NAV'}
+    top_pos.columns = [col_names.get(col, col) for col in top_pos.columns]
+
+    # Align columns appropriately
+    col_align = {col: 'left' if col in ['Asset Class', 'Issuer'] else 'right'
+                 for col in top_pos.columns}
+
+    display_dark_table(
+        top_pos,
+        caption=f'Top {n_top} Positions',
+        col_align_override=col_align
+    )
 
 
 def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp_loss_pct):
