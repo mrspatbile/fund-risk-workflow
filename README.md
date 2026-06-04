@@ -1,10 +1,10 @@
 # manco-risk-mngmt
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
-![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
-[![AIFMD II](https://img.shields.io/badge/Regulation-AIFMD%20II-orange)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
-[![UCITS](https://img.shields.io/badge/Regulation-UCITS%20VI-blue)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
-[![PRIIPs](https://img.shields.io/badge/Regulation-PRIIPs-green)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32014R1286)
+![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite&logoColor=white)
+[![AIFMD II](https://img.shields.io/badge/Reg-AIFMD%20II-orange)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
+[![UCITS](https://img.shields.io/badge/Reg-UCITS%20VI-blue)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
+[![PRIIPs](https://img.shields.io/badge/Reg-PRIIPs-green)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32014R1286)
 
 Risk management and regulatory reporting system covering UCITS and AIFMD II frameworks across six fund types including illiquid strategies. Includes liquidity stress testing and LMT calibration simulation. Market data ingested via a simulated Bloomberg pipeline, positions and fund data stored in SQLite via SQLAlchemy ORM. Regulatory outputs: Annex IV, liquidity stress reports, and board risk reports.
 
