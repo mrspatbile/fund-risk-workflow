@@ -82,23 +82,20 @@ LMT thresholds are calibrated against redemption stress test output per ESMA/202
 
 ---
 
+## Regulatory References
 
-## Regulatory Scope
-
-| Regulation | Coverage |
+| Reference | Repository Coverage |
 |---|---|
-| UCITS Directive 2009/65/EC | Luxembourg: Law of 17 December 2010 |
-| AIFMD 2011/61/EU | Luxembourg: Law of 12 July 2013 |
-| AIFMD II 2024/927/EU | Luxembourg: Law of 3 March 2026 — LMT framework, expanded Annex IV |
-| EU 231/2013 | Leverage calculation Annex II, risk management Articles 46-49 |
-| Delegated Regulation EU 2026/466 | LMT characteristics RTS |
-| ESMA technical guidance v1.7 (July 2024) | Annex IV field definitions |
-| ESMA/2020/1498 | Liquidity stress testing guidelines |
-| ESMA34-671404336-1364 (March 2026) | LMT selection and calibration |
-| CSSF Regulation 10-04 | Organisational requirements for ManCos |
-| CSSF Regulation 22-05 | Sustainability requirements |
-| IPEV Valuation Guidelines | PE and infrastructure fair value |
-| SFDR | PAI indicators for private asset funds |
+| UCITS Directive 2009/65/EC | Eligible assets and investment restriction checks for UCITS-style portfolios |
+| AIFMD 2011/61/EU | AIFM risk management and regulatory reporting context |
+| Commission Delegated Regulation (EU) No 231/2013 | AIFMD risk management, liquidity management, leverage and Annex IV reporting framework |
+| Directive (EU) 2024/927 | AIFMD II / UCITS VI amendments covering liquidity management tools and supervisory reporting changes |
+| Commission Delegated Regulation (EU) 2026/466 | RTS specifying characteristics of liquidity management tools under the UCITS framework |
+| ESMA34-39-897 | Liquidity stress testing guidelines for UCITS and AIFs |
+| ESMA34-671404336-1364 | Guidelines on selection and calibration of liquidity management tools for UCITS and open-ended AIFs |
+| ESMA AIFMD Reporting Technical Guidance | Annex IV reporting field definitions and reporting structure |
+| IPEV Valuation Guidelines | Private asset valuation reference points for PE and infrastructure-style analytics |
+| SFDR | Selected sustainability indicators used in private asset fund examples |
 
 ---
 
