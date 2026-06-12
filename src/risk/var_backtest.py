@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from src.data.database import query_positions
 from src.data.mock_bloomberg import MockBloomberg
-from src.risk.risk_utils import kupiec_test, christoffersen_test
+from src.computation.var import kupiec_test, christoffersen_test
 
 
 def get_yield_tenor_for_bond(maturity_str: str, currency: str) -> str:

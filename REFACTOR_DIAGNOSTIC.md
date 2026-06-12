@@ -80,9 +80,80 @@ No modules forced to use new config constants yet (Phase 2 migration).
 
 ---
 
+---
+
+## MRS-172 Changes Applied
+
+**Date**: 2026-06-12
+
+### Overview
+Extracted canonical VaR computation module to eliminate duplication and establish a single source of truth for pure VaR/ES logic.
+
+### Changes
+
+#### 1. Created src/computation/var.py
+New 476-line module containing all pure VaR computation:
+- **VaR estimation**: `var_historical()`, `var_parametric()`, `var_scale()`
+- **Expected Shortfall**: `es_historical()`, `es_parametric()`, `es_scale()`, `es_from_var()`
+- **Backtesting**: `kupiec_test()`, `christoffersen_test()`
+- **No dependencies**: Only numpy, pandas, scipy (no DB, files, plotting)
+
+#### 2. Refactored src/risk/var.py
+Converted to backward-compatibility shim:
+- Imports all functions from `src.computation.var`
+- Re-exports under original names
+- Preserves existing import paths: `from src.risk.var import var_scale`
+
+#### 3. Refactored src/risk/risk_utils.py
+Consolidated with canonical module:
+- Imports all VaR/ES/backtest functions from `src.computation.var`
+- Removed 430+ lines of duplicate implementations
+- Preserved interface: `from src.risk.risk_utils import var_scale` still works
+- Default horizons unchanged: `var_scale(horizon=10)` remains the same
+
+#### 4. Updated src/risk/var_backtest.py
+Changed import source:
+- `kupiec_test`, `christoffersen_test` now imported from `src.computation.var`
+- Previously from `src.risk.risk_utils` (which re-exported them)
+- No logic changes; same functions called
+
+### Backward Compatibility
+
+All existing imports continue to work:
+
+```python
+# Existing code — still works
+from src.risk.var import var_scale, es_from_var
+from src.risk.risk_utils import (
+    var_historical, var_parametric, var_scale,
+    es_historical, es_parametric, es_scale,
+    kupiec_test, christoffersen_test
+)
+```
+
+**Numerical consistency**: All function outputs identical to previous implementation.
+
+### Metrics
+
+- Lines added: 476 (canonical VaR module)
+- Lines removed: 477 (duplicate implementations)
+- Net change: -1 line (but much cleaner organization)
+- Functions consolidated: 9 pure VaR/ES/backtest functions
+- Modules refactored: 3 (var.py, risk_utils.py, var_backtest.py)
+
+### Validation
+
+✓ All imports work (canonical, backward-compat)
+✓ Numerical outputs identical across all import paths
+✓ No syntax errors (python3 -m compileall)
+✓ VaR, ES, backtesting functions return valid values
+✓ Kernel resolution verified (all functions resolve to canonical location)
+
+---
+
 ## Next Steps (Phase 2+)
 
-- Consolidate VaR logic (keep one `var_scale`, import it in the other)
 - Migrate modules to use centralized config constants (where safe)
-- Move PE and infrastructure analytics into `src/computation/` (structure-only for now)
+- Move PE and infrastructure analytics into `src/computation/` (with tests)
 - Move enrichment and data pipeline into `src/pipeline/`
+- Consider stress/liquidity consolidation (if scope permits)
