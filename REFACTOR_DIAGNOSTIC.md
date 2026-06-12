@@ -580,6 +580,259 @@ def compute_risk_snapshot(
 
 ---
 
+---
+
+## MRS-177 Notebook Reference Audit
+
+**Date**: 2026-06-12
+
+### Audit Summary
+
+Inspected the hedge fund notebook as a reference model and compared 6 other active notebooks to identify:
+1. Shared workflow patterns that should be aligned
+2. Fund-specific differences that should remain distinct
+3. Likely outdated or duplicated logic
+4. Whether risk_snapshot should accept fund config parameters
+
+### Hedge Fund Reference Notebook Structure
+
+**File**: `notebooks/aifm_hedge_fund.ipynb`
+
+**Workflow sections** (10 main sections):
+1. Load and Validate Single Day Positions
+2. VaR and Expected Shortfall
+3. VaR Backtesting and Statistical Diagnostics
+4. Leverage (Annex IV)
+5. Stress Testing (Annex VI)
+6. Liquidity Profile
+7. P&L Attribution by Risk Factor
+8. Pre-Trade Compliance Check
+9. ESG Risk Indicators
+10. Annex IV Report
+
+**Data pattern**:
+- Imports from `src.config`, `src.risk.reg_constants` (CONFIDENCE, HORIZON)
+- Calls `get_engine()`, `query_nav_history()`, `get_risk_ready_df()`
+- Enriches via `MockBloomberg` and position loading
+- Calls `rk.*` functions: stress_equity, stress_rates, stress_credit, stress_fx, stress_combined, stress_historical, liquidity_adjusted_var, investor_concentration, pre_trade_check, compute_counterparty_stress, etc.
+- Calls old modules: `src.risk.leverage_computation`, `src.risk.pnl_attribution`
+- Displays via `src.ui` display helpers, annex_iv display
+
+**Current state**:
+- Uses `src.reg_constants.CONFIDENCE` and `HORIZON` (config-based, not hardcoded)
+- Imports functions from `src.risk.risk_utils` as `rk`
+- Does NOT yet use canonical `src.computation` modules (expected, notebooks unchanged per constraint)
+
+### Comparative Analysis
+
+#### 📊 SHARED WORKFLOW PATTERN (HF, PD, RE)
+
+**Notebooks with similar structure:**
+- aifm_hedge_fund.ipynb
+- aifm_private_debt.ipynb
+- aifm_real_estate.ipynb
+
+**Alignment status:**
+| Pattern | HF | PD | RE | Status |
+|---------|----|----|----| -------|
+| Load positions → enrich with get_risk_ready_df | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| VaR 1D via var_historical | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| VaR scaled to 20D | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| Stress equity, rates, credit | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| Liquidity buckets | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| Leverage computation | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| Annex IV export | ✓ | ✓ | ✓ | ✓ ALIGNED |
+| Config via src.reg_constants | ✓ | ✓ | ✓ | ✓ ALIGNED |
+
+**Recommendation**: These three funds form a natural **cohesive group**. Their computation workflows are already aligned. They should share the risk_snapshot pipeline.
+
+---
+
+#### 💎 SPECIALIZED WORKFLOWS
+
+**UCITS Balanced** (`ucits_balanced.ipynb`)
+- Adds sections HF doesn't have:
+  - Relative VaR (in addition to absolute)
+  - SRRI Computation (UCITS-specific)
+  - KIID Update Trigger logic
+  - UCITS Stress Testing (different scenarios than AIFM)
+- Shares:
+  - VaR computation (via var_historical, var_scale)
+  - Backtest logic
+  - ESG indicators
+- Pre-trade check: YES (uses pre_trade_check)
+- Hardcoded thresholds: YES (has some hardcoded limits in addition to config)
+- Status: **Mostly aligned on pure computation, but governance is UCITS-specific**
+
+**PE Buyout** (`aifm_pe_buyout.ipynb`)
+- Completely different asset class:
+  - No single-day positions; instead uses valuation reports
+  - J-Curve analysis (PE-specific growth pattern)
+  - Exit waterfall (PE carry logic)
+  - Value bridge attribution
+  - Subscription credit facility (PE-specific)
+- Does NOT use:
+  - get_risk_ready_df for equity/bond enrichment
+  - Standard VaR computation
+  - Standard liquidity buckets
+- Pre-trade check: NO
+- Status: **Fundamentally different; should not share pipeline with others**
+
+**Infrastructure Fund** (`aifm_infra_ fund.ipynb`)
+- Completely different asset class:
+  - Uses dedicated `infra_utils` (DSCR, LTV, covenant monitoring)
+  - NAV-based valuation (not positions)
+  - Inflation linkage analysis
+  - Cashflow and concession duration
+  - Duration profile for infrastructure assets
+- Does NOT use:
+  - get_risk_ready_df
+  - Standard VaR
+  - Standard leverage computation
+- Pre-trade check: NO
+- Status: **Fundamentally different; should not share pipeline with others**
+
+---
+
+### Classification of Differences
+
+#### A. SHARED WORKFLOW DIFFERENCES (Should Align)
+
+| Difference | Status | Action |
+|-----------|--------|--------|
+| All use `src.risk.risk_utils as rk` | ✓ Current | Keep as-is (backward compat) |
+| All call canonical computation functions | ⚠️ Partial | Will align when notebooks updated to use src.computation directly |
+| All import from src.reg_constants | ✓ Current | Keep as-is (CONFIDENCE, HORIZON constants) |
+| All use get_risk_ready_df for enrichment | ✓ Current | Keep as-is (canonical enrichment) |
+| Section structure (VaR → Stress → Liquidity → Leverage → Reports) | ✓ Current | Keep as-is (good structure) |
+| Display/rendering via src.ui helpers | ✓ Current | Keep as-is (consistent styling) |
+
+**Verdict**: HF/PD/RE are **well-aligned on computation and should share risk_snapshot pipeline**.
+
+---
+
+#### B. FUND-SPECIFIC DIFFERENCES (Should Remain Different)
+
+| Difference | HF/PD/RE | UCITS | PE | INFRA |
+|-----------|----------|-------|----|----|
+| VaR methodology | Historical + Parametric | Absolute + Relative | N/A | N/A |
+| Regulatory limits | AIFMD (gross, commitment) | UCITS SRRI | N/A | N/A |
+| Stress scenarios | Equity, Rates, Credit, FX | UCITS-specific | N/A | Yield cap, LTV |
+| Liquidity | Standard buckets | UCITS redemption rules | Unfunded commitments | Unfunded commitments |
+| Leverage | EU231/2013 Articles 7-8 | UCITS limits | Commitment method | Commitment method |
+| Pre-trade check | YES (compliance) | YES (compliance) | NO | NO |
+
+**Verdict**: Each fund type has **legitimate regulatory and asset-class differences** that should be preserved.
+
+---
+
+#### C. LIKELY OUTDATED OR DUPLICATED LOGIC
+
+| Pattern | Evidence | Status |
+|---------|----------|--------|
+| Old `src.risk.leverage_computation` module | HF notebook imports it | ✓ Works but canonical is src.computation.leverage |
+| Old `src.risk.pnl_attribution` module | HF notebook imports it | ✓ Works but canonical is src.computation.attribution |
+| Hardcoded VaR confidence in some notebooks | UCITS/PD have hardcoded 0.99 | ⚠️ Prefer config (src.reg_constants) |
+| Duplicate VaR logic in notebooks | All call var_historical directly | ✓ OK for now; will be hidden by risk_snapshot |
+| Pre-trade check logic duplication | HF and UCITS both have it | ✓ OK; they call pre_trade_check() function |
+
+**Verdict**: **No critical duplication**. Most notebooks are calling the right functions. Old modules still work due to backward-compat imports in risk_utils.py.
+
+---
+
+### Impact on risk_snapshot Design
+
+**Should risk_snapshot accept fund_config parameter?**
+
+```python
+# Option 1: No fund config (pure computation)
+def compute_risk_snapshot(engine, fund_id, valuation_date):
+    # Returns metrics dict with no limits/thresholds
+    
+# Option 2: With optional fund_config
+def compute_risk_snapshot(engine, fund_id, valuation_date, fund_config=None):
+    # Returns metrics dict, optionally includes limit checks
+```
+
+**Recommendation**: **Option 1 (no fund_config)**
+
+**Reasoning**:
+1. **Pure computation principle**: risk_snapshot should return raw metrics, not apply regulatory rules
+2. **Fund-specific rules vary**: HF uses Articles 7-8, UCITS uses SRRI limits, PE uses commitment limits — can't unify in one function
+3. **Reporting owns interpretation**: board_report.py, annex_iv.py should apply limits/rules themselves
+4. **Keep pipeline composable**: Other tools can reuse risk_snapshot without importing fund config
+5. **Current pattern works**: board_report._load_fund_metrics already computes raw metrics, then applies limits in page rendering
+
+**Example flow (after MRS-177+):**
+```
+compute_risk_snapshot(engine, 'AIFM_HedgeFund', '2026-05-13')
+  ↓ returns {var_20d, gross_leverage, ...}
+  ↓
+board_report._page_var() 
+  ↓ applies AIFM_HedgeFund limits (e.g., var_20d < 0.20)
+```
+
+---
+
+### Recommendations for Next Ticket (MRS-178)
+
+**Implement risk_snapshot in src/pipeline/risk_snapshot.py:**
+
+1. **Extract from board_report._load_fund_metrics()**:
+   - Lines 110–220 of board_report.py
+   - Return exact same metrics dict (no changes to structure)
+
+2. **Function signature** (pure computation, no config):
+   ```python
+   def compute_risk_snapshot(
+       engine,
+       fund_id: str,
+       valuation_date: str = '2026-05-13',
+   ) -> dict
+   ```
+
+3. **Metrics returned**:
+   - Fund identity: fund_id, label, strategy
+   - Performance: nav, mtd, ytd
+   - Risk: var_1d, var_20d, es_1d
+   - Rolling: rolling_var, rolling_dates
+   - Leverage: gross_leverage, commitment_leverage
+   - Liquidity: liquidity_buckets (DataFrame), net_liquidity_1_7d
+   - Stress: stress (dict of scenario outcomes)
+   - Status: rag (computed by reporting layer, not pipeline)
+
+4. **Backward compat**:
+   - Re-export in board_report.py
+   - No changes to board_report._load_fund_metrics signature (still public)
+   - No changes to notebooks
+
+5. **Immediate users**:
+   - src/reporting/board_report.py → calls compute_risk_snapshot() instead of inline logic
+   - src/reporting/annex_iv.py → can optionally call for common metrics
+
+6. **Future users**:
+   - Backtest pipeline
+   - Audit/stress tools
+   - Real-time risk monitoring
+
+---
+
+### Open Questions Resolved
+
+**Q: Should compute_risk_snapshot() call fund-specific logic?**
+A: No. Keep pure computation. Fund-specific rules stay in reporting layer.
+
+**Q: Are HF/PD/RE notebooks ready to share a pipeline?**
+A: Yes. Their workflows are aligned on computation (VaR, stress, liquidity, leverage).
+
+**Q: What about UCITS, PE, INFRA?**
+A: UCITS may eventually use risk_snapshot, but PE and INFRA are too different (different asset classes, no standard VaR, no positions table).
+
+**Q: Should notebooks be updated as part of MRS-178?**
+A: No (per constraint "do not edit notebooks"). Update them in a separate ticket after MRS-178 is done.
+
+---
+
 ## Next Steps (Phase 2+)
 
 - **MRS-177** (if approved): Implement src/pipeline/risk_snapshot.py
