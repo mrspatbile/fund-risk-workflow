@@ -389,9 +389,97 @@ from src.computation.attribution import compute_pnl_attribution
 
 ---
 
+---
+
+## Remaining Functions Analysis (Post-Phase 1-4)
+
+**Date**: 2026-06-12
+
+### Summary
+
+After extracting 4 pure computation modules (var, stress, liquidity, leverage, attribution), exactly 12 functions remain in `src/risk/risk_utils.py`. These have been classified by dependency:
+
+| Category | Functions | Reason |
+|----------|-----------|--------|
+| **🔴 DB Access** | `pre_trade_check()`, `compute_counterparty_stress()` | Query database, load JSON files |
+| **🟡 Reporting/Display** | `exception_report()` | Prints to stdout (side effects) |
+| **🟡 Mixed (Helpers)** | `_ptc_apply_trade()`, `_ptc_portfolio_var()`, `_ptc_reference_var()`, `_ptc_issuer_exposure()`, `_breach()`, `_check_ucits()`, `_check_aifm_hf()`, `_check_aifm_pd()` | Private helpers tightly coupled to `pre_trade_check()` |
+| **🟢 Pure (But Private)** | `full_backtest_report()` | Pure computation, but small function used only internally |
+
+### Detailed Classification
+
+#### 🔴 DATABASE ACCESS — Cannot Move
+
+**`pre_trade_check()`** (line 733)
+- Accepts `engine` parameter (SQLAlchemy)
+- Calls `query_positions(engine, fund_id, date)` for position data
+- Orchestrates compliance checks via private helpers (_check_ucits, _check_aifm_hf, _check_aifm_pd)
+- **Why in risk_utils.py**: Core compliance workflow with database coupling
+
+**`compute_counterparty_stress()`** (line 943)
+- Calls `load_counterparty()` which reads JSON from file
+- Computes stress metrics on loaded data
+- **Why in risk_utils.py**: File I/O coupled with computation
+
+#### 🟡 REPORTING/DISPLAY — Should Not Move
+
+**`exception_report()`** (line 100)
+- Prints VaR breach exceptions to stdout (side effect)
+- Formats and displays breach details
+- **Why in risk_utils.py**: Reporting concern, not pure computation
+
+#### 🟡 COMPLIANCE HELPERS — Coupled to DB-Access Function
+
+These 8 private functions form a cohesive pre-trade compliance system with `pre_trade_check()`:
+
+**Private Helpers (pure computation, but serve pre_trade_check):**
+- `_ptc_apply_trade()` (line 275) — applies hypothetical trade to positions
+- `_ptc_portfolio_var()` (line 346) — computes VaR after hypothetical trade
+- `_ptc_reference_var()` (line 364) — computes baseline VaR
+- `_ptc_issuer_exposure()` (line 373) — checks issuer concentration
+- `_breach()` (line 383) — formats breach record
+
+**Compliance Check Functions (call above helpers):**
+- `_check_ucits()` (line 394) — UCITS-specific compliance checks
+- `_check_aifm_hf()` (line 500) — AIFM hedge fund compliance
+- `_check_aifm_pd()` (line 685) — AIFM private debt compliance
+
+**Why not moved:**
+- Tightly coupled to `pre_trade_check()` which has database access
+- Extracting without the parent function would break modularity
+- Private naming convention signals internal-only design
+
+#### 🟢 PURE COMPUTATION (But Private Function)
+
+**`full_backtest_report()`** (line 175)
+- Aggregates results from `kupiec_test()` and `christoffersen_test()`
+- Returns DataFrame with backtest summary
+- **Pure**: No DB, files, or side effects
+- **Why it stays**: Private function used only in reporting context
+
+### Assessment
+
+✅ **All remaining functions have legitimate reasons to stay in risk_utils.py**
+✅ **No accidental DB/file I/O mixed with pure computation**
+✅ **No further extractions recommended without scope expansion**
+
+The architecture is now clean: pure computation modules are isolated in `src/computation/`, while stateful/coupled functions remain in `src/risk/`.
+
+### Candidate for Future Extraction (If Refactoring Compliance System)
+
+If the pre-trade compliance system is refactored in a future phase, it could be moved as a whole to `src/computation/compliance.py` with a facade in risk_utils.py. This would:
+- Move `_ptc_*` helpers + `_check_*` functions + `_breach()` together
+- Require `pre_trade_check()` to remain in risk_utils (DB coupling)
+- Or move `pre_trade_check()` to `src/pipeline/` (orchestration layer) and reference the compliance module
+
+This is not urgent and would require explicit scope expansion.
+
+---
+
 ## Next Steps (Phase 2+)
 
 - Move ESG, PE, infrastructure analytics (currently in src/risk/)
 - Move enrichment and data pipeline to src/pipeline/
 - Migrate modules to use centralized config constants (where safe)
 - Consider consolidating reporting functions (export-related logic)
+- **Optional**: Refactor pre-trade compliance system as cohesive whole (if time permits)
