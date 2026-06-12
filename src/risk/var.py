@@ -7,6 +7,12 @@ Functions
 ---------
     var_scale: Scale 1-day VaR to multi-day horizon
     es_from_var: Approximate ES from VaR (rough heuristic)
+
+TODO (Phase 2)
+--------------
+DUPLICATE LOGIC: var_scale() exists in both var.py and risk_utils.py.
+Consolidate to single location (TBD) and import in the other.
+Notebooks currently import from risk_utils.var_scale(), not from var.var_scale().
 """
 
 import numpy as np

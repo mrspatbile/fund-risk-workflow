@@ -164,7 +164,7 @@ def var_parametric(
 
 def var_scale(
     var_1d: float,
-    horizon: int = 10, 
+    horizon: int = 10,
 ) -> float:
     """
     Scale 1-day VaR to longer horizon using square root of time.
@@ -191,6 +191,11 @@ def var_scale(
     --------
     >>> var_10d = var_scale(var_1d=0.025, horizon=10)
     >>> var_20d = var_scale(var_1d=0.025, horizon=20)
+
+    TODO (Phase 2)
+    ~~~~~~~~~~~~~~
+    DUPLICATE: var_scale() also exists in src/risk/var.py with similar implementation.
+    Consolidate to single location and import in the other.
     """
     return float(var_1d * np.sqrt(horizon))
 
