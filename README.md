@@ -1,131 +1,205 @@
-# manco-risk-mngmt
+# fund-risk-workflow
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
-![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Workflow%20implementation-475569)
+![Data](https://img.shields.io/badge/Data-Simulated-64748b)
+![Domain](https://img.shields.io/badge/Domain-Fund%20Risk-334155)
+![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite\&logoColor=white)
 [![AIFMD II](https://img.shields.io/badge/Reg-AIFMD%20II-orange)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
-[![UCITS](https://img.shields.io/badge/Reg-UCITS%20VI-blue)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
+[![UCITS VI](https://img.shields.io/badge/Reg-UCITS%20VI-blue)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32024L0927)
 [![PRIIPs](https://img.shields.io/badge/Reg-PRIIPs-green)](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32014R1286)
 
-Risk and regulatory analytics repository covering selected UCITS and AIFMD II requirements across liquid and illiquid fund strategies. The repository translates fund risk concepts into Python workflows for liquidity stress testing, leverage monitoring, LMT simulation, Annex IV-style outputs and board risk reporting.
+`fund-risk-workflow` is a Python and notebook-led repository for selected fund risk workflows using simulated UCITS and AIFM-style fund data.
 
-Market data is simulated through a Bloomberg-style pipeline, with positions and fund data stored in SQLite. 
+The repository focuses on how selected risk calculations, fund data, liquidity assumptions and output preparation can be organised across different fund examples. It includes workflows around VaR, backtesting, liquidity monitoring, redemption pressure, leverage checks, LMT mechanics and private asset risk indicators.
 
----
-
-## Fund Coverage
-
-| Fund | Illiquid | Scope |
-|---|:---:|---|
-| UCITS Balanced |  | VaR, SRI, PRIIPs KID, eligibility, pre-trade |
-| AIFM Hedge Fund L/S | | Leverage, stress, liquidity stress, LMT, Annex IV, pre-trade |
-| AIFM PE Buyout | ✓ | IRR, MOIC/DPI/RVPI, Long-Nickels PME, value bridge, ESG|
-| AIFM Private Debt | ✓ | Credit risk, covenant headroom, leverage, Annex IV, ESG|
-| AIFM Real Estate | ✓ | LTV, rental stress, yield-capitalisation NAV|
-| AIFM Infrastructure Core | ✓ | DSCR/LTV, concession duration, inflation linkage|
+This repository is not a production ManCo platform, regulatory reporting engine or complete risk framework. The implementation is workflow-level, with simplified assumptions and mixed notebook/script structure.
 
 ---
 
-## Example Outputs
+## Scope
 
+The repository covers selected fund risk examples across liquid and illiquid fund profiles.
 
-<!-- **Board Risk Report — executive summary page**
+| Fund example             | Illiquid | Selected scope                                                   |
+| ------------------------ | :------: | ---------------------------------------------------------------- |
+| UCITS Balanced           |          | VaR, SRI, PRIIPs KID example, eligibility checks                 |
+| AIFM Hedge Fund L/S      |          | VaR, stress, liquidity monitoring, leverage, LMT mechanics       |
+| AIFM PE Buyout           |     ✓    | IRR, MOIC, DPI, RVPI, PME, value bridge, selected ESG indicators |
+| AIFM Private Debt        |     ✓    | credit risk indicators, covenant headroom, leverage indicators   |
+| AIFM Real Estate         |     ✓    | LTV, rental stress, yield-capitalisation NAV                     |
+| AIFM Infrastructure Core |     ✓    | DSCR, LTV, concession duration, inflation linkage                |
 
-![Board risk report executive summary](images/board_report_p1.png)
+The hedge fund workflow is the most developed part of the repository. Other fund examples are included as selected methodology and output examples, not as full implementations.
 
-*Monthly board-ready PDF generated via `board_report.py`. AIFMD Article 15 internal governance format. Covers VaR, stress, liquidity and breach log.* -->
+---
 
-<!-- --- -->
+## Example outputs
 
-
-
-**VaR backtest — breach flags and test statistics**
+**VaR backtest with breach flags**
 
 ![VaR backtest with breach flags](images/hf_var_backtest.png)
 
-*Kupiec and Christoffersen tests across the hedge fund portfolio. Breach dates flagged on the return series.*
-
----
-**Liquidity monitoring dashboard**
-
-![Board risk liquidity overview](images/board_report_p4.png)
-
----
-## Risk Analytics
-
-**Market risk**: VaR, Expected Shortfall, VaR backtest, P&L attribution.
-
-**Liquidity risk**: liquidity profiling, redemption stress testing 
-per ESMA/2020/1498, investor concentration, liquidity-adjusted VaR.
-
-**Pre-trade compliance**: VaR impact, issuer and sector concentration, leverage limits, UCITS eligibility (Articles 50, 52).
+The hedge fund workflow includes VaR backtesting with breach flags and test statistics across the simulated portfolio return series.
 
 ---
 
-## Liquidity Management Tools (AIFMD II)
+**Liquidity monitoring output**
 
-LMT trigger simulation covering gate, swing pricing and suspension across a 
-12-month redemption scenario. Models selected elements of the liquidity risk and LMT framework under AIFMD II Directive 2024/927/EU, Delegated Regulation EU 2026/466, 
-and ESMA34-671404336-1364.
+![Liquidity monitoring output](images/board_report_p4.png)
 
-- **Gate**: caps monthly redemptions at a threshold percentage of NAV, defers 
-  excess into a running backlog
-- **Swing pricing**: dilution levy applied when gross redemptions exceed the swing 
-  threshold, protecting remaining investors from transaction cost dilution
-- **Suspension**: triggers when consecutive gate breaches and backlog as a 
-  percentage of liquid NAV both exceed defined thresholds
-- **NAV sleeve decomposition**: liquid sleeve depletes from outflows, illiquid 
-  sleeve remains fixed, modelling the structural convergence risk toward the 
-  illiquid floor
-- **Output**: month-by-month DataFrame with gate, swing and suspension flags, backlog evolution and NAV composition
-
-LMT thresholds are calibrated against redemption stress test output per ESMA/2020/1498.
+The liquidity example summarises selected liquidity buckets, redemption pressure and fund-level monitoring indicators.
 
 ---
 
-## Regulatory References
+## Risk analytics examples
 
-| Reference | Repository Coverage |
-|---|---|
-| UCITS Directive 2009/65/EC | Eligible assets and investment restriction checks for UCITS-style portfolios |
-| AIFMD 2011/61/EU | AIFM risk management and regulatory reporting context |
-| Commission Delegated Regulation (EU) No 231/2013 | AIFMD risk management, liquidity management, leverage and Annex IV reporting framework |
-| Directive (EU) 2024/927 | AIFMD II / UCITS VI amendments covering liquidity management tools and supervisory reporting changes |
-| Commission Delegated Regulation (EU) 2026/466 | RTS specifying characteristics of liquidity management tools under the UCITS framework |
-| ESMA34-39-897 | Liquidity stress testing guidelines for UCITS and AIFs |
-| ESMA34-671404336-1364 | Guidelines on selection and calibration of liquidity management tools for UCITS and open-ended AIFs |
-| ESMA AIFMD Reporting Technical Guidance | Annex IV reporting field definitions and reporting structure |
-| IPEV Valuation Guidelines | Private asset valuation reference points for PE and infrastructure-style analytics |
-| SFDR | Selected sustainability indicators used in private asset fund examples |
+### Market risk
+
+Included examples:
+
+* VaR
+* Expected Shortfall
+* VaR backtesting
+* P&L attribution examples
+* stress scenarios for selected fund profiles
+
+### Liquidity risk
+
+Included examples:
+
+* liquidity profiling
+* redemption pressure
+* investor concentration
+* liquid and illiquid sleeve monitoring
+* liquidity-adjusted VaR example
+* selected liquidity stress assumptions
+
+### Leverage and constraints
+
+Included examples:
+
+* leverage monitoring
+* issuer and sector concentration examples
+* UCITS-style eligibility checks
+* pre-trade impact examples
+
+These calculations are designed as workflow examples using simulated data. They are not a complete regulatory or production risk-control framework.
 
 ---
 
-## Reporting Outputs
+## Liquidity Management Tools
 
-- **Annex IV** — AIFMD Article 110, all five AIFM funds, including AIFMD II expanded fields
-- **Annex VI stress report** (ESMA/2020/1498) — cross-fund summary and per-fund sheets
-- **Board Risk Report** — PDF, AIFMD Article 15 internal governance
+The repository includes a simplified LMT mechanics example for an AIFM-style fund under a 12-month redemption scenario.
+
+Covered mechanics:
+
+* redemption gate threshold
+* deferred redemption backlog
+* swing pricing threshold
+* anti-dilution style cost adjustment
+* suspension trigger example
+* liquid and illiquid NAV sleeve decomposition
+
+The LMT workflow is intended to show how redemption pressure, liquid asset coverage and tool triggers can be represented in Python. Thresholds and assumptions are simplified and should not be interpreted as regulatory calibration.
+
+---
+
+## Data and assumptions
+
+The repository uses simulated fund, position and market data.
+
+Market data is represented through a Bloomberg-style local pipeline, with positions and fund data stored in SQLite. The pipeline is intended to support repeatable workflow examples rather than live market-data integration.
+
+Key assumptions:
+
+* fund holdings are simulated
+* valuation inputs for private assets are external or simplified
+* liquidity buckets are assumption-driven
+* LMT thresholds are illustrative
+* regulatory references are used as methodology context
+* outputs are reporting-oriented examples, not filing-ready reports
+
+---
+
+## Regulatory references
+
+| Reference                                        | Repository use                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| UCITS Directive 2009/65/EC                       | selected UCITS eligibility and investment restriction examples |
+| AIFMD 2011/61/EU                                 | AIFM risk management and fund monitoring context               |
+| Commission Delegated Regulation (EU) No 231/2013 | AIFMD risk, liquidity and leverage methodology context         |
+| Directive (EU) 2024/927                          | AIFMD II / UCITS VI liquidity management tools context         |
+| ESMA34-39-897                                    | liquidity stress testing methodology context                   |
+| ESMA34-671404336-1364                            | LMT selection and calibration methodology context              |
+| PRIIPs Regulation                                | PRIIPs KID and SRI example for UCITS-style workflow            |
+| IPEV Valuation Guidelines                        | private asset valuation reference points                       |
+| SFDR                                             | selected sustainability indicators in private asset examples   |
+
+The repository uses these references as methodology context. It does not attempt to implement the full regulatory framework.
+
+---
+
+## Output examples
+
+The repository includes generated examples around:
+
+* hedge fund VaR backtesting
+* liquidity monitoring
+* redemption and LMT mechanics
+* selected private asset risk indicators
+* UCITS-style risk and eligibility checks
+* reporting-oriented fund risk summaries
+
+Some outputs use reporting-style formatting. They should be read as workflow examples, not board-approved reporting packs or regulatory filings.
 
 ---
 
 ## Stack
 
-Python 3.13 · SQLite via SQLAlchemy ORM · scipy · matplotlib · openpyxl · JupyterLab
+* Python 3.13
+* SQLite via SQLAlchemy ORM
+* scipy
+* matplotlib
+* openpyxl
+* JupyterLab
 
 ---
 
-## Status and Limitations
+## Status and limitations
 
-Working prototype. Core analytics, reporting outputs, and LMT simulation are functional. 
-The repository focuses on selected UCITS and AIFMD risk concepts and does not cover the full regulatory framework. Datasets, valuation inputs and fund assumptions are simulated for demonstration purposes.
-Valuation inputs for private assets are treated as external inputs and consumed by the risk analytics and reporting workflows.
+This repository is a workflow-level implementation using simulated data.
+
+Current strengths:
+
+* useful fund-risk workflow coverage
+* developed hedge fund example
+* practical examples across liquid and illiquid fund profiles
+* repeatable local data and output generation
+* clear links between risk concepts, calculations and outputs
+
+Current limitations:
+
+* notebook-led structure
+* mixed script organisation
+* simplified fund assumptions
+* simulated positions and market data
+* limited validation layer
+* uneven depth across fund examples
+* not designed as a reusable package or production risk system
+
+A more structured package implementation is handled separately in `manco-risk`.
+
+---
 
 ## Setup
 
 ```bash
-git clone https://github.com/mrspatbile/manco-risk-mngmt
-cd manco-risk-mngmt
-python -m venv .venv
+git clone https://github.com/mrspatbile/fund-risk-workflow
+cd fund-risk-workflow
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python src/setup_db.py
+python3 src/setup_db.py
 ```
+
