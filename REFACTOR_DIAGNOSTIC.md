@@ -318,6 +318,77 @@ These remain tightly coupled with pre_trade_check which has database access.
 
 ---
 
+---
+
+## MRS-175 Changes Applied
+
+**Date**: 2026-06-12
+
+### Overview
+Extracted sensitivity-based P&L attribution into canonical pure computation module.
+
+### Changes
+
+#### 1. Created src/computation/attribution.py
+New 125-line module for P&L attribution by risk factor:
+- **Function moved**: `compute_pnl_attribution()`
+- **Scope**: Pure computation, no DB/file I/O
+- **Dependencies**: pandas only
+- **Methodology**: Decomposes P&L into equity, rates, and FX factors using position sensitivities
+
+#### 2. Refactored src/risk/risk_utils.py
+- **Added import**: `from src.computation.attribution import compute_pnl_attribution` (line 85)
+- **Removed**: 88 lines of duplicate implementation
+- **Result**: 88-line reduction while maintaining 100% backward compatibility
+- **Note**: compute_pnl_attribution re-exported from risk_utils for backward compat
+
+### Backward Compatibility
+
+All existing imports continue to work without modification:
+
+```python
+# Original code — still works
+from src.risk.risk_utils import compute_pnl_attribution
+
+result = compute_pnl_attribution(positions_history_df, market_moves_df, pnl_series)
+```
+
+New canonical import now available:
+
+```python
+# New canonical path
+from src.computation.attribution import compute_pnl_attribution
+```
+
+**Numerical consistency**: Function output identical to previous implementation.
+
+### Metrics
+
+**Code extracted:**
+- 1 function (compute_pnl_attribution)
+- Total: 88 lines removed from risk_utils.py
+
+**New file:**
+- src/computation/attribution.py: 125 lines
+
+**Net reduction**: 88 lines
+
+### Functions NOT Moved (Remain in src/risk/risk_utils.py)
+
+- `exception_report()`, `full_backtest_report()` - reporting/display
+- Pre-trade compliance functions and helpers (_ptc_*, _check_*, _breach) - tightly coupled to pre_trade_check
+- `pre_trade_check()` - database-dependent compliance checks
+- `compute_counterparty_stress()` - file I/O dependent
+
+### Validation
+
+✓ All imports work (canonical + backward-compat)
+✓ Numerical outputs identical
+✓ No syntax errors (python3 -m compileall)
+✓ File size reduced by 88 lines
+
+---
+
 ## Next Steps (Phase 2+)
 
 - Move ESG, PE, infrastructure analytics (currently in src/risk/)
