@@ -1,12 +1,14 @@
 """
 var_backtest.py
 ===============
-Fixed-position historical VaR with duration-based bond P&L and backtesting.
+Fixed-position VaR with modular P&L and VaR computation.
 
 Functions
 ---------
-    compute_var_backtest_fixed_position_multi_duration: rolling VaR computation
-    get_yield_tenor_for_bond: map bond maturity to constant-tenor yield series
+    compute_pnl_series_fixed_position: compute P&L series (price + duration-based)
+    compute_var_historical_multi_confidence: historical VaR from P&L series
+    compute_var_parametric_multi_confidence: parametric VaR from P&L series (TODO)
+    get_yield_tenor_for_bond: map bond maturity to constant-tenor yield
     create_var_es_summary: extract latest VaR/ES for display
     create_backtest_report_multi_confidence: Kupiec & Christoffersen tests
 """
@@ -59,28 +61,23 @@ def get_yield_tenor_for_bond(maturity_str: str, currency: str) -> str:
             return 'USD_10Y'
 
 
-def compute_var_backtest_fixed_position_multi_duration(
+def compute_pnl_series_fixed_position(
     engine,
     fund_id,
     start_date,
     end_date,
-    confidence_levels=[0.95, 0.975, 0.99],
     lookback=250,
     buffer_days=120,
-):
+) -> pd.DataFrame:
     """
-    Rolling fixed-position Historical VaR with duration-based bond P&L.
+    Compute fixed-position P&L series with duration-based bond P&L.
 
     For each date d:
-    1. Fix portfolio at date d (quantities and market values).
-    2. For non-bond positions: compute daily P&L from price changes.
-    3. For bond positions: compute daily P&L as -duration × MV × Δyield.
-    4. Calculate 1-day VaR using 250-day historical return distribution.
-    5. Compute realized P&L from day d to d+1 for backtesting.
+    - Fix portfolio at date d
+    - For non-bonds: daily P&L = qty × (price_d - price_d-1)
+    - For bonds: daily P&L = -duration × MV × Δyield
 
-    Bond-to-yield-tenor mapping is based on bond maturity (e.g., 2-3Y bonds use EUR_2Y).
-
-    **Limitation:** Bond VaR captures interest-rate risk only.
+    **Limitation:** Bond P&L captures interest-rate risk only.
     Credit spread risk is not yet modeled.
 
     Parameters
@@ -88,22 +85,16 @@ def compute_var_backtest_fixed_position_multi_duration(
     engine : sqlalchemy.Engine
     fund_id : str
     start_date : str or Timestamp
-        Start date (format: YYYY-MM-DD)
     end_date : str or Timestamp
-        End date (format: YYYY-MM-DD)
-    confidence_levels : list of float, default [0.95, 0.975, 0.99]
-        Confidence levels for VaR computation
     lookback : int, default 250
-        Number of business days for historical lookback
+        Number of business days for lookback (needed for data fetch)
     buffer_days : int, default 120
-        Additional days to fetch for warm-up
+        Additional days to fetch
 
     Returns
     -------
     pd.DataFrame
-        Columns: date, portfolio_value, realised_return,
-                 var_1d_0.95, var_1d_0.975, var_1d_0.99,
-                 breach_0.95, breach_0.975, breach_0.99
+        Columns: date, portfolio_value, realised_return
     """
     bbg = MockBloomberg()
     rows = []
@@ -134,18 +125,16 @@ def compute_var_backtest_fixed_position_multi_duration(
                 enriched = pd.read_sql(enriched_sql, conn,
                                       params={'fund_id': fund_id, 'date': d_str})
 
-            # Map ISIN to duration
             duration_dict = dict(zip(enriched['isin'], enriched['dur_adj_mid']))
 
-            # Identify bonds and non-bonds
+            # Identify bonds
             bonds_in_portfolio = positions[positions['asset_class'] == 'Bond']
             bond_tickers = bonds_in_portfolio['bloomberg_ticker'].unique().tolist()
             non_bond_tickers = [t for t in tickers if t not in bond_tickers]
 
-            # Get currency
             bond_currency = bonds_in_portfolio['currency'].iloc[0] if len(bonds_in_portfolio) > 0 else 'EUR'
 
-            # Map bonds to tenors based on maturity
+            # Map bonds to tenors
             bond_tenor_map = {}
             for bond_ticker in bond_tickers:
                 bond_pos = positions[positions['bloomberg_ticker'] == bond_ticker].iloc[0]
@@ -153,7 +142,7 @@ def compute_var_backtest_fixed_position_multi_duration(
                 tenor = get_yield_tenor_for_bond(maturity, bond_currency)
                 bond_tenor_map[bond_ticker] = tenor
 
-            # Query price history for non-bonds
+            # Query price history
             price_start = d - timedelta(days=lookback + buffer_days)
             price_end = d
 
@@ -168,7 +157,7 @@ def compute_var_backtest_fixed_position_multi_duration(
                     prices = raw["PX_LAST"].unstack("security")
                 prices = prices.sort_index().dropna(how="any")
 
-            # Query yield history for bonds (one query per unique tenor)
+            # Query yield history for bonds
             yields_dict = {}
             unique_tenors = set(bond_tenor_map.values()) if bond_tenor_map else set()
 
@@ -188,17 +177,14 @@ def compute_var_backtest_fixed_position_multi_duration(
             if not (has_enough_prices or has_enough_yields):
                 continue
 
-            # Trim to lookback + 2
             if has_enough_prices:
                 prices = prices.tail(lookback + 2)
-
             for tenor in yields_dict:
                 if len(yields_dict[tenor]) >= lookback + 2:
                     yields_dict[tenor] = yields_dict[tenor].tail(lookback + 2)
 
-            # Get latest prices/yields for portfolio valuation
+            # Portfolio value at d-1
             portfolio_value = 0.0
-
             if has_enough_prices:
                 for ticker in non_bond_tickers:
                     if ticker in prices.columns:
@@ -211,51 +197,13 @@ def compute_var_backtest_fixed_position_multi_duration(
             if portfolio_value <= 0:
                 continue
 
-            # Compute daily P&L for non-bonds (price-based)
-            all_daily_pnls = []
-
-            if has_enough_prices:
-                hist_prices = prices.iloc[:-1]
-                for ticker in non_bond_tickers:
-                    if ticker in hist_prices.columns:
-                        daily_change = hist_prices[ticker].diff()
-                        daily_pnl = qty.get(ticker, 0) * daily_change
-                        all_daily_pnls.append(daily_pnl)
-
-            # Compute daily P&L for bonds (duration-based)
-            for bond_ticker in bond_tickers:
-                tenor = bond_tenor_map[bond_ticker]
-                if tenor in yields_dict and len(yields_dict[tenor]) > 0:
-                    bond_pos = positions[positions['bloomberg_ticker'] == bond_ticker].iloc[0]
-                    isin = bond_pos['isin']
-                    duration = duration_dict.get(isin)
-
-                    if duration and not pd.isna(duration):
-                        hist_yields = yields_dict[tenor].iloc[:-1]
-                        daily_yield_change = hist_yields.diff()
-                        daily_pnl = -duration * bond_pos['market_value_eur'] * daily_yield_change
-                        all_daily_pnls.append(daily_pnl)
-
-            if not all_daily_pnls:
-                continue
-
-            total_daily_pnl = pd.concat(all_daily_pnls, axis=1).sum(axis=1)
-            hist_returns = (total_daily_pnl / portfolio_value).dropna()
-            hist_returns = hist_returns.tail(lookback)
-
-            if len(hist_returns) != lookback:
-                continue
-
-            # Compute realized P&L
+            # Realized P&L (d-1 to d)
             realised_pnl = 0.0
-
-            # Non-bonds
             if has_enough_prices:
                 for ticker in non_bond_tickers:
                     if ticker in prices.columns:
                         realised_pnl += qty.get(ticker, 0) * (prices[ticker].iloc[-1] - prices[ticker].iloc[-2])
 
-            # Bonds
             for bond_ticker in bond_tickers:
                 tenor = bond_tenor_map[bond_ticker]
                 if tenor in yields_dict and len(yields_dict[tenor]) >= 2:
@@ -269,26 +217,96 @@ def compute_var_backtest_fixed_position_multi_duration(
 
             realised_return = realised_pnl / portfolio_value
 
-            # Compute VaR for each confidence level
-            row = {
+            rows.append({
                 "date": d,
                 "portfolio_value": portfolio_value,
                 "realised_return": realised_return,
-            }
-
-            for conf in confidence_levels:
-                alpha = 1 - conf
-                quantile_val = np.quantile(hist_returns, alpha)
-                var_1d = float(-quantile_val)
-                row[f"var_1d_{conf}"] = var_1d
-                row[f"breach_{conf}"] = realised_return < -var_1d
-
-            rows.append(row)
+            })
 
         except Exception:
             continue
 
     return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def compute_var_historical_multi_confidence(
+    pnl_series: pd.DataFrame,
+    confidence_levels: list = [0.95, 0.975, 0.99],
+    lookback: int = 250,
+) -> pd.DataFrame:
+    """
+    Compute historical VaR from P&L series for multiple confidence levels.
+
+    For each date d, uses the previous `lookback` days to estimate the loss distribution,
+    then computes the quantile for each confidence level.
+
+    Parameters
+    ----------
+    pnl_series : pd.DataFrame
+        Output from compute_pnl_series_fixed_position
+        Must have columns: date, portfolio_value, realised_return
+    confidence_levels : list, default [0.95, 0.975, 0.99]
+        Confidence levels for VaR
+    lookback : int, default 250
+        Number of observations for rolling window
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: date, var_1d_0.95, var_1d_0.975, var_1d_0.99, breach_0.95, etc.
+    """
+    rows = []
+
+    for i in range(lookback, len(pnl_series)):
+        d = pnl_series.iloc[i]['date']
+        portfolio_value = pnl_series.iloc[i]['portfolio_value']
+
+        # Get previous 250 returns
+        window_returns = pnl_series.iloc[i-lookback:i]['realised_return'].values
+
+        row = {
+            "date": d,
+            "portfolio_value": portfolio_value,
+            "realised_return": pnl_series.iloc[i]['realised_return'],
+        }
+
+        # Compute VaR for each confidence level
+        for conf in confidence_levels:
+            alpha = 1 - conf
+            quantile_val = np.quantile(window_returns, alpha)
+            var_1d = float(-quantile_val)
+            row[f"var_1d_{conf}"] = var_1d
+            row[f"breach_{conf}"] = pnl_series.iloc[i]['realised_return'] < -var_1d
+
+        rows.append(row)
+
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def compute_var_parametric_multi_confidence(
+    pnl_series: pd.DataFrame,
+    confidence_levels: list = [0.95, 0.975, 0.99],
+    lookback: int = 250,
+    dist: str = 'normal',
+) -> pd.DataFrame:
+    """
+    Compute parametric VaR from P&L series (placeholder for future implementation).
+
+    Parameters
+    ----------
+    pnl_series : pd.DataFrame
+        Output from compute_pnl_series_fixed_position
+    confidence_levels : list
+    lookback : int
+    dist : str
+        Distribution assumption ('normal', 'student_t', etc.)
+
+    Returns
+    -------
+    pd.DataFrame
+        Same structure as compute_var_historical_multi_confidence
+    """
+    raise NotImplementedError("Parametric VaR not yet implemented. Use historical VaR.")
 
 
 def create_var_es_summary(backtest_df: pd.DataFrame, confidence: float = 0.99) -> dict:
@@ -298,9 +316,9 @@ def create_var_es_summary(backtest_df: pd.DataFrame, confidence: float = 0.99) -
     Parameters
     ----------
     backtest_df : pd.DataFrame
-        Output from compute_var_backtest_fixed_position_multi_duration
+        Output from compute_var_historical_multi_confidence
     confidence : float, default 0.99
-        Which confidence level to extract (0.95, 0.975, or 0.99)
+        Which confidence level to extract
 
     Returns
     -------
@@ -332,18 +350,15 @@ def create_backtest_report_multi_confidence(
     Parameters
     ----------
     backtest_df : pd.DataFrame
-        Output from compute_var_backtest_fixed_position_multi_duration
-    confidence_levels : list, default [0.95, 0.975, 0.99]
-        Confidence levels to test
-    window_size : int, default 250
-        Lookback window for VaR (for documentation)
+        Output from compute_var_historical_multi_confidence
+    confidence_levels : list
+    window_size : int
 
     Returns
     -------
     pd.DataFrame
-        One row per confidence level with Kupiec/Christoffersen results
+        One row per confidence level with test results
     """
-    # Use last window_size observations only
     bt_window = backtest_df.tail(window_size).copy()
     bt_window = bt_window.dropna(subset=['realised_return'])
 
@@ -355,11 +370,9 @@ def create_backtest_report_multi_confidence(
         if var_col not in bt_window.columns:
             continue
 
-        # Ensure data is numeric and clean
         returns = pd.to_numeric(bt_window['realised_return'], errors='coerce').values
         var_series = pd.to_numeric(bt_window[var_col], errors='coerce').values
 
-        # Remove NaN pairs
         mask = ~(np.isnan(returns) | np.isnan(var_series))
         returns = returns[mask]
         var_series = var_series[mask]
