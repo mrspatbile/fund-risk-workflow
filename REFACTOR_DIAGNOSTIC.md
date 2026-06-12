@@ -476,10 +476,115 @@ This is not urgent and would require explicit scope expansion.
 
 ---
 
+---
+
+## MRS-176 Pipeline Planning
+
+**Date**: 2026-06-12
+
+### Analysis Summary
+
+Inspected 8 active notebooks and 2 reporting modules (board_report.py, annex_iv.py) to identify repeating computation workflows.
+
+**Key findings:**
+- `src/reporting/board_report.py` contains `_load_fund_metrics()` (lines 110–220) which orchestrates 9 computation steps (VaR, ES, liquidity, stress) into a clean metrics dict. This function is the blueprint for a risk snapshot.
+- `src/reporting/annex_iv.py` performs similar workflows for regulatory reporting but with fund-type-specific extensions (PE/infra multiples).
+- Notebooks call individual computation functions directly; no orchestration layer exists yet.
+- The cleanest, lowest-risk first pipeline is **risk_snapshot**: a function that computes all point-in-time risk metrics for one fund on one date.
+
+### Recommended First Pipeline: Risk Snapshot
+
+**Why this pipeline first:**
+1. **Already exists in the codebase**: `_load_fund_metrics()` is a working reference implementation.
+2. **Low extraction risk**: Extract directly from board_report, move to src/pipeline/risk_snapshot.py, add backward-compat import in board_report.
+3. **High reuse potential**: Both board_report and annex_iv can call it; future audit/stress tools can call it.
+4. **Clean interface**: Input (engine, fund_id, date) → Output (metrics dict with VaR, ES, stress, liquidity).
+5. **Pure computation**: No DB writes, no file I/O after data load.
+6. **Composable**: Other pipelines (backtest, regulatory) can build on it.
+
+### Proposed Function Signature
+
+```python
+# src/pipeline/risk_snapshot.py
+
+def compute_risk_snapshot(
+    engine,
+    fund_id: str,
+    valuation_date: str = '2026-05-13',
+) -> dict:
+    """
+    Point-in-time risk metrics snapshot for a fund.
+
+    Computes VaR, ES, liquidity, and stress scenarios for a single fund
+    on a single date. Used by board reports, regulatory submissions, and
+    post-trade risk monitoring.
+
+    Parameters
+    ----------
+    engine : sqlalchemy Engine
+        Database connection.
+    fund_id : str
+        Fund identifier (e.g., 'AIFM_HedgeFund', 'UCITS_Balanced').
+    valuation_date : str
+        ISO date string. Must exist in the positions table.
+
+    Returns
+    -------
+    dict with keys:
+        - fund_id, label, strategy, nav
+        - mtd, ytd (performance metrics)
+        - var_1d, var_20d, es_1d (risk measures)
+        - rolling_var, rolling_dates (60-day rolling VaR)
+        - gross_leverage, commitment_leverage, net_liquidity_1_7d
+        - stress (dict of scenario outcomes)
+        - rag (risk status: GREEN/AMBER/RED)
+        - liquidity_buckets (DataFrame with position breakdown)
+    """
+    # Body extracted from board_report._load_fund_metrics()
+    ...
+```
+
+### Proposed Location
+
+- **File**: `src/pipeline/risk_snapshot.py`
+- **Module path**: `from src.pipeline.risk_snapshot import compute_risk_snapshot`
+- **Backward compat**: Add re-export in `src/reporting/board_report.py` for use by board_report._page_* functions
+
+### Modules That Would Call It (Future Tickets)
+
+- `src/reporting/board_report.py` — via `_load_fund_metrics()` → calls `compute_risk_snapshot()` instead of doing it inline
+- `src/reporting/annex_iv.py` — could call `compute_risk_snapshot()` for common metrics, then add fund-type-specific logic
+- `src/pipeline/backtest.py` (future) — uses risk_snapshot to build rolling backtest metrics
+- Potential audit/stress tool — uses risk_snapshot as foundation
+
+### Backward Compatibility Risks
+
+✅ **Low risk** — no changes to notebooks or reporting output:
+- `src/reporting/board_report.py._load_fund_metrics()` remains public (only caller is generate_board_report)
+- Extraction is pure refactor; return dict structure unchanged
+- No changes to function signatures in reporting modules
+- No changes to notebooks
+
+### Functions Not Needed for This Pipeline
+
+- Pre-trade check logic — separate compliance orchestration
+- Counterparty stress — file I/O dependent
+- Reporting/display logic — stays in board_report.py
+
+### Open Questions
+
+1. Should `compute_risk_snapshot()` accept optional fund config (for limits/thresholds)?
+   - **Recommendation**: No. Keep it pure computation. Limits belong in reporting/config.
+2. Should it return rolling_var and rolling_dates separately, or as a DataFrame?
+   - **Recommendation**: Keep current structure (two separate keys). Matches board_report use case.
+
+---
+
 ## Next Steps (Phase 2+)
 
+- **MRS-177** (if approved): Implement src/pipeline/risk_snapshot.py
 - Move ESG, PE, infrastructure analytics (currently in src/risk/)
 - Move enrichment and data pipeline to src/pipeline/
 - Migrate modules to use centralized config constants (where safe)
 - Consider consolidating reporting functions (export-related logic)
-- **Optional**: Refactor pre-trade compliance system as cohesive whole (if time permits)
+- **Optional**: Refactor pre-trade compliance system as cohesive whole
