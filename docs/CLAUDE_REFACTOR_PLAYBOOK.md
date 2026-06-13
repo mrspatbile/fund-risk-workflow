@@ -122,6 +122,7 @@ Regulatory reporting includes items such as:
 ```text
 AIFMD Annex IV
 UCITS global exposure monitoring
+EMIR derivatives reporting and controls
 regulatory reporting controls
 ```
 
@@ -146,6 +147,19 @@ AIFMD Annex IV reporting should be treated as a ManCo / AIFM-level process cover
 SFDR disclosure monitoring should be cross-fund.
 
 PRIIPs KID generation should cover only funds distributed to retail investors.
+
+EMIR regulatory controls should be treated separately from AIFMD, UCITS, PRIIPs, and SFDR.
+
+EMIR is relevant where funds use derivatives. It should be handled as a derivatives regulatory reporting and controls workflow, covering items such as:
+
+- derivatives reporting checks
+- counterparty classification checks
+- clearing obligation checks where applicable
+- risk mitigation controls for non-cleared OTC derivatives
+- collateral / margin workflow checks where applicable
+- reconciliation and data quality checks
+
+Do not mix EMIR logic into generic VaR, AIFMD Annex IV, UCITS global exposure, PRIIPs, or SFDR logic. EMIR may use some shared derivative exposure data, but the regulatory interpretation should live in a dedicated reporting or controls workflow.
 
 ## Work rules
 
