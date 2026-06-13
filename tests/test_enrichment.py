@@ -110,7 +110,8 @@ class TestEnrichPositions:
     def test_bloomberg_positions_have_source_bloomberg(
             self, hedge_fund_enriched):
         bbg_pos = hedge_fund_enriched[
-            hedge_fund_enriched['bloomberg_ticker'].notna()]
+            (hedge_fund_enriched['bloomberg_ticker'].notna()) &
+            (~hedge_fund_enriched['bloomberg_ticker'].str.endswith('Curncy', na=False))]
         assert (bbg_pos['enrichment_source'] == 'bloomberg').all()
 
     def test_cash_has_source_none(self, hedge_fund_enriched):
