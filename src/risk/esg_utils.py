@@ -140,7 +140,7 @@ def build_private_esg_df(
 
     Parallel to build_esg_df() for listed funds. Output columns are a superset
     of build_esg_df() output so esg_portfolio_summary() can consume both without
-    changes. ESG scores come from reference_data/esg_scores.json, keyed by
+    changes. ESG scores come from reference_data/instruments/esg_scores.json, keyed by
     company_id (PE) or asset_id (infra), simulating fund-admin or independent
     appraiser data.
 
@@ -178,7 +178,7 @@ def build_private_esg_df(
             f"asset_type must be 'pe' or 'infra', got {asset_type!r}"
         )
 
-    _esg_path = Path(__file__).parent.parent.parent / 'reference_data' / 'esg_scores.json'
+    _esg_path = Path(__file__).parent.parent.parent / 'reference_data' / 'instruments' / 'esg_scores.json'
     with open(_esg_path) as _f:
         _esg_ref = json.load(_f)
 

@@ -58,7 +58,7 @@ class MockBloomberg:
     # ----------------------------------------------------------------
     VALUATION_DATE = pd.Timestamp('2026-05-13')
 
-    YF_MAP = json.loads((_REF_DIR / 'ticker_map.json').read_text())
+    YF_MAP = json.loads((_REF_DIR / 'instruments' / 'ticker_map.json').read_text())
 
     # Betas fixed by definition — never overridden by yfinance
     # necessary becase as of today, yfinance has beta=0 for these

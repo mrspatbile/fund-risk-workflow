@@ -25,9 +25,10 @@ ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 import sqlalchemy as sa
-from src.data.database import create_db, load_positions, get_engine
+from src.data.database import create_db, load_fund_metadata, load_positions, get_engine
 from src.data.enrichment import enrich_positions
 from src.data.mock_bloomberg import MockBloomberg as Bloomberg
+from sqlalchemy import text
 
 FUNDS    = ['AIFM_HedgeFund', 'AIFM_PrivateDebt',
             'AIFM_RealEstate', 'UCITS_Balanced']
@@ -88,6 +89,9 @@ def run(force: bool = False) -> None:
 
     engine = get_engine()
 
+    # step 1b: load fund metadata (idempotent)
+    load_fund_metadata(engine)
+
     # step 2: load positions if empty
     if not positions_loaded(engine):
         print('Loading positions from Excel files...')
@@ -110,25 +114,43 @@ def run(force: bool = False) -> None:
         print('positions_enriched exists. Skipping enrichment.')
 
 
-    # step 4: generate PE fund data if tables empty
-    from src.data.generate_pe_fund import generate_pe_fund
+    # step 4: conditionally generate PE fund if present in funds table
     with engine.connect() as conn:
-        n_pe = conn.execute(sa.text('SELECT COUNT(*) FROM pe_funds')).scalar()
-    if n_pe == 0:
-        print('Generating PE fund data...')
-        generate_pe_fund(engine)
-    else:
-        print(f'PE fund data exists. Skipping.')
+        pe_fund_exists = conn.execute(
+            text('SELECT COUNT(*) FROM funds WHERE fund_id = :fid'),
+            {'fid': 'AIFM_PE_Buyout'}
+        ).scalar()
 
-    # step 5: generate infrastructure fund data if tables empty
-    from src.data.generate_infra_fund import generate_infra_fund
-    with engine.connect() as conn:
-        n_infra = conn.execute(sa.text('SELECT COUNT(*) FROM infra_funds')).scalar()
-    if n_infra == 0:
-        print('Generating infrastructure fund data...')
-        generate_infra_fund(engine)
+    if pe_fund_exists > 0:
+        with engine.connect() as conn:
+            n_pe = conn.execute(text('SELECT COUNT(*) FROM pe_funds')).scalar()
+        if n_pe == 0:
+            print('Generating PE fund data...')
+            from src.data.generate_pe_fund import generate_pe_fund
+            generate_pe_fund(engine)
+        else:
+            print('PE fund data exists. Skipping.')
     else:
-        print(f'Infrastructure fund data exists. Skipping.')
+        print('AIFM_PE_Buyout not found in funds table. Skipping PE generation.')
+
+    # step 5: conditionally generate infrastructure fund if present in funds table
+    with engine.connect() as conn:
+        infra_fund_exists = conn.execute(
+            text('SELECT COUNT(*) FROM funds WHERE fund_id = :fid'),
+            {'fid': 'AIFM_Infra_Core'}
+        ).scalar()
+
+    if infra_fund_exists > 0:
+        with engine.connect() as conn:
+            n_infra = conn.execute(text('SELECT COUNT(*) FROM infra_funds')).scalar()
+        if n_infra == 0:
+            print('Generating infrastructure fund data...')
+            from src.data.generate_infra_fund import generate_infra_fund
+            generate_infra_fund(engine)
+        else:
+            print('Infrastructure fund data exists. Skipping.')
+    else:
+        print('AIFM_Infra_Core not found in funds table. Skipping Infra generation.')
 
     print('\nDatabase ready.')
 

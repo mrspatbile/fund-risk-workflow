@@ -34,5 +34,23 @@
         "domicile"      : "Luxembourg",
         "regulator"     : "CSSF",
         "target_nav_eur": 500000000
+    },
+    "AIFM_PE_Buyout": {
+        "fund_name"     : "AIFM PE Buyout Fund I",
+        "fund_type"     : "AIFM",
+        "currency"      : "EUR",
+        "inception_date": "2018-06-30",
+        "domicile"      : "Luxembourg",
+        "regulator"     : "CSSF",
+        "target_nav_eur": 400000000
+    },
+    "AIFM_Infra_Core": {
+        "fund_name"     : "AIFM Infrastructure Core Fund I",
+        "fund_type"     : "AIFM",
+        "currency"      : "EUR",
+        "inception_date": "2019-06-30",
+        "domicile"      : "Luxembourg",
+        "regulator"     : "CSSF",
+        "target_nav_eur": 1400000000
     }
 }

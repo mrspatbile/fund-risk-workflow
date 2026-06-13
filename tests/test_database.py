@@ -70,11 +70,11 @@ class TestDatabaseCreation:
         assert 'funds'       in tables
         assert 'instruments' in tables
 
-    def test_funds_table_has_four_funds(self, engine):
+    def test_funds_table_has_six_funds(self, engine):
         with engine.connect() as conn:
             result = pd.read_sql(
                 sa.text('SELECT COUNT(*) as n FROM funds'), conn)
-        assert result['n'].values[0] == 4
+        assert result['n'].values[0] == 6
 
     def test_instruments_table_not_empty(self, engine):
         with engine.connect() as conn:
