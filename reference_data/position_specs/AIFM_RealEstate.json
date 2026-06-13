@@ -72,7 +72,7 @@
     },
     {
         "fund_id": "AIFM_RealEstate", "fund_name": "AIFM Real Estate",
-        "isin": "CASH_EUR_003", "bloomberg_ticker": null,
+        "isin": "CASH_EUR_003", "bloomberg_ticker": "EUR Curncy",
         "instrument_name": "Cash EUR",
         "asset_class": "Cash", "sub_asset_class": "Cash",
         "currency": "EUR", "quantity": 15000000, "price": 1.0,

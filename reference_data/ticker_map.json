@@ -11,5 +11,9 @@
     "SX5E Index"     : "^STOXX50E",
     "VIX Index"      : "^VIX",
     "EURUSD Curncy"  : "EURUSD=X",
-    "GBPUSD Curncy"  : "GBPUSD=X"
+    "GBPUSD Curncy"  : "GBPUSD=X",
+    "EUR Curncy"     : "EUR=X",
+    "USD Curncy"     : "USD=X",
+    "GBP Curncy"     : "GBP=X",
+    "CHF Curncy"     : "CHF=X"
 }

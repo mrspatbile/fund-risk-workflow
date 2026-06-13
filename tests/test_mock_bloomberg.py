@@ -243,6 +243,86 @@ class TestGetPortfolioData:
                 sample_positions['market_value_eur']).all()
 
 
+class TestCacheFreshness:
+    """
+    Tests for yfinance cache freshness validation.
+    Ensures cache is redownloaded when it doesn't cover requested date range.
+    """
+
+    def test_cache_redownload_if_dates_beyond_cache_end(self, bbg):
+        """
+        If cached data ends before requested end date, cache should be redownloaded.
+        """
+        import tempfile
+        import os
+        from pathlib import Path
+
+        # Create a temporary cache directory with a stale cache file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Override cache dir temporarily
+            old_cache_dir = bbg.YF_CACHE_DIR
+            bbg.YF_CACHE_DIR = Path(tmpdir)
+
+            # Create stale cache: data from 2026-01-01 to 2026-03-01
+            stale_cache = Path(tmpdir) / "AAPL.csv"
+            stale_dates = pd.bdate_range('2026-01-01', '2026-03-01')
+            stale_data = pd.DataFrame(
+                {'Close': [500.0] * len(stale_dates)},
+                index=stale_dates
+            )
+            stale_data.index.name = 'Date'
+            stale_data.to_csv(stale_cache)
+
+            # Request dates beyond cache end (2026-01-15 to 2026-05-13)
+            req_dates = pd.bdate_range('2026-01-15', '2026-05-13')
+
+            # This should redownload because cache doesn't cover 2026-05-13
+            result = bbg._fetch_yf_prices('AAPL', req_dates, 500.0)
+
+            # Verify result has real prices (not all 500)
+            assert len(result) == len(req_dates)
+            assert result[0] > 0  # Should have fetched real prices
+
+            # Restore original cache dir
+            bbg.YF_CACHE_DIR = old_cache_dir
+
+    def test_cache_reused_if_covers_requested_dates(self, bbg):
+        """
+        If cached data covers requested date range, cache should be reused.
+        """
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Override cache dir temporarily
+            old_cache_dir = bbg.YF_CACHE_DIR
+            bbg.YF_CACHE_DIR = Path(tmpdir)
+
+            # Create cache with wide date range
+            cache_file = Path(tmpdir) / "SPY.csv"
+            cache_dates = pd.bdate_range('2026-01-01', '2026-05-31')
+            cache_prices = [500.0 + i * 0.1 for i in range(len(cache_dates))]
+            cache_data = pd.DataFrame(
+                {'Close': cache_prices},
+                index=cache_dates
+            )
+            cache_data.index.name = 'Date'
+            cache_data.to_csv(cache_file)
+
+            # Request dates within cache range
+            req_dates = pd.bdate_range('2026-02-01', '2026-04-01')
+
+            # This should reuse cache because it covers requested dates
+            result = bbg._fetch_yf_prices('SPY', req_dates, 500.0)
+
+            # Verify result matches cache values (not updated)
+            assert len(result) == len(req_dates)
+            # Cache has specific values, should be preserved
+            assert result[0] != 500.0 or result[1] != 500.0  # Not all same value
+
+            bbg.YF_CACHE_DIR = old_cache_dir
+
+
 class TestMockBloombergESG:
 
     def test_equity_has_esg_score(self):

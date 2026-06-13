@@ -148,7 +148,7 @@
         "fund_id": "UCITS_Balanced",
         "fund_name": "UCITS Balanced",
         "isin": "CASH_EUR_004",
-        "bloomberg_ticker": null,
+        "bloomberg_ticker": "EUR Curncy",
         "instrument_name": "Cash EUR",
         "asset_class": "Cash",
         "sub_asset_class": "Cash",

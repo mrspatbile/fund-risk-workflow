@@ -781,17 +781,40 @@ class MockBloomberg:
     ) -> np.ndarray:
         """
         Return real closing prices from yfinance cache.
+
         Cache file: data/yf_cache/{ticker}.csv
         Falls back to simulation if download fails.
+
+        Cache freshness:
+        - If cached file exists and covers the requested date range, reuse it.
+        - If cached file does not cover the range, redownload and overwrite.
+        - This ensures prices are fresh without caching forever.
         """
         self.YF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         safe_name  = yf_ticker.replace('^', '').replace('=', '_')
         cache_path = self.YF_CACHE_DIR / f'{safe_name}.csv'
 
+        # Check if cache exists and covers the requested date range
+        cache_valid = False
         if cache_path.exists():
-            raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
-            raw.index = pd.to_datetime(raw.index).tz_localize(None)
-        else:
+            try:
+                raw = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+                raw.index = pd.to_datetime(raw.index).tz_localize(None)
+
+                # Validate cache covers requested range
+                cache_min = raw.index.min()
+                cache_max = raw.index.max()
+                req_min = dates[0]
+                req_max = dates[-1]
+
+                if cache_min <= req_min and cache_max >= req_max:
+                    cache_valid = True
+            except Exception:
+                # Cache file is corrupted or unreadable; redownload
+                cache_valid = False
+
+        # If cache is invalid, redownload
+        if not cache_valid:
             try:
                 import yfinance as yf
                 start = (dates[0]  - pd.Timedelta(days=10)).strftime('%Y-%m-%d')

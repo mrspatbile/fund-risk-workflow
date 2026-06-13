@@ -267,7 +267,7 @@
         "fund_id": "AIFM_HedgeFund",
         "fund_name": "AIFM Hedge Fund",
         "isin": "CASH_EUR_001",
-        "bloomberg_ticker": null,
+        "bloomberg_ticker": "EUR Curncy",
         "instrument_name": "Cash EUR",
         "asset_class": "Cash",
         "sub_asset_class": "Cash",
