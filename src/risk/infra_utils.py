@@ -63,10 +63,10 @@ def fund_nav_timeseries(
         rows = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
             InfraNavHistory.asset_id == None,
-        ).order_by(InfraNavHistory.date).all()
+        ).order_by(InfraNavHistory.nav_date).all()
 
     df = pd.DataFrame([{
-        'date'   : pd.Timestamp(r.date),
+        'date'   : pd.Timestamp(r.nav_date),
         'nav_eur': r.nav_eur,
     } for r in rows])
 
@@ -95,7 +95,7 @@ def asset_nav_breakdown(
     with Session(engine) as session:
         nav_rows = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
-            InfraNavHistory.date     == quarter,
+            InfraNavHistory.nav_date     == quarter,
             InfraNavHistory.asset_id != None,
         ).all()
 
@@ -143,7 +143,7 @@ def infra_multiples(
         nav_row = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
             InfraNavHistory.asset_id == None,
-        ).order_by(InfraNavHistory.date.desc()).first()
+        ).order_by(InfraNavHistory.nav_date.desc()).first()
 
     drawn_capital = abs(sum(cf.amount_eur for cf in cfs
                             if cf.amount_eur < 0
@@ -183,19 +183,19 @@ def infra_irr(
     with Session(engine) as session:
         cfs = session.query(InfraCashFlow).filter(
             InfraCashFlow.fund_id == fund_id,
-        ).order_by(InfraCashFlow.date).all()
+        ).order_by(InfraCashFlow.cash_flow_date).all()
 
         nav_row = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
             InfraNavHistory.asset_id == None,
-        ).order_by(InfraNavHistory.date.desc()).first()
+        ).order_by(InfraNavHistory.nav_date.desc()).first()
 
     cf_amounts = [cf.amount_eur for cf in cfs]
-    cf_dates   = [cf.date for cf in cfs]
+    cf_dates   = [cf.cash_flow_date for cf in cfs]
 
     if nav_row:
         cf_amounts.append(nav_row.nav_eur)
-        cf_dates.append(nav_row.date)
+        cf_dates.append(nav_row.nav_date)
 
     return xirr(cf_amounts, cf_dates)
 
@@ -222,10 +222,10 @@ def dscr_profile(
     with Session(engine) as session:
         rows = session.query(InfraCovenant).filter(
             InfraCovenant.asset_id == asset_id,
-        ).order_by(InfraCovenant.date).all()
+        ).order_by(InfraCovenant.observation_date).all()
 
     df = pd.DataFrame([{
-        'date'          : pd.Timestamp(r.date),
+        'date'          : pd.Timestamp(r.observation_date),
         'dscr_actual'   : r.dscr_actual,
         'dscr_covenant' : r.dscr_covenant,
         'dscr_headroom' : r.dscr_headroom,
@@ -279,7 +279,7 @@ def ltv_profile(
     with Session(engine) as session:
         rows = session.query(InfraCovenant).filter(
             InfraCovenant.asset_id == asset_id,
-        ).order_by(InfraCovenant.date).all()
+        ).order_by(InfraCovenant.observation_date).all()
 
     df = pd.DataFrame([{
         'date'          : pd.Timestamp(r.date),
@@ -374,9 +374,9 @@ def cashflow_coverage(
     rows_fee  = {}
     for cf in cfs:
         if cf.flow_type == 'distribution':
-            rows_dist[cf.date] = rows_dist.get(cf.date, 0.0) + cf.amount_eur
+            rows_dist[cf.cash_flow_date] = rows_dist.get(cf.cash_flow_date, 0.0) + cf.amount_eur
         elif cf.flow_type == 'management_fee':
-            rows_fee[cf.date]  = rows_fee.get(cf.date, 0.0) + abs(cf.amount_eur)
+            rows_fee[cf.cash_flow_date]  = rows_fee.get(cf.cash_flow_date, 0.0) + abs(cf.amount_eur)
 
     all_dates = sorted(set(rows_dist) | set(rows_fee))
     records   = []
@@ -422,12 +422,12 @@ def inflation_sensitivity(
         latest = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
             InfraNavHistory.asset_id == None,
-        ).order_by(InfraNavHistory.date.desc()).first()
+        ).order_by(InfraNavHistory.nav_date.desc()).first()
 
     if latest is None:
         return {}
 
-    quarter   = latest.date
+    quarter   = latest.nav_date
     breakdown = asset_nav_breakdown(engine, fund_id, quarter)
 
     with Session(engine) as session:
@@ -487,12 +487,12 @@ def duration_profile(
         latest = session.query(InfraNavHistory).filter(
             InfraNavHistory.fund_id  == fund_id,
             InfraNavHistory.asset_id == None,
-        ).order_by(InfraNavHistory.date.desc()).first()
+        ).order_by(InfraNavHistory.nav_date.desc()).first()
 
     if latest is None:
         return pd.DataFrame()
 
-    quarter   = latest.date
+    quarter   = latest.nav_date
     breakdown = asset_nav_breakdown(engine, fund_id, quarter)
 
     with Session(engine) as session:
@@ -570,7 +570,7 @@ def stress_nav(
         # latest valuation report per asset
         all_vr = session.query(InfraValuationReport).filter(
             InfraValuationReport.fund_id == fund_id,
-        ).order_by(InfraValuationReport.date).all()
+        ).order_by(InfraValuationReport.valuation_date).all()
 
         asset_map = {a.asset_id: a
                      for a in session.query(InfraAsset).all()}

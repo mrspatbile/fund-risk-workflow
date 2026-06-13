@@ -135,17 +135,17 @@ def fund_irr(
     with Session(engine) as session:
         cfs = session.query(PECashFlow).filter(
             PECashFlow.fund_id == fund_id,
-            PECashFlow.date   <= as_of_date
-        ).order_by(PECashFlow.date).all()
+            PECashFlow.cash_flow_date   <= as_of_date
+        ).order_by(PECashFlow.cash_flow_date).all()
 
         nav = session.query(PENavHistory).filter(
             PENavHistory.fund_id    == fund_id,
             PENavHistory.company_id == None,
-            PENavHistory.date       <= as_of_date
-        ).order_by(PENavHistory.date.desc()).first()
+            PENavHistory.nav_date       <= as_of_date
+        ).order_by(PENavHistory.nav_date.desc()).first()
 
     cf_amounts = [cf.amount_eur for cf in cfs]
-    cf_dates   = [cf.date for cf in cfs]
+    cf_dates   = [cf.cash_flow_date for cf in cfs]
 
     if nav:
         cf_amounts.append(nav.nav_eur)
@@ -201,14 +201,14 @@ def pe_multiples(
     with Session(engine) as session:
         cfs = session.query(PECashFlow).filter(
             PECashFlow.fund_id == fund_id,
-            PECashFlow.date   <= as_of_date
+            PECashFlow.cash_flow_date   <= as_of_date
         ).all()
 
         nav = session.query(PENavHistory).filter(
             PENavHistory.fund_id    == fund_id,
             PENavHistory.company_id == None,
-            PENavHistory.date       <= as_of_date
-        ).order_by(PENavHistory.date.desc()).first()
+            PENavHistory.nav_date       <= as_of_date
+        ).order_by(PENavHistory.nav_date.desc()).first()
 
     paid_in       = abs(sum(cf.amount_eur for cf in cfs if cf.amount_eur < 0))
     distributions = sum(cf.amount_eur for cf in cfs if cf.amount_eur > 0)
@@ -249,17 +249,17 @@ def pe_multiples_by_company(
                        for c in session.query(PEPortfolioCompany).all()}
         cfs         = session.query(PECashFlow).filter(
             PECashFlow.fund_id    == fund_id,
-            PECashFlow.date       <= as_of_date,
+            PECashFlow.cash_flow_date       <= as_of_date,
             PECashFlow.company_id != None
         ).all()
         navs        = session.query(PENavHistory).filter(
             PENavHistory.fund_id    == fund_id,
-            PENavHistory.date       <= as_of_date,
+            PENavHistory.nav_date       <= as_of_date,
             PENavHistory.company_id != None
         ).all()
 
     nav_map = {}
-    for n in sorted(navs, key=lambda x: x.date):
+    for n in sorted(navs, key=lambda x: x.nav_date):
         nav_map[n.company_id] = n.nav_eur
 
     dist_map = {}
@@ -307,15 +307,15 @@ def pe_multiples_timeseries(
         navs = session.query(PENavHistory).filter(
             PENavHistory.fund_id    == fund_id,
             PENavHistory.company_id == None
-        ).order_by(PENavHistory.date).all()
+        ).order_by(PENavHistory.nav_date).all()
 
     rows = []
     for nav in navs:
-        date          = nav.date
+        date          = nav.nav_date
         paid_in       = abs(sum(cf.amount_eur for cf in cfs
-                               if cf.amount_eur < 0 and cf.date <= date))
+                               if cf.amount_eur < 0 and cf.cash_flow_date <= date))
         distributions = sum(cf.amount_eur for cf in cfs
-                            if cf.amount_eur > 0 and cf.date <= date)
+                            if cf.amount_eur > 0 and cf.cash_flow_date <= date)
         nav_eur       = nav.nav_eur
         dpi           = distributions / paid_in if paid_in > 0 else 0
         rvpi          = nav_eur / paid_in       if paid_in > 0 else 0
@@ -506,7 +506,7 @@ def pe_value_bridge(
         all_vr = session.query(PEValuationReport).filter(
             PEValuationReport.fund_id    == fund_id,
             PEValuationReport.company_id.in_(company_ids)
-        ).order_by(PEValuationReport.date).all()
+        ).order_by(PEValuationReport.valuation_date).all()
 
         # Interim distributions only — exit proceeds are captured in
         # exit_price_eur and must not be double-counted here

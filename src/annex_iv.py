@@ -554,10 +554,10 @@ def _build_pe(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
                    .filter(PEFundInvestment.fund_id == fund_id).all())
         nav_row = (s.query(PENavHistory)
                    .filter_by(fund_id=fund_id, company_id=None)
-                   .order_by(PENavHistory.date.desc()).first())
+                   .order_by(PENavHistory.nav_date.desc()).first())
         cm      = (s.query(PEFundCashManagement)
                    .filter_by(fund_id=fund_id)
-                   .order_by(PEFundCashManagement.date.desc()).first())
+                   .order_by(PEFundCashManagement.cash_management_date.desc()).first())
         cfs     = s.query(PECashFlow).filter_by(fund_id=fund_id).all()
 
     nav        = float(nav_row.nav_eur) if nav_row else 0.0
@@ -622,7 +622,7 @@ def _build_infra(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
         ifund   = s.query(InfraFund).filter_by(fund_id=fund_id).first()
         nav_row = (s.query(InfraNavHistory)
                    .filter_by(fund_id=fund_id, asset_id=None)
-                   .order_by(InfraNavHistory.date.desc()).first())
+                   .order_by(InfraNavHistory.nav_date.desc()).first())
         invs    = (s.query(InfraFundInvestment, InfraAsset)
                    .join(InfraAsset,
                          InfraFundInvestment.asset_id == InfraAsset.asset_id)

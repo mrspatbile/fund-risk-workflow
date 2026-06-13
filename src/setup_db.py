@@ -19,6 +19,7 @@ Usage
 import sys
 import os
 import argparse
+import json
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent
@@ -30,8 +31,12 @@ from src.data.enrichment import enrich_positions
 from src.data.mock_bloomberg import MockBloomberg as Bloomberg
 from sqlalchemy import text
 
-FUNDS    = ['AIFM_HedgeFund', 'AIFM_PrivateDebt',
-            'AIFM_RealEstate', 'UCITS_Balanced']
+# Load fund IDs dynamically from fund_registry.json
+_REF_DIR = ROOT_DIR / 'reference_data'
+with open(_REF_DIR / 'funds' / 'fund_registry.json') as _f:
+    _REGISTRY = json.load(_f)
+FUNDS    = _REGISTRY['funds']
+
 DATE     = '2026-05-13'
 DATA_DIR = str(ROOT_DIR / 'data')
 DB_PATH  = str(ROOT_DIR / 'data' / 'risk_management.db')

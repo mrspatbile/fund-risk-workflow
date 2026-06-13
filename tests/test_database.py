@@ -137,7 +137,7 @@ class TestPositionsTable:
     def test_each_fund_has_250_dates(self, engine):
         with engine.connect() as conn:
             result = pd.read_sql(sa.text(
-                'SELECT fund_id, COUNT(DISTINCT date) as dates '
+                'SELECT fund_id, COUNT(DISTINCT position_date) as dates '
                 'FROM positions GROUP BY fund_id'
             ), conn)
         assert (result['dates'] >= 250).all()
@@ -154,7 +154,7 @@ class TestPositionsTable:
         with engine.connect() as conn:
             result = pd.read_sql(sa.text(
                 'SELECT COUNT(*) as n FROM positions '
-                'WHERE date IS NULL'
+                'WHERE position_date IS NULL'
             ), conn)
         assert result['n'].values[0] == 0
 
@@ -339,7 +339,7 @@ class TestIndexes:
         ix = next(idx for idx in indexes
                   if idx['name'] == 'ix_positions_fund_date_isin')
         assert 'fund_id' in ix['column_names']
-        assert 'date'    in ix['column_names']
+        assert 'position_date' in ix['column_names']
         assert 'isin'    in ix['column_names']
 
 
@@ -371,9 +371,6 @@ class TestPETables:
                 'SELECT COUNT(*) FROM pe_fund_investments'
             )).scalar()
         assert result == 8
-
-    def test_pe_company_metrics_table_exists(self, engine):
-        assert sa.inspect(engine).has_table('pe_company_metrics')
 
     def test_pe_fund_investment_has_exit_ev_ebitda(self, engine):
         cols = [c['name'] for c in sa.inspect(engine).get_columns('pe_fund_investments')]

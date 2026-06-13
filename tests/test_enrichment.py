@@ -233,10 +233,10 @@ class TestEnrichedTable:
                                          hedge_fund_enriched):
         with engine.connect() as conn:
             result = pd.read_sql(text(
-                'SELECT fund_id, date, isin, '
+                'SELECT fund_id, position_date, isin, '
                 'COUNT(*) as n '
                 'FROM positions_enriched '
-                'GROUP BY fund_id, date, isin '
+                'GROUP BY fund_id, position_date, isin '
                 'HAVING n > 1'
             ), conn)
         assert len(result) == 0

@@ -190,7 +190,7 @@ def build_private_esg_df(
                 session.query(PEValuationReport)
                 .filter(
                     PEValuationReport.fund_id == fund_id,
-                    PEValuationReport.date    == quarter,
+                    PEValuationReport.valuation_date == quarter,
                 )
                 .all()
             )
@@ -228,7 +228,7 @@ def build_private_esg_df(
                 session.query(InfraValuationReport)
                 .filter(
                     InfraValuationReport.fund_id == fund_id,
-                    InfraValuationReport.date    == quarter,
+                    InfraValuationReport.valuation_date == quarter,
                 )
                 .all()
             )
