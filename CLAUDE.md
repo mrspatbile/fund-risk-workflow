@@ -2,187 +2,581 @@
 
 ## What this project is
 
-A personal research and investigation project simulating the workflow of a risk analyst operating under Luxembourg regulatory oversight, specifically UCITS and AIFM frameworks supervised by the CSSF. The goal is deep familiarity with the regulations, the difficulties of implementing them in practice.
+`fund-risk-workflow` is a structured finance and risk research project.
 
-This is not a production system. It is a structured investigation. It is intentionally built to look and feel like a real risk platform, but with the honest constraint that valuations resources are restricted, some data sources are simulated and the `VALUATION_DATE` is static 13/05/2026, and there is no change in the portfolio positions, except for the PE fund.
+It simulates the workflow of a risk analyst working with UCITS and AIFs under Luxembourg / CSSF-style oversight. The project is intentionally built to look and feel like a small risk platform, while remaining honest about its limits:
 
-## What has been built so far
+- it is not a production system
+- the valuation date is static
+- the data is controlled and partly simulated
+- portfolio positions are mostly fixed by design
+- valuation engines are simplified
+- notebooks remain part of the research workflow
 
-- Fund examples: UCITS balanced, AIFM hedge fund long/short, PE, RE, private debt, infrastructure core
-- Risk metrics: VaR (historical, parametric, Monte Carlo), ES, VaR backtest (Kupiec, Christoffersen), P&L attribution
-- Stress scenarios: equity, rates, credit, FX, combined, historical, property, rental, LTV; infrastructure NAV stress (discount rate + inflation shock)
-- Liquidity profiling in buckets, redemption stress, investor concentration, liquidity-adjusted VaR
-- Pre-trade compliance check (`pre_trade_check` in `risk_utils.py`): UCITS, AIFM HF, and AIFM Private Debt flavours -- checks VaR impact, issuer concentration, leverage, and eligibility before execution; with worked pass/fail examples in the HF and UCITS notebooks
-- Leverage classification per AIFMD Article 7 (gross and commitment method) via `leverage_config.py`
-- ESG evaluation: `esg_utils.py` covers listed assets via mock Bloomberg data and private assets (PE, infra) via independent appraiser data; `build_private_esg_df` assembles SFDR PAI-ready DataFrames for PE and infra funds; ESG scores in `esg_scores.json` cover all issuers, portfolio companies, and infrastructure assets
-- Position enrichment pipeline: Bloomberg sensitivities (beta, duration, convexity) for liquid assets; fund-admin embedded data for illiquid assets (loans, direct properties)
-- PE analytics: XIRR, fund IRR, MOIC/DPI/RVPI multiples, value bridge, Long-Nickels PME benchmark comparison
-- Infrastructure analytics (`infra_utils.py`): DSCR/LTV covenant profiles with breach and waiver tracking, sector concentration, inflation linkage, weighted concession duration, cashflow coverage, IRR/MOIC/DPI/RVPI multiples, yield-capitalisation NAV stress
-- Regulatory output layer:
-  - Annex VI stress test Excel export (`annex_vi_export.py`, CSSF submission format, HF/PD/RE)
-  - Annex IV transparency report (`annex_iv.py`, AIFMD Article 110, all five AIFM funds): fund identity, exposures, VaR, gross/commitment leverage, liquidity profile, AIFMD II expanded fields (LMTs, unfunded commitments); Excel export in CSSF format
-  - Monthly Board Risk Report PDF (`board_report.py`, AIFMD Article 15 internal governance)
-- SQLite database (`data/risk_management.db`) via SQLAlchemy -- central store for all fund data, including dedicated infra schema (infra_funds, infra_assets, infra_nav_history, infra_valuation_report, infra_debt, infra_covenants)
-- Data layer that simulates Bloomberg/3rd party feeds for illiquids and uses real yfinance data for listed assets; prices cached in `data/yf_cache/`
-- Reference data directory (`reference_data/`): position specs per fund, ticker map, ESG scores (listed + PE + infra), PE companies, infra assets, fund master
-- Daily export simulation: `generate_daily_export.py` extracts single-date position slices mimicking a fund administrator file
-- Idempotent DB setup script (`setup_db.py`) and end-to-end pipeline validation script (`validate_pipeline.py`)
-- Shared dark-theme matplotlib style (`plot_style.py`) used across all notebooks
-- Unit tests in `tests/` mirroring `src/`
+The goal is to show practical understanding of:
 
-## Project structure
+- fund data workflows
+- risk analytics
+- regulatory interpretation
+- reporting workflows
+- data enrichment
+- Python package organisation
+- notebook-to-code refactoring
 
-```
+This repository should be understandable for technical reviewers, ManCo stakeholders, and consulting or risk technology hiring managers.
+
+## Core design principle
+
+Keep a clear separation between:
+
+- raw computation
+- data access and enrichment
+- workflow orchestration
+- fund risk monitoring
+- regulatory reporting
+- investor disclosures
+- governance reporting
+- notebook rendering
+
+Do not create unnecessary abstraction. This is a structured research project, not a production platform.
+
+## Current architecture direction
+
+Use this structure as the guiding model:
+
+```text
 src/
-  database.py              # SQLAlchemy DB: create schema, load positions, query helpers
-                           #   includes infra schema (infra_funds, infra_assets, infra_nav_history,
-                           #   infra_valuation_report, infra_debt, infra_covenants)
-  enrichment.py            # Position enrichment pipeline (Bloomberg + fund-admin data)
-  esg_utils.py             # ESG scoring: build_esg_df (listed assets via mock Bloomberg),
-                           #   build_private_esg_df (PE and infra via appraiser data),
-                           #   esg_portfolio_summary (works on both)
-  generate_positions.py    # Generates 250-day Excel position histories for liquid funds
-  generate_pe_fund.py      # Generates synthetic PE fund data (companies, cash flows, NAV)
-  generate_infra_fund.py   # Generates AIFM_Infra_Core fund: 8 assets, valuation reports,
-                           #   covenant history, debt tranches, cash flows
-  generate_daily_export.py # Extracts single-date slices (mimics fund admin daily file)
-  leverage_config.py       # AIFMD Article 7 leverage classification map
-  mock_bloomberg.py        # MockBloomberg class -- mirrors blpapi interface, uses yf_cache
-  pe_utils.py              # PE analytics: XIRR, IRR, multiples, value bridge, Long-Nickels PME
-  infra_utils.py           # Infrastructure analytics: DSCR/LTV profiles, inflation sensitivity,
-                           #   duration profile, sector concentration, NAV stress, IRR/multiples
-  plot_style.py            # Shared matplotlib dark theme for all notebooks
-  risk_utils.py            # VaR, ES, backtests, stress scenarios, liquidity metrics,
-                           #   pre_trade_check (UCITS / AIFM HF / AIFM PD)
-  annex_iv.py              # Annex IV transparency report -- AIFMD Article 110 / EU 231/2013
-                           #   all five AIFM funds; build_annex_iv() + export_annex_iv_excel()
-                           #   AIFMD II expanded fields: LMTs and unfunded commitments (PE/infra)
-  annex_vi_export.py       # Annex VI stress test Excel export -- CSSF submission format
-                           #   (HF, PD, RE; cross-fund summary + per-fund sheets)
-  board_report.py          # Monthly Board Risk Report PDF -- AIFMD Article 15 internal governance
-                           #   (executive summary, VaR, stress, liquidity, breach log)
-  setup_db.py              # Idempotent DB setup (--force to rebuild from scratch)
-  validate_pipeline.py     # End-to-end pipeline validation
-
-reference_data/            # Static reference data
-  fund_master.json         # Fund IDs, names, types
-  fund_file_map.json       # Fund ID → position Excel filename mapping
-  ticker_map.json          # Internal ticker → yfinance ticker + asset class
-  esg_scores.json          # Mock 3rd-party ESG scores: listed issuers (by ISIN),
-                           #   PE portfolio companies (PE_001–PE_008),
-                           #   infrastructure assets (INFRA_001–INFRA_008)
-  pe_companies.json        # PE fund portfolio companies (entry/exit data)
-  infra_assets.json        # Infrastructure assets master (sector, country, concession dates)
-  position_specs/          # Per-fund position definitions (UCITS_Balanced, AIFM_HedgeFund, etc.)
-
-tests/
-  One test file per src module. test_setup_db.py is marked @pytest.mark.skip
-  by default -- it is an integration test that rebuilds the live DB and must
-  be run manually.
-
-notebooks/
-  ucits_balanced.ipynb     # UCITS Balanced -- VaR limits, SRRI, eligibility, pre-trade check
-  aifm_hedge_fund.ipynb    # AIFM Hedge Fund -- leverage, stress, liquidity, pre-trade check, Annex IV
-  aifm_pe_buyout.ipynb     # AIFM PE Buyout -- IRR, multiples, NAV, PME, ESG, Annex IV
-  aifm_private_debt.ipynb  # AIFM Private Debt -- credit risk, leverage, ESG, Annex IV
-  aifm_real_estate.ipynb   # AIFM Real Estate -- LTV, rental stress, direct property, ESG, Annex IV
-  aifm_infra_ fund.ipynb   # AIFM Infra Core -- DSCR/LTV, duration, stress, ESG, Annex IV
-  board_risk_report.ipynb  # Board Risk Report -- drives board_report.py
-  data_pipeline.ipynb      # Daily data validation workflow (pricing, new instruments)
-
-data/                      # Gitignored -- not in version control
-  risk_management.db       # SQLite database
-  fund_positions_*.xlsx    # Full 250-day position histories per fund
-  daily_exports/           # Single-date position slices per fund per date
-  yf_cache/                # Cached yfinance price and info files
-  annex_iv_report_*.xlsx   # Annex IV outputs (quarterly, per reporting period)
-  annex_vi_report_*.xlsx   # Annex VI outputs
-  board_risk_report_*.pdf  # Board report PDFs
-
-pyproject.toml             # Package metadata (Python 3.13, setuptools)
-.venv/                     # Python virtual environment -- do not touch
+├── computation/
+├── pipeline/
+├── reporting/
+├── data/
+├── risk/
+└── ui/
 ```
 
-## Stack
+### `src/computation/`
 
-- Python 3.13 (primary language)
-- SQLite via SQLAlchemy (central data store)
-- yfinance for real market data (prices cached locally)
-- scipy (statistical distributions for parametric VaR and ES)
-- matplotlib (charts via shared `plot_style.py`)
-- openpyxl (Excel read/write for position files)
-- Simulated data layer mimicking Bloomberg and illiquid 3rd party feeds
-- Notebooks (Jupyter / JupyterLab) for exploration
-- GitHub for version control
-- Linear for issue tracking
-- Claude Code
+Raw calculations only.
 
-## Regulatory scope
+Examples:
 
-- UCITS Directive (2009/65/EC) and Luxembourg implementation via CSSF
-- AIFMD (Directive 2011/61/EU) and Luxembourg implementation via CSSF (Law of 12 July 2013)
-- AIFMD II (Directive 2024/927/EU) -- LMT disclosures (suspension, side pockets, capital call facility) and expanded Annex IV fields implemented in annex_iv.py for PE and infra funds
-- Delegated Regulation EU 231/2013 -- leverage calculation methodology (gross and commitment); Articles 46-49 risk management; Article 7 project finance treatment for PE/infra debt
-- ESMA technical guidance v1.7 (July 2024) -- Annex IV reporting field definitions
-- ESMA/2020/1498 -- stress testing guidance (Annex VI)
-- CSSF Regulation 10-04 (organisational and prudential requirements for dual ManCos)
-- CSSF Regulation 22-05 (sustainability requirements, amends 10-04)
-- IPEV Valuation Guidelines -- PE and infrastructure fair value methodology (yield capitalisation)
-- AIFMD Article 15 -- liquidity management (infra: closed-ended, no redemption obligation)
-- AIFMD Article 19 -- independent valuation (infra: appraiser inputs boundary respected)
-- SFDR PAI indicators -- private asset ESG disclosure context (PE and infra via independent appraiser data)
-- Risk metrics: VaR, ES, liquidity classification, leverage, ESG, backtest, P&L attribution, PME, DSCR, LTV, MOIC/DPI/TVPI, inflation sensitivity
-- Known limitation: no real valuation engine, simulations are intentionally simplified; there is a separate project focused on implementing valuation in an OOP paradigm.
+```text
+var.py
+stress.py
+liquidity.py
+leverage.py
+attribution.py
+```
+
+These modules should not perform database writes, file exports, notebook rendering, or regulatory interpretation.
+
+### `src/pipeline/`
+
+Reusable workflows that orchestrate data loading, enrichment, and computation.
+
+Examples:
+
+```text
+risk_snapshot.py
+```
+
+Pipelines should produce raw or structured outputs. They should not silently impose fund-specific regulatory rules unless that is explicitly in scope.
+
+### `src/reporting/`
+
+Board reports, regulatory reports, and disclosure outputs.
+
+Examples:
+
+```text
+board_report.py
+annex_iv.py
+```
+
+Regulatory interpretation belongs here or in dedicated regulatory workflow modules, not inside raw computation.
+
+### `src/data/`
+
+Database access, mock Bloomberg, enrichment, generated data helpers, and reference-data loading helpers.
+
+Examples:
+
+```text
+database.py
+mock_bloomberg.py
+enrichment.py
+generate_positions.py
+generate_pe_fund.py
+generate_infra_fund.py
+setup_db.py
+```
+
+### `src/risk/`
+
+Legacy compatibility imports, compliance orchestration, and functions that are not yet cleanly moved.
+
+`risk_utils.py` may continue to exist as a compatibility and orchestration layer. Do not move remaining coupled functions unless a ticket explicitly asks for it.
+
+### `src/ui/`
+
+Notebook display helpers, chart helpers, and rendering utilities.
+
+## Current notebook structure direction
+
+Use purpose-based folders:
+
+```text
+notebooks/
+├── fund_risk_monitoring/
+├── regulatory_reporting/
+├── investor_disclosures/
+├── governance_reporting/
+└── data_workflows/
+```
+
+Do not use:
+
+```text
+internal_risk/
+exploratory/
+```
+
+Use `data_workflows/` for technical notebooks that explain:
+
+- database access
+- mock Bloomberg / market data
+- enrichment
+- reference data
+- how data feeds the computation layer
+
+## Static valuation date
+
+`VALUATION_DATE` is intentionally static:
+
+```text
+2026-05-13
+```
+
+Do not make it dynamic.
+
+Do not introduce date-range logic unless a ticket explicitly asks for it.
+
+All analytics are point-in-time by design.
+
+## Position behaviour
+
+Portfolio positions are intentionally stable in the mock dataset, except where a specialised generator explicitly creates a different behaviour, such as PE cash flows.
+
+Do not introduce live portfolio-update logic unless a ticket explicitly asks for it.
+
+## Reference data direction
+
+Reference data should be explicit and fund-level where appropriate.
+
+Target structure:
+
+```text
+reference_data/
+├── funds/
+│   ├── fund_registry.json
+│   └── <fund_id>/
+│       ├── fund_profile.json
+│       ├── risk_policy.json
+│       ├── position_specs.json
+│       └── asset_specs.json
+├── regulation/
+│   ├── ucits_regulatory_framework.json
+│   ├── aifmd_annex_iv_framework.json
+│   ├── priips_kid_framework.json
+│   └── sfdr_disclosure_framework.json
+├── instruments/
+├── portfolios/
+├── counterparties/
+└── investors/
+```
+
+### `fund_registry.json`
+
+Operational list only.
+
+It tells the system which funds exist and should be loaded.
+
+It should not contain detailed fund characteristics.
+
+### `fund_profile.json`
+
+Static fund facts and regulatory classification flags.
+
+Examples:
+
+```text
+fund_id
+fund_name
+fund_type
+strategy
+currency
+domicile
+regulator
+inception_date
+target_nav_eur
+is_ucits
+is_aif
+is_annex_iv_reportable
+is_priips_kid_required
+is_sfdr_article_6
+is_sfdr_article_8
+is_sfdr_article_9
+```
+
+### `risk_policy.json`
+
+Fund-specific internal risk framework and monitoring choices.
+
+Examples:
+
+```text
+redemption_terms
+notice_period_days
+lockup_days
+liquidity_profile
+valuation_frequency
+internal leverage limits
+internal concentration limits
+LTV or covenant monitoring thresholds
+stress scenario choices
+VaR usage and parameters where explicitly applicable
+```
+
+### `reference_data/regulation/`
+
+Central regulatory framework files.
+
+Do not create fund-level `regulatory_limits.json`.
+
+Regulatory rules should be centralised by framework and triggered by fund-level flags.
+
+## Regulatory distinction
+
+Do not treat all funds the same.
+
+### AIFMD
+
+AIFMD does not prescribe one universal VaR limit, confidence level, holding period, lookback window, or concentration limit for all AIFs.
+
+For AIFs, methodology choices must be adequate, defined, documented, and supported by the fund strategy, risk profile, liquidity profile, and complexity.
+
+AIFMD Annex IV is a reporting framework. It should be treated as a ManCo / AIFM-level reporting process covering all relevant AIFs.
+
+Use:
+
+```text
+reference_data/regulation/aifmd_annex_iv_framework.json
+```
+
+for central Annex IV reporting structure and reporting-field logic.
+
+Use this wording for Annex IV references:
+
+```text
+Delegated Regulation (EU) 231/2013 Article 110 and Annex IV reporting template
+```
+
+Do not use “AIFMD Annex VI reporting”.
+
+### UCITS
+
+UCITS is different.
+
+UCITS global exposure, commitment approach, absolute VaR, relative VaR, and related limits or model assumptions must be treated as UCITS-specific regulatory logic.
+
+Use:
+
+```text
+reference_data/regulation/ucits_regulatory_framework.json
+```
+
+for central UCITS rules and parameters.
+
+Do not duplicate UCITS regulatory limits inside a fund-level `risk_policy.json`.
+
+### PRIIPs
+
+PRIIPs is a disclosure framework.
+
+It relates to KID production, Summary Risk Indicator (SRI), performance scenarios, and costs.
+
+Do not mix PRIIPs logic into AIFMD risk management logic.
+
+Use:
+
+```text
+reference_data/regulation/priips_kid_framework.json
+```
+
+for central PRIIPs KID / SRI logic.
+
+### SFDR
+
+SFDR is a regulatory disclosure framework.
+
+It should not be reduced to an ESG score.
+
+Current ESG indicators should be treated as raw ESG or sustainability-risk indicators unless explicitly mapped to SFDR concepts such as:
+
+- Article 6
+- Article 8
+- Article 9
+- PAIs
+- pre-contractual disclosures
+- website disclosures
+- periodic disclosures
+
+Use:
+
+```text
+reference_data/regulation/sfdr_disclosure_framework.json
+```
+
+for central SFDR disclosure logic.
+
+### EMIR
+
+EMIR is relevant where funds use derivatives.
+
+It should be handled as a dedicated derivatives regulatory reporting and controls workflow covering:
+
+- derivatives reporting checks
+- counterparty classification checks
+- clearing obligation checks where applicable
+- risk mitigation controls for non-cleared OTC derivatives
+- collateral / margin workflow checks where applicable
+- reconciliation and data quality checks
+
+Do not mix EMIR logic into generic VaR, AIFMD Annex IV, UCITS global exposure, PRIIPs, or SFDR logic.
+
+## Risk calculation rule
+
+The repository has reusable calculators.
+
+Risk is not computed automatically for every fund or every asset.
+
+Notebooks and pipelines decide:
+
+- which calculator to call
+- for which fund
+- for which asset sleeve
+- with which assumptions
+
+Do not assume that VaR applies to every fund or every asset class.
+
+Do not automatically apply VaR to:
+
+- real estate
+- private equity
+- infrastructure
+- private debt
+
+For mixed funds, separate the sleeves before interpreting the risk metrics.
+
+For real estate, distinguish:
+
+```text
+direct properties
+listed REITs
+FX hedge
+cash
+```
+
+Direct properties should not be treated as daily traded securities merely because the current mock data contains daily position snapshots.
+
+Listed REITs, FX, and cash may still be treated as position-style holdings where appropriate.
+
+## Fund treatment
+
+Position-based AIFs may share a risk snapshot pipeline where appropriate.
+
+Examples:
+
+```text
+AIFM_HedgeFund
+AIFM_PrivateDebt
+```
+
+`AIFM_RealEstate` is currently a mixed fund and should not be blindly treated as a pure liquid position-based fund. It may eventually need a sleeve-based workflow.
+
+UCITS may reuse computation functions, but UCITS regulatory interpretation must remain separate.
+
+Private equity and infrastructure have different data models and should not be forced into a standard VaR-based pipeline.
+
+The following funds are treated as closed-ended for fund-level policy configuration:
+
+```text
+AIFM_PE_Buyout
+AIFM_Infra_Core
+AIFM_RealEstate
+```
+
+## Built so far
+
+The project currently includes examples for:
+
+- UCITS balanced fund
+- AIFM hedge fund
+- AIFM private debt fund
+- AIFM real estate fund
+- AIFM PE buyout fund
+- AIFM infrastructure core fund
+
+Risk and analytics modules include:
+
+- historical VaR
+- parametric VaR
+- Monte Carlo-style examples where present
+- Expected Shortfall
+- VaR backtesting
+- Kupiec test
+- Christoffersen test
+- P&L attribution
+- stress scenarios
+- liquidity buckets
+- redemption stress
+- investor concentration
+- liquidity-adjusted VaR
+- leverage calculation
+- ESG indicators
+- PE analytics
+- infrastructure analytics
+- covenant tracking
+- Annex IV reporting
+- board reporting
+
+## Reporting and disclosure distinction
+
+Regulatory reporting includes:
+
+```text
+AIFMD Annex IV
+UCITS global exposure monitoring
+EMIR derivatives reporting and controls
+regulatory reporting controls
+```
+
+Investor disclosures include:
+
+```text
+PRIIPs KID
+SFDR disclosures
+investor reporting packs
+```
+
+Governance reporting includes:
+
+```text
+board risk reports
+risk committee packs
+exception reports
+```
+
+AIFMD Annex IV reporting should be treated as a ManCo / AIFM-level process covering all relevant AIFs, not as a hedge fund notebook output.
+
+SFDR disclosure monitoring should be cross-fund.
+
+PRIIPs KID generation should cover only funds distributed to retail investors.
 
 ## How we work together
 
-**Do not make changes without checking with me first.**
+Do not make changes without checking with the user first.
 
-The preferred flow for every task:
-1. Read the relevant Linear issue before touching anything
-2. Explain your understanding of the task and your proposed approach
-3. Wait for my go-ahead before writing or changing any code
-4. Make changes one logical step at a time -- not everything at once
-5. After each step, explain what you did and why
-6. After each step, when I consider code done, I will ask you for a commit msg - I will commit myself. The message you pass to me should include the commands: git add and git commit -m
-The commit message must include the Linear issue ID in the format:
-`[LIN-123] short description`. Ask me for the ID if you do not have it.
+Preferred flow for every task:
 
-The developer has a finance background and works at the intersection of finance and technology. Code quality matters here: clean design, good package structure and disciplined progression through Linear issues with references in commits. When making changes, always explain the business logic so it can be verified for regulatory correctness. Do not over-explain technical basics, but never skip the reasoning behind implementation choices.
+1. Read the relevant Linear issue before touching anything.
+2. Explain your understanding of the task and proposed approach.
+3. Wait for go-ahead before writing or changing code.
+4. Make changes one logical step at a time.
+5. After each step, explain what changed and why.
+6. At the end, list changed files, validation performed, risks, and open questions.
+
+The user manages commits manually in VS Code.
+
+Do not commit.
+
+Do not push.
+
+Do not stage files unless explicitly asked.
+
+Do not provide git commands unless explicitly asked.
+
+Do not add Claude or any AI tool as co-author.
 
 ## Things to never do without explicit permission
 
-- Refactor across multiple files in one go
-- Change data structures or schemas
-- Delete or rename anything
-- Touch `.venv/` or any environment config
-- Create new Linear tickets (suggest them, let me decide)
+- refactor across multiple files in one go
+- change data structures or schemas
+- delete or rename anything
+- touch `.venv/`
+- touch environment configuration
+- create new Linear tickets
+- edit notebooks unless the ticket says so
+- change business logic unless the ticket says so
+- change numerical outputs unless the ticket says so
+- create empty modules
+- move old notebook logic blindly into production code
 
-## Tone
+## Validation expectations
 
-This is a research and learning project. When I ask why something is done a certain way, in the code or in the regulation, take the time to explain it properly. That is part of the value.
+For code changes, run:
 
-## Hard constraints — never override
+```text
+python3 -m compileall src
+```
 
-- `VALUATION_DATE` is intentionally static at 13/05/2026. Do not change it,
-  do not suggest making it dynamic, do not add date-range logic. All analytics
-  are point-in-time by design.
-- Portfolio positions do not change across funds, except for the PE fund.
-  Do not suggest or introduce position-update logic elsewhere.
+Run relevant tests where available.
+
+For notebook-related work, confirm no notebooks were modified unless the ticket explicitly allowed it.
+
+For documentation-only work, show:
+
+```text
+git diff --stat
+```
 
 ## Code style
 
 - PEP 8 throughout.
-- Type hints on all public functions and methods.
-- Docstrings on all public classes and functions. Where a parameter has a
-  non-obvious convention (percent vs decimal, annualised vs daily), state it
-  explicitly in the docstring.
+- Type hints on public functions and methods.
+- Docstrings on public classes and functions.
+- State non-obvious conventions in docstrings, especially percent vs decimal and annualised vs daily.
 - No new dependencies without flagging first.
+- Prefer readable names and explicit function signatures.
+
+## Current Linear issues
+
+```text
+MRS-178  Add Claude refactor playbook - done
+MRS-179  Reorganize reference data and document the data workflow - done
+MRS-194  Add fund-level reference data and risk policy configuration
+MRS-180  Create risk snapshot pipeline for position-based AIFs
+MRS-181  Refactor board report to use risk snapshot pipeline
+MRS-182  Reorganize notebooks into purpose-based folders
+MRS-183  Align hedge fund risk monitoring notebook with canonical modules
+MRS-184  Align private debt risk monitoring notebook with canonical flow
+MRS-185  Align real estate risk monitoring notebook with canonical flow
+MRS-186  Review UCITS notebook for UCITS-specific risk logic
+MRS-187  Review private equity notebook for alternative asset workflow
+MRS-188  Review infrastructure notebook for alternative asset workflow
+MRS-189  Create AIFMD Annex IV reporting notebook for all AIFs
+MRS-190  Create UCITS global exposure monitoring notebook
+MRS-191  Create SFDR disclosure monitoring notebook
+MRS-192  Create PRIIPs KID generation notebook for retail-distributed funds
+MRS-193  Add project architecture README for reviewers
+```
 
 ## Scope boundary
 
-This project is a structured learning and research environment. There is a
-separate project, quant-risk-engine, that focuses on production-grade OOP
-design, QuantLib integration, and regulatory capital calculations. Do not
-suggest production patterns, refactors, or architectural changes imported
-from that context. If something works and is clear, it is good enough here.
+This project is a structured learning and research environment.
+
+There is a separate project, `quant-risk-engine`, focused on production-grade OOP design, QuantLib integration, and regulatory capital calculations.
+
+Do not import architectural patterns from that project unless explicitly requested.
+
+If something works and is clear, it is good enough here.
