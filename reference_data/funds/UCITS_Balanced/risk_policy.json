@@ -1,0 +1,18 @@
+{
+  "fund_id": "UCITS_Balanced",
+
+  "redemption_terms": null,
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": "daily_redemption",
+  "valuation_frequency": "daily",
+
+  "priips_kid": {
+    "risk_indicator": "Summary Risk Indicator (SRI)",
+    "sri_class": null,
+    "performance_scenarios": true,
+    "costs_disclosure": true
+  },
+
+  "_note": "UCITS regulatory limits (absolute VaR, relative VaR, 5/10/40 rule, counterparty limits, borrowing limits) are defined centrally in reference_data/regulation/ucits_regulatory_framework.json, not duplicated here."
+}

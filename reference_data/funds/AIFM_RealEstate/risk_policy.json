@@ -1,0 +1,28 @@
+{
+  "fund_id": "AIFM_RealEstate",
+
+  "redemption_terms": null,
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": "closed_ended",
+  "valuation_frequency": "mixed",
+
+  "var_framework": null,
+
+  "direct_property_monitoring": {
+    "track_ltv_pct": true,
+    "track_rental_yield_pct": true,
+    "track_vacancy_rate_pct": true,
+    "ltv_covenant_threshold_pct": null,
+    "vacancy_alarm_threshold_pct": null,
+    "_note": "Direct properties are valued quarterly via appraisal (not daily repricing). No daily VaR treatment. LTV, rental yield, and vacancy are primary risk indicators."
+  },
+
+  "stress_scenarios": {
+    "use_stress_testing": true,
+    "scenario_types": ["property_value", "rental_yield", "vacancy"],
+    "_note": "Stress scenarios applied to direct property portfolio only. Listed REITs and FX hedges retain daily market-data treatment."
+  },
+
+  "_note_mixed_treatment": "This fund contains direct properties (quarterly appraisal), listed REITs (daily market data), FX hedges (daily), and cash. Current policy treats as single mixed fund. Sleeve-based risk analysis is deferred to future ticket."
+}

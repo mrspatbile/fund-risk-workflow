@@ -1,0 +1,27 @@
+{
+  "fund_id": "AIFM_PrivateDebt",
+  "fund_name": "AIFM Private Debt",
+  "fund_type": "AIFM",
+  "strategy": "Direct lending to corporates",
+  "currency": "EUR",
+  "domicile": "Luxembourg",
+  "regulator": "CSSF",
+  "inception_date": "2019-06-01",
+  "target_nav_eur": 150000000,
+
+  "regulatory_classification": {
+    "is_ucits": false,
+    "is_aif": true,
+    "is_annex_iv_reportable": true,
+    "is_priips_kid_required": null,
+    "is_sfdr_article_6": null,
+    "is_sfdr_article_8": null,
+    "is_sfdr_article_9": null
+  },
+
+  "data_model": {
+    "type": "positions_based",
+    "asset_types": ["loan", "credit", "cash"],
+    "time_series_frequency": "daily"
+  }
+}

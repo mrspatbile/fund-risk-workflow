@@ -1,0 +1,27 @@
+{
+  "fund_id": "AIFM_PE_Buyout",
+  "fund_name": "AIFM PE Buyout Fund I",
+  "fund_type": "AIFM",
+  "strategy": "Buyout of mid-market corporates",
+  "currency": "EUR",
+  "domicile": "Luxembourg",
+  "regulator": "CSSF",
+  "inception_date": "2018-06-30",
+  "target_nav_eur": 400000000,
+
+  "regulatory_classification": {
+    "is_ucits": false,
+    "is_aif": true,
+    "is_annex_iv_reportable": true,
+    "is_priips_kid_required": null,
+    "is_sfdr_article_6": null,
+    "is_sfdr_article_8": null,
+    "is_sfdr_article_9": null
+  },
+
+  "data_model": {
+    "type": "alternative_asset",
+    "asset_types": ["portfolio_companies"],
+    "time_series_frequency": "quarterly"
+  }
+}

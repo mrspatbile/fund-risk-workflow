@@ -1,0 +1,40 @@
+{
+  "fund_id": "AIFM_PE_Buyout",
+
+  "redemption_terms": "Closed-ended fund",
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": "closed_ended",
+  "valuation_frequency": "quarterly",
+
+  "var_framework": null,
+
+  "fund_structure": {
+    "fund_life_years": 10,
+    "investment_period_end": "2023-12-31",
+    "committed_capital_eur": 350000000
+  },
+
+  "performance_metrics": {
+    "track_xirr": true,
+    "track_moic_dpi_rvpi": true,
+    "benchmark_pme": true
+  },
+
+  "esg_framework": {
+    "esg_data_source": "independent_appraiser",
+    "sfdr_pai_tracking": null
+  },
+
+  "unfunded_commitments": {
+    "tracking": true,
+    "limit_pct": null
+  },
+
+  "leverage": {
+    "fund_level_limit": null,
+    "project_level_via_covenants": true
+  },
+
+  "_note": "PE buyout fund uses alternative asset model (pe_companies.json). Risk management is based on company-level metrics (XIRR, MOIC, DPI, RVPI, covenant compliance) and capital deployment, not daily VaR. No daily market-data repricing."
+}

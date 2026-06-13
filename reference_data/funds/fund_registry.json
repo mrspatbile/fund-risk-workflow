@@ -1,0 +1,12 @@
+{
+  "registry_version": "1.0",
+  "last_updated": "2026-06-13",
+  "funds": [
+    "AIFM_HedgeFund",
+    "AIFM_PrivateDebt",
+    "AIFM_RealEstate",
+    "AIFM_PE_Buyout",
+    "AIFM_Infra_Core",
+    "UCITS_Balanced"
+  ]
+}

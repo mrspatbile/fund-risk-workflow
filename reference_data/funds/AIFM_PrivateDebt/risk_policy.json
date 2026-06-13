@@ -1,0 +1,22 @@
+{
+  "fund_id": "AIFM_PrivateDebt",
+
+  "redemption_terms": null,
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": null,
+  "valuation_frequency": "periodic",
+
+  "var_framework": null,
+
+  "concentration_limits_internal": {
+    "single_borrower_max_pct": 20.0,
+    "hy_exposure_max_pct": 50.0,
+    "unrated_exposure_max_pct": 10.0
+  },
+
+  "stress_scenarios": {
+    "use_stress_testing": true,
+    "scenario_types": ["credit", "issuer", "combined"]
+  }
+}

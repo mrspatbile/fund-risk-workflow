@@ -1,0 +1,27 @@
+{
+  "fund_id": "UCITS_Balanced",
+  "fund_name": "UCITS Balanced",
+  "fund_type": "UCITS",
+  "strategy": "Balanced portfolio of equities and bonds",
+  "currency": "EUR",
+  "domicile": "Luxembourg",
+  "regulator": "CSSF",
+  "inception_date": "2015-09-01",
+  "target_nav_eur": 500000000,
+
+  "regulatory_classification": {
+    "is_ucits": true,
+    "is_aif": false,
+    "is_annex_iv_reportable": false,
+    "is_priips_kid_required": true,
+    "is_sfdr_article_6": null,
+    "is_sfdr_article_8": null,
+    "is_sfdr_article_9": null
+  },
+
+  "data_model": {
+    "type": "positions_based",
+    "asset_types": ["equity", "bond", "etf", "cash"],
+    "time_series_frequency": "daily"
+  }
+}

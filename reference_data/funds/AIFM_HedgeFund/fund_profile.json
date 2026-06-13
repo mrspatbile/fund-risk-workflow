@@ -1,0 +1,27 @@
+{
+  "fund_id": "AIFM_HedgeFund",
+  "fund_name": "AIFM Hedge Fund",
+  "fund_type": "AIFM",
+  "strategy": "Long/short equity and credit",
+  "currency": "EUR",
+  "domicile": "Luxembourg",
+  "regulator": "CSSF",
+  "inception_date": "2018-01-15",
+  "target_nav_eur": 250000000,
+
+  "regulatory_classification": {
+    "is_ucits": false,
+    "is_aif": true,
+    "is_annex_iv_reportable": true,
+    "is_priips_kid_required": null,
+    "is_sfdr_article_6": null,
+    "is_sfdr_article_8": null,
+    "is_sfdr_article_9": null
+  },
+
+  "data_model": {
+    "type": "positions_based",
+    "asset_types": ["equity", "credit", "derivative", "cash", "fx"],
+    "time_series_frequency": "daily"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "fund_id": "AIFM_Infra_Core",
+
+  "redemption_terms": "Closed-ended fund",
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": "closed_ended",
+  "valuation_frequency": "quarterly",
+
+  "var_framework": null,
+
+  "fund_structure": {
+    "fund_life_years": 15,
+    "committed_capital_eur": 1200000000,
+    "drawn_capital_eur": 1020000000,
+    "management_fee_rate": 0.01
+  },
+
+  "covenant_monitoring": {
+    "track_dscr": true,
+    "track_ltv": true,
+    "track_breaches_and_waivers": true,
+    "dscr_threshold_by_asset": null,
+    "ltv_threshold_by_asset": null
+  },
+
+  "valuation_framework": {
+    "method": "yield_capitalisation",
+    "discount_rate_by_asset": "asset_specific",
+    "inflation_assumption_by_asset": "asset_specific"
+  },
+
+  "inflation_sensitivity": {
+    "track_weighted_concession_duration": true,
+    "track_inflation_linkage_by_asset": true
+  },
+
+  "sector_concentration": {
+    "monitoring": true,
+    "limit_pct": null
+  },
+
+  "leverage": {
+    "fund_level_limit": null,
+    "project_level_via_covenants": true
+  },
+
+  "esg_framework": {
+    "esg_data_source": "independent_appraiser",
+    "sfdr_pai_tracking": null
+  },
+
+  "_note": "Infrastructure fund uses alternative asset model (infra_assets.json). Risk management is based on asset-level metrics (DSCR, LTV, concession duration, inflation linkage, regulatory framework) and valuation via yield capitalisation with asset-specific assumptions. No daily VaR or market-based repricing."
+}

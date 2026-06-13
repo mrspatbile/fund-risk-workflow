@@ -1,0 +1,52 @@
+{
+  "fund_id": "AIFM_HedgeFund",
+
+  "redemption_terms": null,
+  "notice_period_days": null,
+  "lockup_days": null,
+  "liquidity_profile": null,
+  "valuation_frequency": "daily",
+
+  "var_framework": {
+    "use_var": true,
+    "confidence_level": 0.99,
+    "holding_period_days": 20,
+    "lookback_period_days": 250,
+    "models": ["historical", "parametric"],
+    "parametric_distribution": "student_t",
+    "parametric_degrees_of_freedom": 5,
+    "scaling_method": "sqrt_time"
+  },
+
+  "backtesting": {
+    "use_backtesting": true,
+    "observation_window": 250,
+    "tests": ["kupiec_pof", "christoffersen"],
+    "breach_rate_thresholds": {
+      "acceptable_pct": 1.0,
+      "monitor_pct": 2.0
+    }
+  },
+
+  "leverage_limits_internal": {
+    "gross_leverage_max": 3.00,
+    "commitment_leverage_max": 2.00
+  },
+
+  "concentration_limits_internal": {
+    "single_issuer_max_pct": 25.0
+  },
+
+  "stress_scenarios": {
+    "use_stress_testing": true,
+    "scenario_types": ["equity", "rates", "credit", "fx", "combined", "historical"]
+  },
+
+  "investor_concentration_monitoring": {
+    "single_investor_threshold_pct": 20.0,
+    "top_3_investors_threshold_pct": 50.0,
+    "_note": "Internal liquidity-risk monitoring thresholds. Not regulatory disclosure thresholds."
+  },
+
+  "_note_var_framework": "VaR parameters (99% confidence, 20-day holding period, 250-day lookback, student-t distribution) are internal fund-level risk management choices for monitoring daily market risk exposure. They are not universal statutory AIFMD requirements; fund strategy and liquidity profile justify these parameters for daily-traded portfolios of equities, credit, and derivatives."
+}
