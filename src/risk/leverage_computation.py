@@ -14,6 +14,8 @@ import pandas as pd
 from typing import Tuple, Dict
 from src.data.database import get_engine, Position
 from sqlalchemy.orm import Session
+from src.risk.leverage_config import INSTRUMENT_SOURCE
+
 
 
 def build_bbg_maps(fund_id: str) -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -236,7 +238,6 @@ def compute_leverage(
 def compute_granular_leverage_breakdown(
     risk_df: pd.DataFrame,
     nav: float,
-    instrument_source: Dict,
     borrowings_eur: float = 0.0,
 ) -> pd.DataFrame:
     """
@@ -252,9 +253,7 @@ def compute_granular_leverage_breakdown(
         Risk-ready positions with asset_class, sub_asset_class, gross_exposure columns
     nav : float
         Fund NAV in EUR
-    instrument_source : dict
-        Mapping {(asset_class, sub_asset_class) → (source, listed_otc)}
-        e.g., from leverage_config.INSTRUMENT_SOURCE
+
     borrowings_eur : float, optional
         Total borrowings in EUR. Default 0.
 
@@ -264,6 +263,9 @@ def compute_granular_leverage_breakdown(
         Granular breakdown with columns: asset_class, sub_asset_class, gross_eur,
         n_positions, gross_x_nav, source, listed_otc
     """
+
+    instrument_source = INSTRUMENT_SOURCE
+    
     # Group by asset class and sub-asset class
     granular = risk_df.groupby(['asset_class', 'sub_asset_class']).agg(
         gross_eur=('gross_exposure', 'sum'),
