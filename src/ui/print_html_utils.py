@@ -706,23 +706,58 @@ def display_leverage(risk_df, deriv_notional_commitment, commitment_exposure,
     )
 
 
-def display_var_es(var_1d, var_20d, es_1d, es_20d, NAV, model: str = 'Historical', valuation_date: str = None):
-    # Column names are pre-set to their final display form so _fmt_col leaves them
-    # unchanged. \n renders as a line break via white-space: pre-wrap on thead th.
-    # (EUR) already contains '(eur)' so the EUR-detection block in _fmt_col is skipped.
-    _c = ['Metric', '1D\n(% NAV)', '20D\n(% NAV)', '1D\n(EUR)', '20D\n(EUR)']
-    df = pd.DataFrame([
-        (f'VaR {model}', f'{var_1d*100:.2f}%',  f'{var_20d*100:.2f}%',
-         f'{var_1d*NAV:,.0f}',  f'{var_20d*NAV:,.0f}'),
-        (f'ES {model}',  f'{es_1d*100:.2f}%',   f'{es_20d*100:.2f}%',
-         f'{es_1d*NAV:,.0f}',   f'{es_20d*NAV:,.0f}'),
-    ], columns=_c)
-    caption = f'VaR & Expected Shortfall ({model})'
+def display_var_es(var_result: dict, valuation_date: str = None):
+    """
+    Display VaR and ES from var_result dict.
+
+    Auto-detects which metrics are present (historical vs parametric) based on dict keys.
+    If both are present, displays both in a single table.
+    Extracts nav, horizon, and valuation_date from var_result.
+
+    Parameters
+    ----------
+    var_result : dict
+        Dictionary containing VaR/ES metrics from compute_fixed_position_var_1day()
+        Must include: nav_eur, var_result metadata (horizon, etc.)
+    valuation_date : str, optional
+        Override valuation_date from var_result (for display only)
+    """
+    nav = var_result.get('nav_eur', 0)
+    horizon = var_result.get('horizon', 20)
+    display_date = valuation_date or var_result.get('valuation_date')
+
+    _c = ['Metric', '1D\n(% NAV)', f'{horizon}D\n(% NAV)', '1D\n(EUR)', f'{horizon}D\n(EUR)']
+    rows = []
+
+    # Check for historical metrics
+    if 'var_hist_pct' in var_result:
+        var_1d = var_result.get('var_hist_pct', 0)
+        var_scaled = var_result.get('var_hist_scaled_pct', 0)
+        es_1d = var_result.get('es_hist_pct', 0)
+        es_scaled = var_result.get('es_hist_scaled_pct', 0)
+        rows.append((f'VaR Historical', f'{var_1d*100:.2f}%',  f'{var_scaled*100:.2f}%',
+                     f'{var_1d*nav:,.0f}',  f'{var_scaled*nav:,.0f}'))
+        rows.append((f'ES Historical',  f'{es_1d*100:.2f}%',   f'{es_scaled*100:.2f}%',
+                     f'{es_1d*nav:,.0f}',   f'{es_scaled*nav:,.0f}'))
+
+    # Check for parametric metrics
+    if 'var_param_pct' in var_result:
+        var_1d = var_result.get('var_param_pct', 0)
+        var_scaled = var_result.get('var_param_scaled_pct', 0)
+        es_1d = var_result.get('es_param_pct', 0)
+        es_scaled = var_result.get('es_param_scaled_pct', 0)
+        rows.append((f'VaR Parametric', f'{var_1d*100:.2f}%',  f'{var_scaled*100:.2f}%',
+                     f'{var_1d*nav:,.0f}',  f'{var_scaled*nav:,.0f}'))
+        rows.append((f'ES Parametric',  f'{es_1d*100:.2f}%',   f'{es_scaled*100:.2f}%',
+                     f'{es_1d*nav:,.0f}',   f'{es_scaled*nav:,.0f}'))
+
+    df = pd.DataFrame(rows, columns=_c)
+    caption = 'VaR & Expected Shortfall'
     display_dark_table(
         df,
         caption=caption,
         col_align_override={c: 'right' for c in _c[1:]},
-        date_str=valuation_date,
+        date_str=display_date,
     )
 
 def display_backtest_report(report, window_size=250, valuation_date: str | None = None, model: str = "Historical"):

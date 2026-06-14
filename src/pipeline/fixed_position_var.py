@@ -142,6 +142,7 @@ def compute_var_from_pnl(
     confidence: float = 0.99,
     horizon: int = 1,
     df: int | None = None,
+    valuation_date: str | None = None,
 ) -> dict:
     """
     Step 2: Compute historical and parametric VaR and ES from P&L series.
@@ -168,11 +169,11 @@ def compute_var_from_pnl(
     Returns
     -------
     dict
-        Historical VaR/ES: var_pct, var_eur, es_pct, es_eur, var_scaled_pct, var_scaled_eur,
-                           es_scaled_pct, es_scaled_eur
+        Historical VaR/ES: var_hist_pct, var_hist_eur, es_hist_pct, es_hist_eur,
+                           var_hist_scaled_pct, var_hist_scaled_eur, es_hist_scaled_pct, es_hist_scaled_eur
         Parametric VaR/ES: var_param_pct, var_param_eur, es_param_pct, es_param_eur,
                            var_param_scaled_pct, var_param_scaled_eur, es_param_scaled_pct, es_param_scaled_eur
-        Metadata: n_observations, distribution, mu, sigma, df_used
+        Metadata: nav_eur, n_observations, distribution, mu, sigma, df_used, confidence, horizon, valuation_date
     """
     # Historical VaR
     var_1d_pct = var_historical(pnl_returns, confidence=confidence)
@@ -209,14 +210,14 @@ def compute_var_from_pnl(
     return {
         'nav_eur': nav_eur,
         # Historical
-        'var_pct': var_1d_pct,
-        'var_eur': nav_eur * var_1d_pct,
-        'es_pct': es_1d_pct,
-        'es_eur': nav_eur * es_1d_pct,
-        'var_scaled_pct': var_scaled_pct,
-        'var_scaled_eur': nav_eur * var_scaled_pct,
-        'es_scaled_pct': es_scaled_pct,
-        'es_scaled_eur': nav_eur * es_scaled_pct,
+        'var_hist_pct': var_1d_pct,
+        'var_hist_eur': nav_eur * var_1d_pct,
+        'es_hist_pct': es_1d_pct,
+        'es_hist_eur': nav_eur * es_1d_pct,
+        'var_hist_scaled_pct': var_scaled_pct,
+        'var_hist_scaled_eur': nav_eur * var_scaled_pct,
+        'es_hist_scaled_pct': es_scaled_pct,
+        'es_hist_scaled_eur': nav_eur * es_scaled_pct,
         # Parametric
         'var_param_pct': var_param_1d_pct,
         'var_param_eur': nav_eur * var_param_1d_pct,
@@ -232,6 +233,9 @@ def compute_var_from_pnl(
         'mu': mu,
         'sigma': sigma,
         'df_used': df_used,
+        'confidence': confidence,
+        'horizon': horizon,
+        'valuation_date': valuation_date,
     }
 
 
@@ -278,6 +282,6 @@ def compute_fixed_position_var_1day(
     )
 
     if isinstance(confidence, list):
-        return [compute_var_from_pnl(pnl_returns, nav, c, horizon, df=df) for c in confidence]
+        return [compute_var_from_pnl(pnl_returns, nav, c, horizon, df=df, valuation_date=valuation_date) for c in confidence]
     else:
-        return compute_var_from_pnl(pnl_returns, nav, confidence, horizon, df=df)
+        return compute_var_from_pnl(pnl_returns, nav, confidence, horizon, df=df, valuation_date=valuation_date)

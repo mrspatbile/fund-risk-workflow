@@ -2,7 +2,7 @@
   "fund_id": "AIFM_HedgeFund",
 
   "redemption_terms": null,
-  "notice_period_days": null,
+  "notice_period_days": 5,
   "lockup_days": null,
   "liquidity_profile": null,
   "valuation_frequency": "daily",
