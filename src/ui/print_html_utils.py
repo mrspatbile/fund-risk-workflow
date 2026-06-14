@@ -27,6 +27,7 @@ def display_dark_table(
     spacer_width              : str | None = None,  # e.g. '100px' — adds invisible spacer column
     date_str                  : str | None = None,  # e.g. '2026-05-13' — shown below caption
     date_label                : str        = 'As of',  # label for the date line
+    hide_header               : bool       = False,  # hide column headers by matching text to background
 ):
     """
     Render a DataFrame as a dark-themed styled HTML table in Jupyter.
@@ -164,6 +165,21 @@ def display_dark_table(
         aligns[df.columns[0]] = 'left'
         return aligns
 
+    # Build header styles — optionally hidden
+    thead_props = [
+        ('background-color', '#2F3245'),
+        ('font-family',      'Arial, sans-serif'),
+        ('font-size',        '1px' if hide_header else '10px'),
+        ('font-weight',      'bold'),
+        ('padding',          '0px' if hide_header else '6px 12px'),
+        ('border-bottom',    '2px solid #0f1729'),
+        ('color',            '#2F3245' if hide_header else '#a5cfdf'),  # match background if hidden
+        ('letter-spacing',   '0.05em'),
+        ('text-transform',   'uppercase'),
+        ('white-space',      'pre-wrap'),
+        ('line-height',      '1px' if hide_header else 'normal'),
+    ]
+
     table_styles = [
         {'selector': 'caption', 'props': [
             ('color',            C['cyan']),
@@ -174,18 +190,7 @@ def display_dark_table(
             ('padding-bottom',   '8px'),
             ('background-color', '#1a2540'),
         ]},
-        {'selector': 'thead th', 'props': [
-            ('background-color', '#2F3245'),
-            ('font-family',      'Arial, sans-serif'),
-            ('font-size',        '10px'),
-            ('font-weight',      'bold'),
-            ('padding',          '6px 12px'),
-            ('border-bottom',    '2px solid #0f1729'),
-            ('color',            '#a5cfdf'),
-            ('letter-spacing',   '0.05em'),
-            ('text-transform',   'uppercase'),
-            ('white-space',      'pre-wrap'),
-        ]},
+        {'selector': 'thead th', 'props': thead_props},
         {'selector': 'td', 'props': [
             ('padding',       '5px 12px'),
             ('border-bottom', '1px solid #0f1729'),
@@ -251,7 +256,7 @@ def display_dark_table(
 
     if caption:
         if date_str:
-            caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999;">{date_label}: {date_str}</span>'
+            caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999;">{date_label} {date_str}</span>'
         styled = styled.set_caption(caption)
     if fmt_remapped:
         styled = styled.format(fmt_remapped, na_rep='—')
@@ -265,9 +270,10 @@ def display_dark_table(
 
 def display_fund_rmp_parameters(fund_id: str, engine):
     """
-    Display fund's Risk Management Policy parameters (verbatim from reference data).
+    Display fund's Risk Management Policy parameters grouped by section.
 
-    Reads fund's risk_policy.json and displays all parameters as defined.
+    Reads fund's risk_policy.json and displays all parameters grouped by
+    top-level sections (var_framework, leverage_limits, etc.).
     Adapts to any fund type (AIFM, UCITS, PE, private debt, real estate, etc).
     Internal notes (_note_*) shown at bottom.
 
@@ -290,38 +296,170 @@ def display_fund_rmp_parameters(fund_id: str, engine):
     rows = []
     notes = []
 
-    def flatten_dict(d, prefix=''):
-        """Recursively flatten nested dicts into rows."""
-        for key, value in d.items():
-            full_key = f"{prefix}{key}" if prefix else key
+    # Section title mappings (maps actual JSON keys to display titles)
+    section_titles = {
+        'var_framework': 'VaR Framework',
+        'expected_shortfall': 'Expected Shortfall',
+        'backtesting': 'VaR Backtesting',
+        'var_backtesting': 'VaR Backtesting',
+        'leverage_limits': 'Leverage Limits',
+        'leverage_limits_internal': 'Leverage Limits',
+        'concentration_limits': 'Concentration Limits',
+        'concentration_limits_internal': 'Concentration Limits',
+        'stress_testing': 'Stress Testing',
+        'stress_scenarios': 'Stress Testing',
+        'investor_concentration': 'Investor Concentration Monitoring',
+        'investor_concentration_monitoring': 'Investor Concentration Monitoring',
+        'liquidity_monitoring': 'Liquidity Monitoring',
+        'redemption_terms': 'Redemption Terms',
+    }
 
-            if key.startswith('_'):  # Collect notes for bottom
-                notes.append((key.lstrip('_'), value if isinstance(value, str) else str(value)))
-                continue
+    # Top-level field mappings (non-nested fields)
+    top_level_fields = {
+        'fund_id': 'Fund ID',
+        'liquidity_profile': 'Liquidity Profile',
+        'valuation_frequency': 'Valuation Frequency',
+        'notice_period_days': 'Notice Period',
+        'lockup_days': 'Lockup Period',
+    }
 
-            # Skip empty values
-            if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
-                continue
+    # Field name to readable label conversions
+    field_labels = {
+        'confidence_level': 'Confidence level',
+        'holding_period_days': 'Holding period',
+        'lookback_period_days': 'Lookback period',
+        'models': 'Models',
+        'distribution': 'Distribution',
+        'observation_window': 'Observation window',
+        'tests': 'Tests',
+        'acceptable_breach_rate': 'Acceptable breach rate',
+        'monitoring_threshold': 'Monitoring threshold',
+        'gross_leverage': 'Gross leverage',
+        'commitment_leverage': 'Commitment leverage',
+        'notional_leverage': 'Notional leverage',
+        'single_issuer': 'Single issuer',
+        'single_sector': 'Single sector',
+        'single_country': 'Single country',
+        'enabled': 'Enabled',
+        'scenario_types': 'Scenario types',
+        'single_investor_threshold': 'Single investor threshold',
+        'top_3_investors_threshold': 'Top 3 investors threshold',
+        'top_5_investors_threshold': 'Top 5 investors threshold',
+        'structure': 'Structure',
+        'redemption_frequency': 'Redemption frequency',
+        'redemption_notice_days': 'Redemption notice',
+        'redemption_settlement_days': 'Settlement',
+        'display': 'Display',
+        'liquidity_profile': 'Liquidity profile',
+        'valuation_frequency': 'Valuation frequency',
+        'breach_rate_thresholds': 'Breach rate thresholds',
+        'acceptable_pct': 'Acceptable',
+        'monitor_pct': 'Monitor',
+        'parametric_distribution': 'Distribution',
+        'parametric_degrees_of_freedom': 'Degrees of freedom',
+        'scaling_method': 'Scaling method',
+        'use_var': 'Use VaR',
+        'use_backtesting': 'Use backtesting',
+        'use_stress_testing': 'Use stress testing',
+        'gross_leverage_max': 'Gross leverage',
+        'commitment_leverage_max': 'Commitment leverage',
+        'single_issuer_max_pct': 'Single issuer',
+        'single_investor_threshold_pct': 'Single investor threshold',
+        'top_3_investors_threshold_pct': 'Top 3 investors threshold',
+        'top_5_investors_threshold_pct': 'Top 5 investors threshold',
+        'scenario_types': 'Scenario types',
+    }
 
-            if isinstance(value, dict):
-                flatten_dict(value, f"{full_key}.")
-            elif isinstance(value, list):
-                rows.append((full_key, ', '.join(str(v) for v in value)))
-            elif isinstance(value, bool):
-                rows.append((full_key, 'Yes' if value else 'No'))
-            else:
-                # Format large numbers with thousands separators
-                if isinstance(value, (int, float)) and abs(value) >= 1_000_000:
-                    formatted_value = f"{int(value):,}"
+    def format_value(value, field_name=''):
+        """Format a value for display."""
+        if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
+            return None
+
+        if isinstance(value, bool):
+            return 'Yes' if value else 'No'
+        elif isinstance(value, list):
+            return ', '.join(str(v) for v in value)
+        elif isinstance(value, (int, float)):
+            # Format as percentage if field name contains 'pct'
+            if 'pct' in field_name.lower():
+                return f'{value:.1f}%'
+            # Format as leverage multiplier if field name contains 'leverage'
+            if 'leverage' in field_name.lower():
+                return f'{value:.2f}x'
+            # Format large numbers with thousands separators
+            if abs(value) >= 1_000_000:
+                return f"{int(value):,}"
+            return str(value)
+        else:
+            return str(value)
+
+    def readable_label(field_name):
+        """Convert field name to readable label."""
+        return field_labels.get(field_name, field_name.replace('_', ' ').title())
+
+    # First, process top-level fields
+    top_level_section_added = False
+    for field_key, field_title in top_level_fields.items():
+        if field_key in rmp:
+            field_value = rmp[field_key]
+            formatted = format_value(field_value, field_key)
+            if formatted is not None:
+                if not top_level_section_added:
+                    rows.append(('Fund Parameters', ''))
+                    top_level_section_added = True
+                label = field_title
+                rows.append((f'  {label}', formatted))
+
+    if top_level_section_added:
+        rows.append(('', ''))  # Spacer
+
+    # Process each top-level section (nested objects)
+    for section_key, section_title in section_titles.items():
+        if section_key not in rmp:
+            continue
+
+        section_data = rmp[section_key]
+        if not section_data or (isinstance(section_data, dict) and all(
+            k.startswith('_') or v is None or v == '' or (isinstance(v, list) and len(v) == 0)
+            for k, v in section_data.items()
+        )):
+            continue
+
+        # Add section header
+        rows.append((section_title, ''))
+
+        # Add parameters under section
+        if isinstance(section_data, dict):
+            for param_key, param_value in section_data.items():
+                # Skip notes and empty values
+                if param_key.startswith('_'):
+                    notes.append((param_key.lstrip('_'), param_value if isinstance(param_value, str) else str(param_value)))
+                    continue
+
+                # Handle nested dicts by flattening into comma-separated string
+                if isinstance(param_value, dict):
+                    label = readable_label(param_key)
+                    sub_items = []
+                    for sub_key, sub_value in param_value.items():
+                        if not sub_key.startswith('_'):
+                            formatted = format_value(sub_value, sub_key)
+                            if formatted is not None:
+                                sub_label = readable_label(sub_key)
+                                sub_items.append(f'{sub_label}: {formatted}')
+                    if sub_items:
+                        rows.append((f'  {label}', ', '.join(sub_items)))
                 else:
-                    formatted_value = str(value)
-                rows.append((full_key, formatted_value))
+                    formatted = format_value(param_value, param_key)
+                    if formatted is not None:
+                        # Indent parameter name
+                        label = readable_label(param_key)
+                        rows.append((f'  {label}', formatted))
 
-    flatten_dict(rmp)
+        # Add spacer after section
+        rows.append(('', ''))
 
     # Add notes at bottom with text wrapping
     if notes:
-        rows.append(('', ''))  # Spacer
         for note_key, note_value in notes:
             # Wrap long notes at word boundaries (max 100 chars per line)
             if len(note_value) > 100:
@@ -348,6 +486,16 @@ def display_fund_rmp_parameters(fund_id: str, engine):
             rows.append((f"Note: {note_key}", note_value))
 
     if rows:
+        # Remove trailing empty rows
+        while rows and rows[-1] == ('', ''):
+            rows.pop()
+
+        # Find section header rows (no indentation, no notes)
+        highlight_indices = []
+        for idx, (param, value) in enumerate(rows):
+            if param and not param.startswith('  ') and not param.startswith('Note:') and value == '':
+                highlight_indices.append(idx)
+
         df = pd.DataFrame(rows, columns=['Parameter', 'Value'])
 
         display_dark_table(
@@ -355,6 +503,14 @@ def display_fund_rmp_parameters(fund_id: str, engine):
             caption='Risk Management Policy Parameters',
             col_align_override={'Value': 'left'},
             col_widths={'Parameter': '250px', 'Value': '320px'},
+            highlight_rows=highlight_indices,
+            col_styles={
+                'Parameter': lambda v: (
+                    C['muted'] if isinstance(v, str) and v and not v.startswith('  ') and not v.startswith('Note:')
+                    else None
+                ),
+            },
+            hide_header=True,
         )
     else:
         display(HTML("<div style='color: #999; font-size: 12px;'>No RMP parameters defined.</div>"))
@@ -422,6 +578,9 @@ def display_fund_overview_banner(fund_id: str, engine):
 
 
 def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valuation_date: str | None = None):
+    if valuation_date is None:
+        valuation_date = VALUATION_DATE
+
     mask_long = risk_df['market_value_eur'] >= 0
     long_exp  = risk_df[mask_long]['market_value_eur'].sum()
     short_exp = risk_df[~mask_long]['market_value_eur'].sum()

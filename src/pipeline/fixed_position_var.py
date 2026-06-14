@@ -141,9 +141,14 @@ def compute_var_from_pnl(
     nav_eur: float,
     confidence: float = 0.99,
     horizon: int = 1,
+    df: int | None = None,
 ) -> dict:
     """
     Step 2: Compute historical and parametric VaR and ES from P&L series.
+
+    Parametric VaR can use either:
+    - Fitted Student-t df from the distribution (if df=None)
+    - A predetermined df value (if df is specified, e.g., df=5)
 
     Parameters
     ----------
@@ -155,6 +160,10 @@ def compute_var_from_pnl(
         Confidence level (0-1)
     horizon : int, default 1
         Holding period in days (scales using sqrt(horizon))
+    df : int or None, default None
+        Degrees of freedom for Student-t distribution.
+        If None, df is fitted from the distribution using maximum likelihood.
+        If specified (e.g., 5), that value is used directly for parametric VaR.
 
     Returns
     -------
@@ -163,7 +172,7 @@ def compute_var_from_pnl(
                            es_scaled_pct, es_scaled_eur
         Parametric VaR/ES: var_param_pct, var_param_eur, es_param_pct, es_param_eur,
                            var_param_scaled_pct, var_param_scaled_eur, es_param_scaled_pct, es_param_scaled_eur
-        Metadata: n_observations, distribution, mu, sigma
+        Metadata: n_observations, distribution, mu, sigma, df_used
     """
     # Historical VaR
     var_1d_pct = var_historical(pnl_returns, confidence=confidence)
@@ -176,13 +185,19 @@ def compute_var_from_pnl(
         var_scaled_pct = var_1d_pct
         es_scaled_pct = es_1d_pct
 
-    # Parametric VaR: fit student-t distribution
+    # Parametric VaR: fit mu and sigma; df is either fitted or predetermined
     mu = np.mean(pnl_returns)
     sigma = np.std(pnl_returns, ddof=1)  # Sample std dev
-    df = 5  # Degrees of freedom (from RMP)
 
-    var_param_1d_pct = var_parametric(mu, sigma, confidence, dist='t', df=df)
-    es_param_1d_pct = es_parametric(sigma, mu=mu, confidence=confidence, dist='t', df=df)
+    # Determine df: fit from distribution or use predetermined value
+    if df is None:
+        df_used = int(stats.t.fit(pnl_returns)[0])  # Fit df from distribution
+        df_used = max(2, df_used)  # Ensure df >= 2 for practical stability
+    else:
+        df_used = df  # Use the provided value
+
+    var_param_1d_pct = var_parametric(mu, sigma, confidence, dist='t', df=df_used)
+    es_param_1d_pct = es_parametric(sigma, mu=mu, confidence=confidence, dist='t', df=df_used)
 
     if horizon > 1:
         var_param_scaled_pct = var_scale(var_param_1d_pct, horizon=horizon)
@@ -216,6 +231,7 @@ def compute_var_from_pnl(
         'distribution': pnl_returns,
         'mu': mu,
         'sigma': sigma,
+        'df_used': df_used,
     }
 
 
@@ -226,6 +242,7 @@ def compute_fixed_position_var_1day(
     lookback: int = 250,
     confidence: float | list = 0.99,
     horizon: int = 1,
+    df: int | None = None,
 ) -> dict | list:
     """
     Compute 1-day fixed-position VaR at one or multiple confidence levels.
@@ -244,6 +261,10 @@ def compute_fixed_position_var_1day(
         Single confidence level (0.99) or list ([0.95, 0.975, 0.99])
     horizon : int, default 1
         Holding period in days
+    df : int or None, default None
+        Degrees of freedom for Student-t parametric VaR.
+        If None, df is fitted from the distribution.
+        If specified (e.g., 5), that value is used directly.
 
     Returns
     -------
@@ -257,6 +278,6 @@ def compute_fixed_position_var_1day(
     )
 
     if isinstance(confidence, list):
-        return [compute_var_from_pnl(pnl_returns, nav, c, horizon) for c in confidence]
+        return [compute_var_from_pnl(pnl_returns, nav, c, horizon, df=df) for c in confidence]
     else:
-        return compute_var_from_pnl(pnl_returns, nav, confidence, horizon)
+        return compute_var_from_pnl(pnl_returns, nav, confidence, horizon, df=df)

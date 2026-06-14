@@ -507,6 +507,7 @@ def _check_aifm_hf(
     currency_bbg_map: dict | None = None,
     positions_before: pd.DataFrame | None = None,
     nav_before: float | None = None,
+    rmp: dict | None = None,
 ) -> tuple:
     breaches: list = []
     metrics:  dict = {}
@@ -526,15 +527,19 @@ def _check_aifm_hf(
         'deriv_notional_commitment' : lev['deriv_notional_commitment'],
         'borrowings'                : lev['borrowings'],
     })
-    if lev['gross_leverage'] > 3.00:
+    # Leverage limits from RMP or defaults
+    gross_lev_max = rmp['leverage_limits_internal']['gross_leverage_max'] if rmp else 3.00
+    commit_lev_max = rmp['leverage_limits_internal']['commitment_leverage_max'] if rmp else 2.00
+
+    if lev['gross_leverage'] > gross_lev_max:
         breaches.append(_breach(
-            'gross_leverage', 3.00, lev['gross_leverage'], 'x NAV',
-            f"Post-trade gross leverage {lev['gross_leverage']:.2f}x exceeds 300% NAV RMP limit"
+            'gross_leverage', gross_lev_max, lev['gross_leverage'], 'x NAV',
+            f"Post-trade gross leverage {lev['gross_leverage']:.2f}x exceeds {gross_lev_max*100:.0f}% NAV RMP limit"
         ))
-    if lev['commitment_leverage'] > 2.00:
+    if lev['commitment_leverage'] > commit_lev_max:
         breaches.append(_breach(
-            'commitment_leverage', 2.00, lev['commitment_leverage'], 'x NAV',
-            f"Post-trade commitment leverage {lev['commitment_leverage']:.2f}x exceeds 200% NAV RMP limit"
+            'commitment_leverage', commit_lev_max, lev['commitment_leverage'], 'x NAV',
+            f"Post-trade commitment leverage {lev['commitment_leverage']:.2f}x exceeds {commit_lev_max*100:.0f}% NAV RMP limit"
         ))
 
     # [3] Single-issuer concentration — 25% NAV RMP limit
@@ -552,12 +557,15 @@ def _check_aifm_hf(
     else:
         metrics['trade_issuer_pct'] = 0.0
 
-    for issuer, pct in issuer_exp[issuer_exp > 25.0].items():
+    # Single-issuer concentration limit from RMP or default
+    issuer_conc_max = rmp['concentration_limits_internal']['single_issuer_max_pct'] if rmp else 25.0
+
+    for issuer, pct in issuer_exp[issuer_exp > issuer_conc_max].items():
         pre_pct = float(pre_issuer_exp.get(issuer, 0.0))
         if pct > pre_pct:
             breaches.append(_breach(
-                'issuer_concentration', 25.0, float(pct), '% NAV',
-                f'Issuer {issuer}: {pct:.1f}% NAV exceeds RMP single-issuer limit 25% (was {pre_pct:.1f}%)'
+                'issuer_concentration', issuer_conc_max, float(pct), '% NAV',
+                f'Issuer {issuer}: {pct:.1f}% NAV exceeds RMP single-issuer limit {issuer_conc_max}% (was {pre_pct:.1f}%)'
             ))
 
     # [4] Sector concentration — 30% NAV internal RMP limit
@@ -739,6 +747,7 @@ def pre_trade_check(
     bbg=None,
     deriv_bbg_map: dict | None = None,
     currency_bbg_map: dict | None = None,
+    rmp: dict | None = None,
 ) -> dict:
     """
     Pre-trade compliance check for UCITS and AIFM funds.
@@ -828,6 +837,7 @@ def pre_trade_check(
             currency_bbg_map=currency_bbg_map,
             positions_before=positions,
             nav_before=nav,
+            rmp=rmp,
         )
         # Pre-trade baseline metrics for side-by-side comparison in reports.
         _pre_lev = compute_leverage(positions, nav, bbg=bbg,

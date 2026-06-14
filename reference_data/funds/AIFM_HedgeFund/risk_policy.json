@@ -33,6 +33,11 @@
     "commitment_leverage_max": 2.00
   },
 
+  "liquidity_monitoring": {
+    "liquidity_stress_multiplier": 5,
+    "pct_adv": 0.25
+  },
+
   "concentration_limits_internal": {
     "single_issuer_max_pct": 25.0
   },
