@@ -416,40 +416,6 @@ AIFM_Infra_Core
 AIFM_RealEstate
 ```
 
-## Built so far
-
-The project currently includes examples for:
-
-- UCITS balanced fund
-- AIFM hedge fund
-- AIFM private debt fund
-- AIFM real estate fund
-- AIFM PE buyout fund
-- AIFM infrastructure core fund
-
-Risk and analytics modules include:
-
-- historical VaR
-- parametric VaR
-- Monte Carlo-style examples where present
-- Expected Shortfall
-- VaR backtesting
-- Kupiec test
-- Christoffersen test
-- P&L attribution
-- stress scenarios
-- liquidity buckets
-- redemption stress
-- investor concentration
-- liquidity-adjusted VaR
-- leverage calculation
-- ESG indicators
-- PE analytics
-- infrastructure analytics
-- covenant tracking
-- Annex IV reporting
-- board reporting
-
 ## Reporting and disclosure distinction
 
 Regulatory reporting includes:

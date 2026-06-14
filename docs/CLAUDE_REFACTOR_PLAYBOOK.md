@@ -4,7 +4,7 @@
 
 This repository is `fund-risk-workflow`.
 
-The goal is to make the project clean, professional, and understandable for technical reviewers, ManCo stakeholders, and consulting or risk technology hiring managers.
+The goal is to make the project clean, professional, and understandable for technical reviewers, ManCo stakeholders, and consulting or risk technology managers.
 
 The repo should show clear separation between:
 
@@ -355,75 +355,7 @@ MRS-192  Create PRIIPs KID generation notebook for retail-distributed funds
 MRS-193  Add project architecture README for reviewers
 ```
 
-## Exploration vs Decision Rule
-
-Before presenting conclusions, classify the work as either:
-
-### EXPLORATION
-
-Use this when:
-
-* inspecting the codebase
-* auditing notebooks
-* investigating data flows
-* reviewing regulatory interpretation
-* identifying potential issues
-* proposing future designs
-* answering architectural questions
-* analysing naming, methodology, or modelling choices
-
-Explorations are provisional.
-
-They may be incomplete, incorrect, or superseded by later findings.
-
-Therefore:
-
-* Do not update `REFACTOR_DIAGNOSTIC.md`
-* Do not create permanent documentation
-* Do not describe findings as final architecture decisions
-* Report findings only in the chat response
-* Clearly state assumptions and uncertainty
-
-### DECISION
-
-Use this when:
-
-* a refactor is implemented
-* architecture changes are accepted
-* modules are moved
-* responsibilities are reassigned
-* notebook structure is approved
-* a design choice has been agreed
-
-Decisions may be recorded in `REFACTOR_DIAGNOSTIC.md`.
-
-### Documentation Rule
-
-`REFACTOR_DIAGNOSTIC.md` is for:
-
-* implemented refactors
-* completed architecture changes
-* accepted design decisions
-
-It is not for:
-
-* audits
-* investigations
-* codebase exploration
-* open questions
-* possible future work
-* speculative findings
-
-Rule of thumb:
-
-```text
-Question → chat response only
-Exploration → chat response only
-Decision → documentation
-Implementation → documentation
-```
-
-### Commit Rule
+## Commit Rule
 
 Never commit.
 

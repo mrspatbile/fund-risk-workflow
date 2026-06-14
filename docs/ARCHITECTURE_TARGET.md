@@ -120,25 +120,6 @@ Rules:
 * keep rendering separate from computation
 * do not place business logic in UI helpers
 
-## Notebook layout
-
-Target notebook layout:
-
-```text
-notebooks/
-├── fund_risk_monitoring/
-├── regulatory_reporting/
-├── investor_disclosures/
-├── governance_reporting/
-└── data_workflows/
-```
-
-Do not use:
-
-```text
-internal_risk/
-exploratory/
-```
 
 ### Notebook folder meaning
 
@@ -155,18 +136,6 @@ aifm_real_estate.ipynb
 ucits_balanced.ipynb
 aifm_pe_buyout.ipynb
 aifm_infra_core.ipynb
-```
-
-`regulatory_reporting/`
-
-Regulatory reporting workflows.
-
-Examples:
-
-```text
-aifmd_annex_iv.ipynb
-ucits_global_exposure.ipynb
-emir_controls.ipynb
 ```
 
 `investor_disclosures/`
@@ -452,9 +421,7 @@ The pipeline should compute raw metrics, not automatically apply fund-specific r
 
 ### Real estate
 
-`AIFM_RealEstate` is a mixed fund.
-
-It may contain:
+`AIFM_RealEstate` is a mixed fund containing:
 
 ```text
 direct properties
@@ -467,18 +434,9 @@ Do not blindly treat the whole fund as a liquid VaR portfolio.
 
 Do not blindly move all holdings into `re_*` tables.
 
-Future treatment should likely separate:
-
-```text
-direct property sleeve
-listed REIT sleeve
-FX hedge sleeve
-cash sleeve
-```
-
 Direct-property appraisal and real estate risk metrics should be distinguished from daily traded-security metrics.
 
-`AIFM_RealEstate` is accepted as closed-ended for fund-level policy configuration, but the detailed real estate schema remains a future design decision.
+`AIFM_RealEstate` is accepted as closed-ended for fund-level policy configuration.
 
 ### Private equity
 
@@ -539,55 +497,6 @@ private equity
 infrastructure
 private debt
 ```
-
-## Risk snapshot pipeline target
-
-Future module:
-
-```text
-src/pipeline/risk_snapshot.py
-```
-
-Future function:
-
-```python
-def compute_risk_snapshot(
-    engine,
-    fund_id: str,
-    valuation_date: str = "2026-05-13",
-) -> dict:
-    ...
-```
-
-Purpose:
-
-* compute raw point-in-time metrics
-* return structured results
-* support reporting and notebooks later
-
-Should include where appropriate:
-
-```text
-fund_id
-fund label
-strategy
-NAV
-MTD / YTD performance
-VaR
-Expected Shortfall
-rolling VaR
-stress metrics
-leverage metrics
-liquidity buckets
-net liquidity
-```
-
-Should not:
-
-* apply fund-specific regulatory interpretation
-* apply all limits automatically
-* force all fund types into the same model
-* edit notebooks as part of the pipeline ticket
 
 ## Reporting and disclosure separation
 
