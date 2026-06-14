@@ -231,3 +231,84 @@ def compute_leverage(
         'deriv_gross_map': deriv_gross_map,
         'risk_df': risk_df_copy,  # with gross_exposure column added
     }
+
+
+def compute_granular_leverage_breakdown(
+    risk_df: pd.DataFrame,
+    nav: float,
+    instrument_source: Dict,
+    borrowings_eur: float = 0.0,
+) -> pd.DataFrame:
+    """
+    Compute AIFMD II granular leverage breakdown by asset class and source.
+
+    Groups positions by asset_class and sub_asset_class, computes gross exposure
+    and position count, maps to instrument source (borrowing, listed, OTC), and
+    optionally appends borrowing row.
+
+    Parameters
+    ----------
+    risk_df : pd.DataFrame
+        Risk-ready positions with asset_class, sub_asset_class, gross_exposure columns
+    nav : float
+        Fund NAV in EUR
+    instrument_source : dict
+        Mapping {(asset_class, sub_asset_class) → (source, listed_otc)}
+        e.g., from leverage_config.INSTRUMENT_SOURCE
+    borrowings_eur : float, optional
+        Total borrowings in EUR. Default 0.
+
+    Returns
+    -------
+    pd.DataFrame
+        Granular breakdown with columns: asset_class, sub_asset_class, gross_eur,
+        n_positions, gross_x_nav, source, listed_otc
+    """
+    # Group by asset class and sub-asset class
+    granular = risk_df.groupby(['asset_class', 'sub_asset_class']).agg(
+        gross_eur=('gross_exposure', 'sum'),
+        n_positions=('isin', 'count'),
+    ).reset_index()
+
+    # Compute weight as multiple of NAV
+    granular['gross_x_nav'] = granular['gross_eur'] / nav
+
+    # Map source and listed/OTC classification
+    granular['source'] = granular.apply(
+        lambda r: instrument_source.get(
+            (r['asset_class'], r['sub_asset_class']),
+            ('Other', 'Other'),
+        )[0],
+        axis=1,
+    )
+    granular['listed_otc'] = granular.apply(
+        lambda r: instrument_source.get(
+            (r['asset_class'], r['sub_asset_class']),
+            ('Other', 'Other'),
+        )[1],
+        axis=1,
+    )
+
+    # Exclude zero-exposure rows (e.g., cash)
+    granular = granular[granular['gross_eur'] > 0].sort_values(
+        'gross_eur', ascending=False
+    )
+
+    # Append borrowing row if borrowings present
+    if borrowings_eur > 0:
+        borrow_row = pd.DataFrame(
+            [
+                {
+                    'asset_class': 'Borrowing',
+                    'sub_asset_class': 'PB Financing',
+                    'gross_eur': borrowings_eur,
+                    'n_positions': 1,
+                    'gross_x_nav': borrowings_eur / nav,
+                    'source': 'Financial Borrowing',
+                    'listed_otc': 'N/A',
+                }
+            ]
+        )
+        granular = pd.concat([granular, borrow_row], ignore_index=True)
+
+    return granular

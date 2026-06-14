@@ -12,10 +12,10 @@
 
   "redemption_terms": {
     "structure": "open_ended",
-    "redemption_frequency": "monthly",
-    "redemption_notice_days": 30,
-    "redemption_settlement_days": 10,
-    "display": "Monthly redemption, 30 days' notice, T+10 settlement"
+    "redemption_frequency": "daily",
+    "redemption_notice_days": 5,
+    "redemption_settlement_days": 1,
+    "display": "Daily redemption, 5 days' notice, T+1 settlement"
   },
 
   "regulatory_classification": {

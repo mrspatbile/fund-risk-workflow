@@ -27,8 +27,7 @@ SECTIONS_DICT = {
     ),
     'risk_measures': (
         'field',
-        ['VaR & ES (99% confidence, historical simulation, 250 days)',
-         'LEVERAGE', 'LIQUIDITY HEADLINE'],
+        ['VaR & ES (99%, historical, 250 days)', 'LEVERAGE', 'LIQUIDITY HEADLINE'],
     ),
     'leverage_detail': (
         'item',
