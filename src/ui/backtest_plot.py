@@ -137,10 +137,10 @@ def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
 
     if export_id is not None:
         from pathlib import Path
-        from src.ui.nb_utils import _slugify
+        from src.ui.nb_utils import _slugify, _get_project_root
         title_slug = _slugify('VaR backtest')
         filename = f'{export_id}_{title_slug}'
-        out_dir = Path('fig') / fund_id
+        out_dir = _get_project_root() / 'fig' / fund_id
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
         fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())

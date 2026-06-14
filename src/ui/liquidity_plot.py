@@ -85,10 +85,10 @@ def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_d
 
     if export_id is not None:
         from pathlib import Path
-        from src.ui.nb_utils import _slugify
+        from src.ui.nb_utils import _slugify, _get_project_root
         title_slug = _slugify('Liquidity profile')
         filename = f'{export_id}_{title_slug}'
-        out_dir = Path('fig') / fund_id
+        out_dir = _get_project_root() / 'fig' / fund_id
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
         fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())

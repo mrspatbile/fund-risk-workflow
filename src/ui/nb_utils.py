@@ -29,14 +29,19 @@ from playwright.async_api import async_playwright
 
 
 # ── Figure saving ──────────────────────────────────────────────────────────────
+def _get_project_root() -> Path:
+    """Get the project root directory from this module's location."""
+    return Path(__file__).parent.parent.parent
+
+
 def _make_output_path(fund_id: str, filename: str, ext: str = 'png') -> Path:
-    out_dir = Path('reports') / fund_id
+    out_dir = _get_project_root() / 'reports' / fund_id
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f'{filename}.{ext}'
 
 
 def _make_export_path(fund_id: str, filename: str, ext: str = 'png') -> Path:
-    out_dir = Path('fig') / fund_id
+    out_dir = _get_project_root() / 'fig' / fund_id
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f'{filename}.{ext}'
 

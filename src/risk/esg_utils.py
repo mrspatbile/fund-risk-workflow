@@ -501,10 +501,10 @@ def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuati
 
     if export_id is not None:
         from pathlib import Path
-        from src.ui.nb_utils import _slugify
+        from src.ui.nb_utils import _slugify, _get_project_root
         title_slug = _slugify(plot_title.split('.', 1)[-1].strip() if '.' in plot_title else plot_title)
         filename = f'{export_id}_{title_slug}'
-        out_dir = Path('fig') / FUND_ID
+        out_dir = _get_project_root() / 'fig' / FUND_ID
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
         fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
