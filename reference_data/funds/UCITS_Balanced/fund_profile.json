@@ -9,6 +9,14 @@
   "inception_date": "2015-09-01",
   "target_nav_eur": 500000000,
 
+  "redemption_terms": {
+    "structure": "open_ended",
+    "redemption_frequency": "daily",
+    "redemption_notice_days": 0,
+    "redemption_settlement_days": 3,
+    "display": "Daily dealing, T+3 settlement"
+  },
+
   "regulatory_classification": {
     "is_ucits": true,
     "is_aif": false,

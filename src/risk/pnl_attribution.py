@@ -90,13 +90,13 @@ def compute_daily_attribution(
         positions_history = pd.read_sql(
             sa.text(
                 """
-            SELECT p.date, p.isin, p.asset_class, p.currency,
+            SELECT p.position_date as date, p.isin, p.asset_class, p.currency,
                    p.market_value_eur, pe.beta, pe.dur_adj_mid
             FROM positions p
             LEFT JOIN positions_enriched pe
                 ON p.isin = pe.isin AND p.fund_id = pe.fund_id
             WHERE p.fund_id = :fund_id
-            ORDER BY p.date
+            ORDER BY p.position_date
         """
             ),
             conn,

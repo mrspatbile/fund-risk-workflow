@@ -36,5 +36,5 @@
     "project_level_via_covenants": true
   },
 
-  "_note": "PE buyout fund uses alternative asset model (pe_companies.json). Risk management is based on company-level metrics (XIRR, MOIC, DPI, RVPI, covenant compliance) and capital deployment, not daily VaR. No daily market-data repricing."
+  "_note": "PE buyout fund uses alternative asset model (pe_companies.json). Risk management is based on company-level metrics (XIRR, MOIC, DPI, RVPI, covenant compliance) and capital deployment."
 }

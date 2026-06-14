@@ -5,12 +5,13 @@ VaR backtest plotting utility.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from src.ui.plot_style import C, ACCENT, ACCENT2, section_title
+from src.ui.plot_style import C, ACCENT, ACCENT2, section_title, FONT
 from src.ui.nb_utils import save_fig
 
 
 def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
-                      kupiec_pvalue=None, christoffersen_pvalue=None):
+                      kupiec_pvalue=None, christoffersen_pvalue=None, valuation_date: str | None = None,
+                      confidence_level: str = "99%", lookback_days: int = 250, holding_period_days: int = 1):
     """
     Plot VaR backtest — daily P&L vs VaR limit with breach highlighting.
 
@@ -32,6 +33,14 @@ def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
         Kupiec POF test p-value (0-1)
     christoffersen_pvalue : float, optional
         Christoffersen test p-value (0-1)
+    valuation_date : str, optional
+        Valuation date for subtitle metadata
+    confidence_level : str, optional
+        Confidence level (e.g. '99%'). Default: '99%'
+    lookback_days : int, optional
+        Historical lookback period in days. Default: 250
+    holding_period_days : int, optional
+        VaR holding period in days. Default: 1
 
     Returns
     -------
@@ -60,13 +69,30 @@ def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
                color=ACCENT2, s=10, zorder=5,
                label=f'Breaches ({n_breaches})')
 
-    # Title
-    if title is None:
-        title = f'VaR Backtest — {fund_id}'
+    # Main title (suptitle) — only basic title, no metadata
+    suptitle_text = f'VaR Backtest — {fund_id}'
     if zone:
-        title += f' — Zone: {zone}'
+        suptitle_text += f' — Zone: {zone}'
 
-    section_title(ax, title, fontsize=14)
+    fig.suptitle(
+        suptitle_text,
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+    )
+
+    # Metadata as axes title (below suptitle)
+    if valuation_date:
+        ax.set_title(
+            f'As of {valuation_date} | {confidence_level} confidence | {lookback_days} d lookback | {holding_period_days} day VaR',
+            fontsize=11,
+            fontweight='normal',
+            color=C['muted'],
+            loc='left',
+            pad=0,
+        )
 
     ax.set_ylabel('Daily P&L / VaR (%)', fontsize=9)
     ax.set_xlabel('Trading Days', fontsize=9)
@@ -107,7 +133,7 @@ def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
                    fontsize=9, verticalalignment='top', family='monospace',
                    weight='bold', color=chris_color)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 1])
 
     save_fig(fig, fund_id, "VaR backtest")
     plt.show()

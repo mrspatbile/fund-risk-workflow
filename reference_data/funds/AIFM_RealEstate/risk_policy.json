@@ -15,7 +15,7 @@
     "track_vacancy_rate_pct": true,
     "ltv_covenant_threshold_pct": null,
     "vacancy_alarm_threshold_pct": null,
-    "_note": "Direct properties are valued quarterly via appraisal (not daily repricing). No daily VaR treatment. LTV, rental yield, and vacancy are primary risk indicators."
+    "_note": "Direct properties are valued quarterly via appraisal. LTV, rental yield, and vacancy are primary risk indicators."
   },
 
   "stress_scenarios": {
@@ -24,5 +24,5 @@
     "_note": "Stress scenarios applied to direct property portfolio only. Listed REITs and FX hedges retain daily market-data treatment."
   },
 
-  "_note_mixed_treatment": "This fund contains direct properties (quarterly appraisal), listed REITs (daily market data), FX hedges (daily), and cash. Current policy treats as single mixed fund. Sleeve-based risk analysis is deferred to future ticket."
+  "_note_mixed_treatment": "This fund contains direct properties (quarterly appraisal), listed REITs (daily market data), FX hedges (daily), and cash. Current policy treats as single mixed fund."
 }

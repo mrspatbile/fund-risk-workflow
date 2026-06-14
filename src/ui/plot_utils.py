@@ -4,7 +4,7 @@ Reusable plotting utilities for fund analytics visualizations.
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from src.ui.plot_style import C, section_title
+from src.ui.plot_style import C, FONT
 from src.ui.nb_utils import save_fig
 
 # Default colors and settings
@@ -47,7 +47,8 @@ def plot_breakdown_horizontal(df_or_breakdown: pd.Series | pd.DataFrame,
                                figsize: tuple = (6, 2),
                                group_by: str = 'asset_class',
                                fund_id: str | None = None,
-                               filename: str | None = None) -> None:
+                               filename: str | None = None,
+                               valuation_date: str | None = None) -> None:
     """
     Plot a horizontal bar chart for breakdown data (e.g., asset class, sector weights).
 
@@ -97,8 +98,26 @@ def plot_breakdown_horizontal(df_or_breakdown: pd.Series | pd.DataFrame,
     ax.set_xlabel('Weight (% NAV)', fontsize=9)
     ax.set_xlim(0, breakdown.max() * 1.1)
 
-    # Add section title
-    section_title(ax, title)
+    # Main title as figure suptitle
+    fig.suptitle(
+        title,
+        fontsize=11,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+    )
+
+    # Valuation date as axes title (below suptitle)
+    if valuation_date:
+        ax.set_title(
+            f'As of {valuation_date}',
+            fontsize=9.5,
+            fontweight='normal',
+            color=C['muted'],
+            loc='left',
+            pad=0,
+        )
 
     # Add value labels on bars
     for bar, val in zip(bars, breakdown):
@@ -106,7 +125,7 @@ def plot_breakdown_horizontal(df_or_breakdown: pd.Series | pd.DataFrame,
                 f'{val:.1f}%', va='center', fontsize=7)
 
     ax.grid(False)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 1.05])
 
     # Save figure if both fund_id and filename provided
     if fund_id is not None and filename is not None:

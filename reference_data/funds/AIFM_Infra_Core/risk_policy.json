@@ -50,5 +50,5 @@
     "sfdr_pai_tracking": null
   },
 
-  "_note": "Infrastructure fund uses alternative asset model (infra_assets.json). Risk management is based on asset-level metrics (DSCR, LTV, concession duration, inflation linkage, regulatory framework) and valuation via yield capitalisation with asset-specific assumptions. No daily VaR or market-based repricing."
+  "_note": "Infrastructure fund uses alternative asset model (infra_assets.json). Risk management is based on asset-level metrics (DSCR, LTV, concession duration, inflation linkage, regulatory framework) and valuation via yield capitalisation with asset-specific assumptions."
 }

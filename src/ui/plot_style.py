@@ -222,6 +222,32 @@ def section_title(ax: plt.Axes, title: str, fontsize:int=FONT['section'], pad:in
     )
 
 
+def section_title_with_date(ax: plt.Axes, title: str, valuation_date: str | None = None,
+                             fontsize: int = FONT['section']) -> None:
+    """Cyan left-aligned bold section title with optional gray date subtitle."""
+    ax.set_title(
+        title,
+        fontsize=fontsize,
+        fontweight='bold',
+        color=C['cyan'],
+        pad=10,
+        loc='left',
+    )
+    if valuation_date:
+        # Use figure-level subtitle for date (cleaner positioning)
+        fig = ax.get_figure()
+        fig.suptitle(
+            f'As of {valuation_date}',
+            fontsize=FONT['subtitle'],
+            fontweight='normal',
+            color=C['dim'],
+            x=0.01,
+            y=0.98,
+            ha='left',
+            va='top',
+        )
+
+
 def date_xaxis(ax: plt.Axes, fmt: str = '%b %d') -> None:
     """Apply a clean date formatter to the x-axis."""
     ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter(fmt))

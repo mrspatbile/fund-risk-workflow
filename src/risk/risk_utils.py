@@ -940,6 +940,32 @@ def pre_trade_check(
     }
 
 
+def load_counterparty(fund_id: str) -> pd.DataFrame:
+    """
+    Load counterparty register for a fund from reference data.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier.
+
+    Returns
+    -------
+    pd.DataFrame
+        Counterparty register with columns: counterparty, type, exposure_pct, collateral_cover.
+    """
+    import json
+    from pathlib import Path
+
+    ref_data_path = Path(__file__).parent.parent.parent / 'reference_data' / 'counterparties' / 'counterparty'
+    cp_file = ref_data_path / f'{fund_id}_counterparty.json'
+
+    with open(cp_file, 'r') as f:
+        cp_list = json.load(f)
+
+    return pd.DataFrame(cp_list)
+
+
 def compute_counterparty_stress(fund_id: str, engine, nav: float) -> dict:
     """
     Compute counterparty stress metrics: exposures, collateral, net exposure, and worst case.

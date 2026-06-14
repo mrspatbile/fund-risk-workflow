@@ -27,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 from src.ui.nb_utils import save_fig
-from src.ui.plot_style import sup_title, C, ACCENT, ACCENT2, ACCENT3
+from src.ui.plot_style import sup_title, C, ACCENT, ACCENT2, ACCENT3, FONT
 from src.ui.print_html_utils import display_dark_table
 from src.ui.plot_style import C
 from src.data.database import (
@@ -354,18 +354,19 @@ ESG_HEADER_ALIGN_OVERRIDE = {
 }
 
 
-def display_esg_assets(esg_df):
-        
+def display_esg_assets(esg_df, valuation_date: str | None = None):
+
     return display_dark_table(
-        esg_df, 
+        esg_df,
         caption='ESG Portfolio Profile',
-        fmt=ESG_FMT, 
+        fmt=ESG_FMT,
         col_styles=ESG_COL_STYLES,
         col_align_override=ESG_COL_ALIGN_OVERRIDE,
         col_header_align_override=ESG_HEADER_ALIGN_OVERRIDE,
+        date_str=valuation_date,
         )
 
-def display_esg_summary(esg_df: pd.DataFrame) -> None:
+def display_esg_summary(esg_df: pd.DataFrame, valuation_date: str | None = None) -> None:
     scored = esg_df[esg_df['esg_score'].notna()].copy()
     total  = scored['esg_exposure_eur'].sum()
 
@@ -407,9 +408,9 @@ def display_esg_summary(esg_df: pd.DataFrame) -> None:
             rows.append((f"  {row['instrument_name']}", f"ESG: {row['esg_score']:.0f}"))
 
     df = pd.DataFrame(rows, columns=['Metric', 'Value'])
-    display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight)
+    display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight, date_str=valuation_date)
 
-def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF"):
+def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuation_date: str | None = None):
 
     esg_scored = esg_df[esg_df['esg_score'].notna()].copy()
     total_scored_mv = esg_scored['esg_exposure_eur'].sum()
@@ -421,7 +422,27 @@ def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF"):
     ac_esg['pct_total'] = ac_esg['exposure'] / total_scored_mv * 100
 
     fig,(ax1, ax2) = plt.subplots(2, 1, figsize=(12, 5))
-    sup_title(fig, 'ESG Profile by Asset Class', fontsize=18)
+
+    # Main title as figure suptitle
+    fig.suptitle(
+        'ESG Profile by Asset Class',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+    )
+
+    # Valuation date as axes title (below suptitle)
+    if valuation_date:
+        ax1.set_title(
+            f'As of {valuation_date}',
+            fontsize=11,
+            fontweight='normal',
+            color=C['muted'],
+            loc='left',
+            pad=0,
+        )
 
     colors = [C['muted'], C['dim'], C['border'], C['border'], C['text'], C['text']]
     left = 0
@@ -456,7 +477,7 @@ def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF"):
     for bar, val in zip(bars, ac_esg['wav_esg']):
         ax2.text(val + 1, bar.get_y() + bar.get_height()/2,
                     f'{val:.1f}', va='center', fontsize=9)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 1])
     save_fig(fig, FUND_ID, plot_title)
     plt.show()
 

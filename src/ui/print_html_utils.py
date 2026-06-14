@@ -25,6 +25,8 @@ def display_dark_table(
     col_header_align_override : dict | None = None,
     col_widths : dict | None = None,  # e.g. {'metric': '200px', 'value': '100px'}
     spacer_width              : str | None = None,  # e.g. '100px' — adds invisible spacer column
+    date_str                  : str | None = None,  # e.g. '2026-05-13' — shown below caption
+    date_label                : str        = 'As of',  # label for the date line
 ):
     """
     Render a DataFrame as a dark-themed styled HTML table in Jupyter.
@@ -248,6 +250,8 @@ def display_dark_table(
     styled = df_display.style.apply(_style, axis=None).set_table_styles(table_styles)
 
     if caption:
+        if date_str:
+            caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999;">{date_label}: {date_str}</span>'
         styled = styled.set_caption(caption)
     if fmt_remapped:
         styled = styled.format(fmt_remapped, na_rep='—')
@@ -259,7 +263,165 @@ def display_dark_table(
 # general info displays
 #-------------------
 
-def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV):
+def display_fund_rmp_parameters(fund_id: str, engine):
+    """
+    Display fund's Risk Management Policy parameters (verbatim from reference data).
+
+    Reads fund's risk_policy.json and displays all parameters as defined.
+    Adapts to any fund type (AIFM, UCITS, PE, private debt, real estate, etc).
+    Internal notes (_note_*) shown at bottom.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier
+    engine : sqlalchemy.engine
+        Database engine (passed for consistency with other display functions)
+    """
+    import json
+    from pathlib import Path
+
+    # Relative path from this module (src/ui/) to reference_data/
+    module_dir = Path(__file__).parent
+    risk_policy_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'risk_policy.json'
+    with open(risk_policy_path) as f:
+        rmp = json.load(f)
+
+    rows = []
+    notes = []
+
+    def flatten_dict(d, prefix=''):
+        """Recursively flatten nested dicts into rows."""
+        for key, value in d.items():
+            full_key = f"{prefix}{key}" if prefix else key
+
+            if key.startswith('_'):  # Collect notes for bottom
+                notes.append((key.lstrip('_'), value if isinstance(value, str) else str(value)))
+                continue
+
+            # Skip empty values
+            if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
+                continue
+
+            if isinstance(value, dict):
+                flatten_dict(value, f"{full_key}.")
+            elif isinstance(value, list):
+                rows.append((full_key, ', '.join(str(v) for v in value)))
+            elif isinstance(value, bool):
+                rows.append((full_key, 'Yes' if value else 'No'))
+            else:
+                # Format large numbers with thousands separators
+                if isinstance(value, (int, float)) and abs(value) >= 1_000_000:
+                    formatted_value = f"{int(value):,}"
+                else:
+                    formatted_value = str(value)
+                rows.append((full_key, formatted_value))
+
+    flatten_dict(rmp)
+
+    # Add notes at bottom with text wrapping
+    if notes:
+        rows.append(('', ''))  # Spacer
+        for note_key, note_value in notes:
+            # Wrap long notes at word boundaries (max 100 chars per line)
+            if len(note_value) > 100:
+                wrapped_lines = []
+                words = note_value.split()
+                current_line = []
+                current_length = 0
+
+                for word in words:
+                    if current_length + len(word) + 1 <= 100:  # +1 for space
+                        current_line.append(word)
+                        current_length += len(word) + 1
+                    else:
+                        if current_line:
+                            wrapped_lines.append(' '.join(current_line))
+                        current_line = [word]
+                        current_length = len(word) + 1
+
+                if current_line:
+                    wrapped_lines.append(' '.join(current_line))
+
+                note_value = '\n'.join(wrapped_lines)
+
+            rows.append((f"Note: {note_key}", note_value))
+
+    if rows:
+        df = pd.DataFrame(rows, columns=['Parameter', 'Value'])
+
+        display_dark_table(
+            df,
+            caption='Risk Management Policy Parameters',
+            col_align_override={'Value': 'left'},
+            col_widths={'Parameter': '250px', 'Value': '320px'},
+        )
+    else:
+        display(HTML("<div style='color: #999; font-size: 12px;'>No RMP parameters defined.</div>"))
+
+
+def display_fund_overview_banner(fund_id: str, engine):
+    """
+    Display fund overview: which fund is being studied.
+
+    Queries fund_profile.json to show fund identity and classification.
+    No snapshot-specific data (NAV, valuation date, etc).
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier
+    engine : sqlalchemy.engine
+        Database engine (passed for consistency with other display functions)
+    """
+    import json
+    from pathlib import Path
+
+    # Relative path from this module (src/ui/) to reference_data/
+    module_dir = Path(__file__).parent
+    fund_profile_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'fund_profile.json'
+    with open(fund_profile_path, 'r') as f:
+        profile = json.load(f)
+
+    # Regulatory classification
+    reg = profile['regulatory_classification']
+    if reg['is_ucits']:
+        fund_class = 'UCITS'
+    elif reg['is_aif']:
+        fund_class = 'AIF (AIFM)'
+    else:
+        fund_class = profile['fund_type']
+
+    # Build banner rows - fund identity only
+    long_name = profile.get('fund_name', fund_id)
+
+    # Redemption terms
+    redemption_terms = profile.get('redemption_terms', {})
+    redemption_display = redemption_terms.get('display', '—')
+
+    rows = [
+        ('Fund Name', long_name),
+        ('Fund Code', fund_id),
+        ('Fund Type', fund_class),
+        ('Domicile', profile['domicile']),
+        ('Currency', profile['currency']),
+    ]
+
+    # Add redemption terms if available
+    if redemption_display != '—':
+        rows.append(('Redemption terms', redemption_display))
+
+    df = pd.DataFrame(rows, columns=['label', 'value'])
+
+    display_dark_table(
+        df,
+        caption='Fund',
+        col_align_override={'value': 'left'},
+        col_widths={'label': '160px', 'value': '300px'},
+    )
+
+
+def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valuation_date: str | None = None):
     mask_long = risk_df['market_value_eur'] >= 0
     long_exp  = risk_df[mask_long]['market_value_eur'].sum()
     short_exp = risk_df[~mask_long]['market_value_eur'].sum()
@@ -280,6 +442,7 @@ def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV):
         col_align_override={'Value': 'right'},
         col_styles=None,
         col_widths={'Metric': '200px', 'Value': '200px'},
+        date_str=valuation_date,
     )
 
 
@@ -384,27 +547,33 @@ def display_leverage(risk_df, deriv_notional_commitment, commitment_exposure,
     )
 
 
-def display_var_es(var_1d, var_20d, es_1d, es_20d, NAV):
+def display_var_es(var_1d, var_20d, es_1d, es_20d, NAV, model: str = 'Historical', valuation_date: str = None):
     # Column names are pre-set to their final display form so _fmt_col leaves them
     # unchanged. \n renders as a line break via white-space: pre-wrap on thead th.
     # (EUR) already contains '(eur)' so the EUR-detection block in _fmt_col is skipped.
     _c = ['Metric', '1D\n(% NAV)', '20D\n(% NAV)', '1D\n(EUR)', '20D\n(EUR)']
     df = pd.DataFrame([
-        ('VaR Historical', f'{var_1d*100:.2f}%',  f'{var_20d*100:.2f}%',
+        (f'VaR {model}', f'{var_1d*100:.2f}%',  f'{var_20d*100:.2f}%',
          f'{var_1d*NAV:,.0f}',  f'{var_20d*NAV:,.0f}'),
-        ('ES Historical',  f'{es_1d*100:.2f}%',   f'{es_20d*100:.2f}%',
+        (f'ES {model}',  f'{es_1d*100:.2f}%',   f'{es_20d*100:.2f}%',
          f'{es_1d*NAV:,.0f}',   f'{es_20d*NAV:,.0f}'),
     ], columns=_c)
+    caption = f'VaR & Expected Shortfall ({model})'
     display_dark_table(
         df,
-        caption='VaR & Expected Shortfall',
+        caption=caption,
         col_align_override={c: 'right' for c in _c[1:]},
+        date_str=valuation_date,
     )
 
-def display_backtest_report(report, window_size=250):
+def display_backtest_report(report, window_size=250, valuation_date: str | None = None, model: str = "Historical"):
     rep = report.copy()
     rep['breach_rate'] = rep['breach_rate'] * 100
     rep['expected']    = rep['expected'] * 100
+
+    # Replace "Fixed-Position" (case-insensitive) with the provided model parameter
+    import re
+    rep['model'] = rep['model'].str.replace(r'fixed-position', model, regex=True, case=False)
 
     rep_filter = rep[['model', 'confidence', 'n_obs', 'n_breaches',
                        'breach_rate', 'expected',
@@ -415,9 +584,16 @@ def display_backtest_report(report, window_size=250):
         'n_breaches'      : 'qtd_breaches',
     })
 
+    # Build metadata with window size
+    metadata_str = f'{window_size}d window' if valuation_date else None
+    if valuation_date and metadata_str:
+        date_label_str = f'As of {valuation_date} | {metadata_str}'
+    else:
+        date_label_str = valuation_date
+
     display_dark_table(
         rep_filter,
-        caption=f'VaR Backtest Report ({window_size}d window)',
+        caption='VaR Backtest Report',
         fmt={
             'breach_rate'           : '{:.2f}%',
             'expected'              : '{:.2f}%',
@@ -430,6 +606,9 @@ def display_backtest_report(report, window_size=250):
                 else C['red']
             ),
         },
+        col_widths={'model': '100px'},
+        date_str=date_label_str,
+        date_label='',
     )
 
 
@@ -451,7 +630,7 @@ def display_esma_report(n, breach_rate, zone):
     )
 
 
-def display_lvar(lvar_result, NAV):
+def display_lvar(lvar_result, NAV, valuation_date: str | None = None):
     kpi = pd.DataFrame([
         ('VaR (1d 99%)',   f'{lvar_result["var"]*100:.2f}%',
          f'{lvar_result["var"]*NAV:,.0f}'),
@@ -466,16 +645,20 @@ def display_lvar(lvar_result, NAV):
         caption='Liquidity-Adjusted VaR',
         col_align_override={'% NAV': 'right', 'EUR': 'right'},
         col_widths={'Metric': '200px'},
+        date_str=valuation_date,
+        date_label='Valuation Date',
     )
     bac = lvar_result['by_asset_class']
     display_dark_table(
         bac,
         caption='LVaR by Asset Class',
         fmt={'market_value_eur': '{:,.0f}', 'liquidity_cost': '{:,.0f}'},
+        date_str=valuation_date,
+        date_label='Valuation Date',
     )
 
 
-def display_granular(granular, NAV):
+def display_granular(granular, NAV, valuation_date: str | None = None):
     # prt.print_granular mutates the input in-place (formats strings).
     # Always work on a fresh numeric copy.
     granular = granular.copy()
@@ -503,6 +686,7 @@ def display_granular(granular, NAV):
         lot, caption='Leverage by Listed / OTC',
         fmt={'gross_eur': '{:,.0f}', _xnav(): '{:.2f}×', 'pct_leverage': '{:.1f}%'},
         highlight_rows=[len(lot) - 1],
+        date_str=valuation_date,
     )
 
     # by source
@@ -518,6 +702,7 @@ def display_granular(granular, NAV):
         src, caption='Leverage by Source',
         fmt={'gross_eur': '{:,.0f}', _xnav(): '{:.2f}×', 'pct_leverage': '{:.1f}%'},
         highlight_rows=[len(src) - 1],
+        date_str=valuation_date,
     )
 
     # granular detail
@@ -527,10 +712,11 @@ def display_granular(granular, NAV):
     display_dark_table(
         detail, caption='AIFMD II Granular Leverage Breakdown',
         fmt={'gross_eur': '{:,.0f}', _xnav('Gross'): '{:.2f}×', 'n_positions': '{:.0f}'},
+        date_str=valuation_date,
     )
 
 
-def display_buckets(bucket_full, risk_df_liq, NAV):
+def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = None):
     total_abs = risk_df_liq['market_value_eur'].abs().sum()
     total_net = risk_df_liq['market_value_eur'].sum()
     totals = pd.DataFrame([{
@@ -553,6 +739,7 @@ def display_buckets(bucket_full, risk_df_liq, NAV):
             'n_positions'     : '{:.0f}',
         },
         highlight_rows=[len(df) - 1],
+        date_str=valuation_date,
     )
 
 
@@ -706,7 +893,8 @@ def display_redemption_stress(
     notice_days,
     redemption_scenarios,
     nav,
-    risk_df_liq
+    risk_df_liq,
+    valuation_date: str | None = None
 ):
     """
     Compute and display redemption stress scenarios.
@@ -746,11 +934,22 @@ def display_redemption_stress(
             'Action':         v['recommendation'],
         })
     df = pd.DataFrame(rows)
+
+    # Build metadata with NAV and notice
+    metadata_parts = []
+    if valuation_date:
+        metadata_parts.append(f'As of {valuation_date}')
+    metadata_parts.append(f'NAV: EUR {nav:,.0f}')
+    metadata_parts.append(f'Notice: {notice_days}d')
+    metadata_str = ' | '.join(metadata_parts)
+
     display_dark_table(
         df,
-        caption=f'Redemption Stress — {fund_id}  |  NAV: EUR {nav:,.0f}  |  Notice: {notice_days}d',
+        caption=f'Redemption Stress — {fund_id}',
         fmt={'redemption_eur': '{:,.0f}', 'liquid_eur': '{:,.0f}', 'coverage': '{:.2f}x'},
         col_styles={'coverage': lambda v: C['green'] if isinstance(v, float) and v >= 1.0 else C['red']},
+        date_str=metadata_str,
+        date_label='',
     )
 
 
@@ -761,6 +960,7 @@ def display_combined_stress_mkt_plus_liq(
     notice_days,
     delta_equity=-0.20,
     redemption_pct=0.25,
+    valuation_date: str | None = None,
 ):
     """
     Display combined stress scenario: market shock + simultaneous redemption.
@@ -812,19 +1012,29 @@ def display_combined_stress_mkt_plus_liq(
     ]
 
     df = pd.DataFrame(rows)
+
+    # Build metadata with NAV
+    metadata_parts = []
+    if valuation_date:
+        metadata_parts.append(f'As of {valuation_date}')
+    metadata_parts.append(f'NAV: EUR {nav:,.0f}')
+    metadata_str = ' | '.join(metadata_parts)
+
     display_dark_table(
         df,
-        caption=f'Combined Stress Test — Market + Liquidity  |  NAV: EUR {nav:,.0f}',
+        caption='Combined Stress Test — Market + Liquidity',
         col_styles={
             'Status': lambda v: (
                 C['green'] if isinstance(v, str) and ('✓' in v or 'Can meet' in v) else
                 C['red'] if isinstance(v, str) and ('⚠' in v or 'Gate' in v) else None
             )
         },
+        date_str=metadata_str,
+        date_label='',
     )
 
 
-def display_counterparty_stress(NAV, **kwargs):
+def display_counterparty_stress(NAV, valuation_date: str | None = None, **kwargs):
     """
     Display counterparty stress table.
 
@@ -832,6 +1042,8 @@ def display_counterparty_stress(NAV, **kwargs):
     ----------
     NAV : float
         Net asset value.
+    valuation_date : str, optional
+        Valuation date for display.
     **kwargs : dict
         Expected keys: 'cp_df', 'worst_cp', 'loss_eur', 'loss_pct'.
         Or pass individual arguments: cp_df, worst_cp, loss_eur, loss_pct.
@@ -872,9 +1084,16 @@ def display_counterparty_stress(NAV, **kwargs):
 
     sep_idx = len(_cp_hf) + 1   # +1 for the blank spacer row
 
+    # Build metadata with NAV
+    metadata_parts = []
+    if valuation_date:
+        metadata_parts.append(f'As of {valuation_date}')
+    metadata_parts.append(f'NAV: EUR {NAV:,.0f}')
+    metadata_str = ' | '.join(metadata_parts)
+
     display_dark_table(
         cp.drop(columns=['loss_pct_nav_raw']),
-        caption=f'Counterparty Register — NAV: EUR {NAV:,.0f}',
+        caption='Counterparty Register',
         highlight_rows=[sep_idx],
         col_styles={
             'loss_pct_nav': lambda v: (
@@ -886,6 +1105,8 @@ def display_counterparty_stress(NAV, **kwargs):
                 C['green'] if isinstance(v, str) and '✓' in v else None
             ),
         },
+        date_str=metadata_str,
+        date_label='',
     )
 
 
@@ -935,7 +1156,7 @@ def display_historical_scenarios(historical_scenarios: dict):
     )
 
 
-def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False):
+def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False, valuation_date: str | None = None):
     """Render stress scenario P&L results — custom and/or historical."""
     from src.risk.risk_utils import HISTORICAL_SCENARIOS, stress_historical
     NAV  = risk_df['market_value_eur'].sum()
@@ -974,11 +1195,13 @@ def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool 
         },
         highlight_rows=[worst],
         col_widths={'Scenario': '260px'},
+        date_str=valuation_date,
     )
 def display_ptc(result: dict, test_number: int | None = None,
                 col_widths_trade: dict | None = None,
                 col_widths_metrics: dict | None = None,
-                col_widths_breaches: dict | None = None) -> None:
+                col_widths_breaches: dict | None = None,
+                valuation_date: str | None = None) -> None:
     """Render pre-trade check as 3 separate independent tables.
 
     Table 1 (Trade Details): 4 columns
@@ -1003,6 +1226,8 @@ def display_ptc(result: dict, test_number: int | None = None,
     pre      = result.get('pre_trade_metrics', {})
     cap_txt  = (f'Pre-Trade Evaluation #{test_number}'
                 if test_number is not None else 'Pre-Trade Evaluation')
+    if valuation_date:
+        cap_txt += f'<br><span style="font-size: 10px; font-weight: normal; color: #999;">Computed on {valuation_date}</span>'
 
     def _fmt(k: str, v) -> str:
         if not isinstance(v, float): return str(v)
@@ -1305,7 +1530,7 @@ def display_ptc(result: dict, test_number: int | None = None,
     display(HTML(table3_html))
 
 
-def display_asset_class_breakdown(df: pd.DataFrame) -> None:
+def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None = None) -> None:
     """
     Display asset class breakdown with market value, position count, and weight.
 
@@ -1344,11 +1569,12 @@ def display_asset_class_breakdown(df: pd.DataFrame) -> None:
         col_align_override={'Asset Class': 'left',
                            'Market Value (EUR)': 'right',
                            '# Positions': 'right',
-                           '% NAV': 'right'}
+                           '% NAV': 'right'},
+        date_str=valuation_date,
     )
 
 
-def display_top_positions(df: pd.DataFrame, n_top: int = 100) -> None:
+def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: str | None = None) -> None:
     """
     Display top N positions as an HTML table with asset class, issuer, market value, and weight.
 
@@ -1392,7 +1618,8 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100) -> None:
     display_dark_table(
         top_pos,
         caption=f'Top {n_top} Positions',
-        col_align_override=col_align
+        col_align_override=col_align,
+        date_str=valuation_date,
     )
 
 

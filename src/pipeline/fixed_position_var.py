@@ -12,7 +12,8 @@ import numpy as np
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from src.computation.var import var_historical, var_scale, es_historical, es_scale
+from src.computation.var import var_historical, var_scale, es_historical, es_scale, var_parametric, es_parametric
+from scipy import stats
 
 
 def compute_fixed_position_pnl_series(
@@ -142,7 +143,7 @@ def compute_var_from_pnl(
     horizon: int = 1,
 ) -> dict:
     """
-    Step 2: Compute VaR and ES from P&L series at any confidence and horizon.
+    Step 2: Compute historical and parametric VaR and ES from P&L series.
 
     Parameters
     ----------
@@ -158,9 +159,13 @@ def compute_var_from_pnl(
     Returns
     -------
     dict
-        Keys: var_pct, var_eur, es_pct, es_eur, var_scaled_pct, var_scaled_eur,
-              es_scaled_pct, es_scaled_eur, n_observations, distribution
+        Historical VaR/ES: var_pct, var_eur, es_pct, es_eur, var_scaled_pct, var_scaled_eur,
+                           es_scaled_pct, es_scaled_eur
+        Parametric VaR/ES: var_param_pct, var_param_eur, es_param_pct, es_param_eur,
+                           var_param_scaled_pct, var_param_scaled_eur, es_param_scaled_pct, es_param_scaled_eur
+        Metadata: n_observations, distribution, mu, sigma
     """
+    # Historical VaR
     var_1d_pct = var_historical(pnl_returns, confidence=confidence)
     es_1d_pct = es_historical(pnl_returns, confidence=confidence)
 
@@ -171,8 +176,24 @@ def compute_var_from_pnl(
         var_scaled_pct = var_1d_pct
         es_scaled_pct = es_1d_pct
 
+    # Parametric VaR: fit student-t distribution
+    mu = np.mean(pnl_returns)
+    sigma = np.std(pnl_returns, ddof=1)  # Sample std dev
+    df = 5  # Degrees of freedom (from RMP)
+
+    var_param_1d_pct = var_parametric(mu, sigma, confidence, dist='t', df=df)
+    es_param_1d_pct = es_parametric(sigma, mu=mu, confidence=confidence, dist='t', df=df)
+
+    if horizon > 1:
+        var_param_scaled_pct = var_scale(var_param_1d_pct, horizon=horizon)
+        es_param_scaled_pct = es_scale(es_param_1d_pct, horizon=horizon)
+    else:
+        var_param_scaled_pct = var_param_1d_pct
+        es_param_scaled_pct = es_param_1d_pct
+
     return {
         'nav_eur': nav_eur,
+        # Historical
         'var_pct': var_1d_pct,
         'var_eur': nav_eur * var_1d_pct,
         'es_pct': es_1d_pct,
@@ -181,8 +202,20 @@ def compute_var_from_pnl(
         'var_scaled_eur': nav_eur * var_scaled_pct,
         'es_scaled_pct': es_scaled_pct,
         'es_scaled_eur': nav_eur * es_scaled_pct,
+        # Parametric
+        'var_param_pct': var_param_1d_pct,
+        'var_param_eur': nav_eur * var_param_1d_pct,
+        'es_param_pct': es_param_1d_pct,
+        'es_param_eur': nav_eur * es_param_1d_pct,
+        'var_param_scaled_pct': var_param_scaled_pct,
+        'var_param_scaled_eur': nav_eur * var_param_scaled_pct,
+        'es_param_scaled_pct': es_param_scaled_pct,
+        'es_param_scaled_eur': nav_eur * es_param_scaled_pct,
+        # Metadata
         'n_observations': len(pnl_returns),
         'distribution': pnl_returns,
+        'mu': mu,
+        'sigma': sigma,
     }
 
 
