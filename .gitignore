@@ -6,7 +6,7 @@ __pycache__/
 .DS_Store
 .venv/
 data/
-docs/
+docs/_old
 notebooks/data/
 reports/
 notebooks/portfolio_management/
