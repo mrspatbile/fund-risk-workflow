@@ -34,6 +34,12 @@ def _make_output_path(fund_id: str, filename: str, ext: str = 'png') -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f'{filename}.{ext}'
 
+
+def _make_export_path(fund_id: str, filename: str, ext: str = 'png') -> Path:
+    out_dir = Path('fig') / fund_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / f'{filename}.{ext}'
+
 def save_fig(fig, fund_id: str, filename: str, dpi: int = 150) -> str:
     """
     Save a matplotlib figure to reports/<fund_id>/<filename>.png.
@@ -89,6 +95,28 @@ def save_table_html(html, fund_id, filename):
 
 
 
+def _slugify(text: str) -> str:
+    """
+    Convert text to slug: lowercase, spaces to underscores, remove punctuation.
+
+    Parameters
+    ----------
+    text : str
+        Text to slugify
+
+    Returns
+    -------
+    str
+        Slugified text (e.g., 'Fund Overview' -> 'fund_overview')
+    """
+    import re
+    text = text.lower()
+    text = re.sub(r'[^\w\s-]', '', text)  # Remove punctuation
+    text = re.sub(r'[\s-]+', '_', text)   # Spaces/hyphens to underscores
+    text = re.sub(r'^_+|_+$', '', text)   # Strip leading/trailing underscores
+    return text
+
+
 nest_asyncio.apply()
 
 async def _save_table_png_async(html: str, path: str) -> None:
@@ -107,10 +135,71 @@ async def _save_table_png_async(html: str, path: str) -> None:
         await browser.close()
 
 
+async def _save_html_png_async(html: str, path: str, scale: float = 2.0) -> None:
+    """Screenshot HTML content — table only, no extra padding.
+
+    Parameters
+    ----------
+    html : str
+        HTML content
+    path : str
+        Output file path
+    scale : float, default 2.0
+        Device scale factor for higher DPI (2.0 = 2x resolution)
+    """
+    full_html = f"""
+    <html>
+    <body style="background:#0d1b2a; margin:0; padding:0; padding-left:10px; display:inline-block;">
+    {html}
+    </body>
+    </html>
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page(device_scale_factor=scale)
+        await page.set_content(full_html)
+        # Get bounding box of body and screenshot just that region
+        bbox = await page.locator('body').bounding_box()
+        if bbox:
+            await page.screenshot(path=path, clip=bbox)
+        else:
+            await page.locator('body').screenshot(path=path)
+        await browser.close()
+
+
 def save_table_png(html: str, fund_id: str, filename: str) -> str:
     path = _make_output_path(fund_id, filename, ext='png')
     asyncio.get_event_loop().run_until_complete(
         _save_table_png_async(html, str(path))
+    )
+    return str(path)
+
+
+def save_html_as_png(html: str, fund_id: str, filename: str, scale: float = 2.0) -> str:
+    """
+    Save HTML content as PNG using Playwright.
+
+    Saves to fig/<fund_id>/<filename>.png with high DPI by default.
+
+    Parameters
+    ----------
+    html : str
+        HTML string to screenshot
+    fund_id : str
+        Fund ID for output directory
+    filename : str
+        Base filename without extension
+    scale : float, default 2.0
+        Device scale factor for DPI (2.0 = 2x resolution, ~288 DPI at 96 base)
+
+    Returns
+    -------
+    str
+        Absolute path of saved PNG file
+    """
+    path = _make_export_path(fund_id, filename)
+    asyncio.get_event_loop().run_until_complete(
+        _save_html_png_async(html, str(path), scale=scale)
     )
     return str(path)
 

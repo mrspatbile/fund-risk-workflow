@@ -354,9 +354,9 @@ ESG_HEADER_ALIGN_OVERRIDE = {
 }
 
 
-def display_esg_assets(esg_df, valuation_date: str | None = None):
+def display_esg_assets(esg_df, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
 
-    return display_dark_table(
+    html = display_dark_table(
         esg_df,
         caption='ESG Portfolio Profile',
         fmt=ESG_FMT,
@@ -364,9 +364,20 @@ def display_esg_assets(esg_df, valuation_date: str | None = None):
         col_align_override=ESG_COL_ALIGN_OVERRIDE,
         col_header_align_override=ESG_HEADER_ALIGN_OVERRIDE,
         date_str=valuation_date,
+        return_html=True,
         )
 
-def display_esg_summary(esg_df: pd.DataFrame, valuation_date: str | None = None) -> None:
+    from IPython.display import display, HTML
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('ESG Portfolio Profile')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+def display_esg_summary(esg_df: pd.DataFrame, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None) -> None:
     scored = esg_df[esg_df['esg_score'].notna()].copy()
     total  = scored['esg_exposure_eur'].sum()
 
@@ -408,9 +419,19 @@ def display_esg_summary(esg_df: pd.DataFrame, valuation_date: str | None = None)
             rows.append((f"  {row['instrument_name']}", f"ESG: {row['esg_score']:.0f}"))
 
     df = pd.DataFrame(rows, columns=['Metric', 'Value'])
-    display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight, date_str=valuation_date)
+    html = display_dark_table(df, caption='ESG Portfolio Summary', highlight_rows=highlight, date_str=valuation_date, return_html=True)
 
-def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuation_date: str | None = None):
+    from IPython.display import display, HTML
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('ESG Portfolio Summary')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuation_date: str | None = None, export_id: str | None = None):
 
     esg_scored = esg_df[esg_df['esg_score'].notna()].copy()
     total_scored_mv = esg_scored['esg_exposure_eur'].sum()
@@ -433,15 +454,14 @@ def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuati
         x=0.03,
     )
 
-    # Valuation date as axes title (below suptitle)
+    # Valuation date as figure text (below suptitle)
     if valuation_date:
-        ax1.set_title(
+        fig.text(
+            0.03, 0.93,
             f'As of {valuation_date}',
             fontsize=11,
-            fontweight='normal',
             color=C['muted'],
-            loc='left',
-            pad=0,
+            va='top',
         )
 
     colors = [C['muted'], C['dim'], C['border'], C['border'], C['text'], C['text']]
@@ -477,7 +497,19 @@ def plot_esg_profile(esg_df, FUND_ID, plot_title="06. ESG profile - HF", valuati
     for bar, val in zip(bars, ac_esg['wav_esg']):
         ax2.text(val + 1, bar.get_y() + bar.get_height()/2,
                     f'{val:.1f}', va='center', fontsize=9)
-    plt.tight_layout(rect=[0, 0, 1, 1])
-    save_fig(fig, FUND_ID, plot_title)
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify
+        title_slug = _slugify(plot_title.split('.', 1)[-1].strip() if '.' in plot_title else plot_title)
+        filename = f'{export_id}_{title_slug}'
+        out_dir = Path('fig') / FUND_ID
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+    else:
+        save_fig(fig, FUND_ID, plot_title)
+
     plt.show()
 

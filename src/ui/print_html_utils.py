@@ -28,6 +28,7 @@ def display_dark_table(
     date_str                  : str | None = None,  # e.g. '2026-05-13' — shown below caption
     date_label                : str        = 'As of',  # label for the date line
     hide_header               : bool       = False,  # hide column headers by matching text to background
+    return_html               : bool       = False,  # if True, return HTML string instead of displaying
 ):
     """
     Render a DataFrame as a dark-themed styled HTML table in Jupyter.
@@ -188,6 +189,7 @@ def display_dark_table(
             ('text-align',       'left'),
             ('font-family',      'Helvetica Neue, Helvetica, Arial, sans-serif'),
             ('padding-bottom',   '8px'),
+            ('padding-left',     '10px'),
             ('background-color', '#1a2540'),
         ]},
         {'selector': 'thead th', 'props': thead_props},
@@ -256,19 +258,23 @@ def display_dark_table(
 
     if caption:
         if date_str:
-            caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999;">{date_label} {date_str}</span>'
+            caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999; margin-top: 4px; display: block;">{date_label} {date_str}</span>'
         styled = styled.set_caption(caption)
     if fmt_remapped:
         styled = styled.format(fmt_remapped, na_rep='—')
 
     styled = styled.hide(axis='index')
-    display(styled)
+
+    if return_html:
+        return styled.to_html()
+    else:
+        display(styled)
 
 #-------------------
 # general info displays
 #-------------------
 
-def display_fund_rmp_parameters(fund_id: str, engine):
+def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = None):
     """
     Display fund's Risk Management Policy parameters grouped by section.
 
@@ -283,6 +289,8 @@ def display_fund_rmp_parameters(fund_id: str, engine):
         Fund identifier
     engine : sqlalchemy.engine
         Database engine (passed for consistency with other display functions)
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG to reports/<fund_id>/<export_id>_*.png
     """
     import json
     from pathlib import Path
@@ -498,7 +506,7 @@ def display_fund_rmp_parameters(fund_id: str, engine):
 
         df = pd.DataFrame(rows, columns=['Parameter', 'Value'])
 
-        display_dark_table(
+        html = display_dark_table(
             df,
             caption='Risk Management Policy Parameters',
             col_align_override={'Value': 'left'},
@@ -511,17 +519,28 @@ def display_fund_rmp_parameters(fund_id: str, engine):
                 ),
             },
             hide_header=True,
+            return_html=True,
         )
+
+        display(HTML(html))
+
+        if export_id is not None:
+            from src.ui.nb_utils import _slugify, save_html_as_png
+            title_slug = _slugify('Risk Management Policy Parameters')
+            filename = f'{export_id}_{title_slug}'
+            save_html_as_png(html, fund_id, filename)
     else:
         display(HTML("<div style='color: #999; font-size: 12px;'>No RMP parameters defined.</div>"))
 
 
-def display_fund_overview_banner(fund_id: str, engine):
+def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = None):
     """
     Display fund overview: which fund is being studied.
 
     Queries fund_profile.json to show fund identity and classification.
     No snapshot-specific data (NAV, valuation date, etc).
+
+    Optionally saves rendered output as PNG with deterministic filename when export_id is provided.
 
     Parameters
     ----------
@@ -529,9 +548,17 @@ def display_fund_overview_banner(fund_id: str, engine):
         Fund identifier
     engine : sqlalchemy.engine
         Database engine (passed for consistency with other display functions)
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG to reports/<fund_id>/<export_id>_fund_overview.png
+        If None, display normally without saving.
+
+    Returns
+    -------
+    None
     """
     import json
     from pathlib import Path
+    from src.ui.nb_utils import _slugify, save_html_as_png
 
     # Relative path from this module (src/ui/) to reference_data/
     module_dir = Path(__file__).parent
@@ -569,15 +596,26 @@ def display_fund_overview_banner(fund_id: str, engine):
 
     df = pd.DataFrame(rows, columns=['label', 'value'])
 
-    display_dark_table(
+    # Get HTML and display it
+    html = display_dark_table(
         df,
         caption='Fund',
         col_align_override={'value': 'left'},
         col_widths={'label': '160px', 'value': '300px'},
+        return_html=True,
     )
 
+    # Display in notebook
+    display(HTML(html))
 
-def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valuation_date: str | None = None):
+    # Save as PNG if export_id is provided
+    if export_id is not None:
+        title_slug = _slugify('Fund')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fund_id, filename)
+
+
+def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valuation_date: str | None = None, export_id: str | None = None):
     if valuation_date is None:
         valuation_date = VALUATION_DATE
 
@@ -595,14 +633,23 @@ def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valua
         ('Short Exposure', f'{short_exp:,.0f}' if short_exp != 0 else '—'),
     ], columns=['Metric', 'Value'])
 
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption='Fund Summary',
         col_align_override={'Value': 'right'},
         col_styles=None,
         col_widths={'Metric': '200px', 'Value': '200px'},
         date_str=valuation_date,
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Fund Summary')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, FUND_ID, filename)
 
 
 def display_asset_class_weights_n_positions(breakdown, NAV):
@@ -706,7 +753,7 @@ def display_leverage(risk_df, deriv_notional_commitment, commitment_exposure,
     )
 
 
-def display_var_es(var_result: dict, valuation_date: str = None):
+def display_var_es(var_result: dict, valuation_date: str = None, fund_id: str | None = None, export_id: str | None = None):
     """
     Display VaR and ES from var_result dict.
 
@@ -721,6 +768,8 @@ def display_var_es(var_result: dict, valuation_date: str = None):
         Must include: nav_eur, var_result metadata (horizon, etc.)
     valuation_date : str, optional
         Override valuation_date from var_result (for display only)
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
     """
     nav = var_result.get('nav_eur', 0)
     horizon = var_result.get('horizon', 20)
@@ -753,14 +802,25 @@ def display_var_es(var_result: dict, valuation_date: str = None):
 
     df = pd.DataFrame(rows, columns=_c)
     caption = 'VaR & Expected Shortfall'
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption=caption,
         col_align_override={c: 'right' for c in _c[1:]},
         date_str=display_date,
+        return_html=True,
     )
 
-def display_backtest_report(report, window_size=250, valuation_date: str | None = None, model: str = "Historical"):
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('VaR & Expected Shortfall')
+        # Use provided fund_id parameter, or fallback to var_result
+        fid = fund_id or var_result.get('fund_id', 'unknown')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fid, filename)
+
+def display_backtest_report(report, window_size=250, valuation_date: str | None = None, model: str = "Historical", fund_id: str | None = None, export_id: str | None = None):
     rep = report.copy()
     rep['breach_rate'] = rep['breach_rate'] * 100
     rep['expected']    = rep['expected'] * 100
@@ -785,7 +845,7 @@ def display_backtest_report(report, window_size=250, valuation_date: str | None 
     else:
         date_label_str = valuation_date
 
-    display_dark_table(
+    html = display_dark_table(
         rep_filter,
         caption='VaR Backtest Report',
         fmt={
@@ -803,7 +863,17 @@ def display_backtest_report(report, window_size=250, valuation_date: str | None 
         col_widths={'model': '100px'},
         date_str=date_label_str,
         date_label='',
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('VaR Backtest Report')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
 
 
@@ -824,7 +894,7 @@ def display_esma_report(n, breach_rate, zone):
     )
 
 
-def display_lvar(lvar_result, NAV, valuation_date: str | None = None):
+def display_lvar(lvar_result, NAV, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
     kpi = pd.DataFrame([
         ('VaR (1d 99%)',   f'{lvar_result["var"]*100:.2f}%',
          f'{lvar_result["var"]*NAV:,.0f}'),
@@ -834,25 +904,46 @@ def display_lvar(lvar_result, NAV, valuation_date: str | None = None):
          f'{lvar_result["lvar"]*NAV:,.0f}'),
         ('LVaR increase',  f'+{lvar_result["lvar_pct_increase"]:.1f}%', ''),
     ], columns=['Metric', '% NAV', 'EUR'])
-    display_dark_table(
+    html = display_dark_table(
         kpi,
         caption='Liquidity-Adjusted VaR',
         col_align_override={'% NAV': 'right', 'EUR': 'right'},
         col_widths={'Metric': '200px'},
         date_str=valuation_date,
         date_label='Valuation Date',
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Liquidity-Adjusted VaR')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
     bac = lvar_result['by_asset_class']
-    display_dark_table(
+    html2 = display_dark_table(
         bac,
         caption='LVaR by Asset Class',
         fmt={'market_value_eur': '{:,.0f}', 'liquidity_cost': '{:,.0f}'},
         date_str=valuation_date,
         date_label='Valuation Date',
+        return_html=True,
     )
 
+    display(HTML(html2))
 
-def display_granular(granular, NAV, valuation_date: str | None = None):
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('LVaR by Asset Class')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html2, fid, filename)
+
+
+def display_granular(granular, NAV, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
     # prt.print_granular mutates the input in-place (formats strings).
     # Always work on a fresh numeric copy.
     granular = granular.copy()
@@ -876,12 +967,20 @@ def display_granular(granular, NAV, valuation_date: str | None = None):
         'Category': 'Total', 'gross_eur': total_gross,
         _xnav(): total_gross / NAV, 'pct_leverage': 100.0,
     }])], ignore_index=True)
-    display_dark_table(
+    html = display_dark_table(
         lot, caption='Leverage by Listed / OTC',
         fmt={'gross_eur': '{:,.0f}', _xnav(): '{:.2f}×', 'pct_leverage': '{:.1f}%'},
         highlight_rows=[len(lot) - 1],
         date_str=valuation_date,
+        return_html=True,
     )
+    display(HTML(html))
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Leverage by Listed / OTC')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
     # by source
     src = granular.groupby('source')['gross_eur'].sum().reset_index()
@@ -892,25 +991,41 @@ def display_granular(granular, NAV, valuation_date: str | None = None):
         'Source': 'Total', 'gross_eur': total_gross,
         _xnav(): total_gross / NAV, 'pct_leverage': 100.0,
     }])], ignore_index=True)
-    display_dark_table(
+    html = display_dark_table(
         src, caption='Leverage by Source',
         fmt={'gross_eur': '{:,.0f}', _xnav(): '{:.2f}×', 'pct_leverage': '{:.1f}%'},
         highlight_rows=[len(src) - 1],
         date_str=valuation_date,
+        return_html=True,
     )
+    display(HTML(html))
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Leverage by Source')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
     # granular detail
     detail = granular[['asset_class', 'sub_asset_class', 'source', 'listed_otc',
                         'gross_eur', 'gross_x_nav', 'n_positions']].copy()
     detail = detail.rename(columns={'gross_x_nav': _xnav('Gross')})
-    display_dark_table(
+    html = display_dark_table(
         detail, caption='AIFMD II Granular Leverage Breakdown',
         fmt={'gross_eur': '{:,.0f}', _xnav('Gross'): '{:.2f}×', 'n_positions': '{:.0f}'},
         date_str=valuation_date,
+        return_html=True,
     )
+    display(HTML(html))
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('AIFMD II Granular Leverage Breakdown')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
 
-def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = None):
+def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
     total_abs = risk_df_liq['market_value_eur'].abs().sum()
     total_net = risk_df_liq['market_value_eur'].sum()
     totals = pd.DataFrame([{
@@ -922,7 +1037,7 @@ def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = 
         'n_positions'     : bucket_full['n_positions'].sum(),
     }])
     df = pd.concat([bucket_full, totals], ignore_index=True)
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption='Liquidity Profile — AIFMD Annex IV Buckets',
         fmt={
@@ -934,7 +1049,17 @@ def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = 
         },
         highlight_rows=[len(df) - 1],
         date_str=valuation_date,
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Liquidity Profile — AIFMD Annex IV Buckets')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
 
 def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
@@ -1088,7 +1213,8 @@ def display_redemption_stress(
     redemption_scenarios,
     nav,
     risk_df_liq,
-    valuation_date: str | None = None
+    valuation_date: str | None = None,
+    export_id: str | None = None
 ):
     """
     Compute and display redemption stress scenarios.
@@ -1105,6 +1231,8 @@ def display_redemption_stress(
         Fund NAV in EUR
     risk_df_liq : pd.DataFrame
         Positions with liquidity_bucket column
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
     """
     from src.risk.risk_utils import redemption_stress
 
@@ -1137,14 +1265,23 @@ def display_redemption_stress(
     metadata_parts.append(f'Notice: {notice_days}d')
     metadata_str = ' | '.join(metadata_parts)
 
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption=f'Redemption Stress — {fund_id}',
         fmt={'redemption_eur': '{:,.0f}', 'liquid_eur': '{:,.0f}', 'coverage': '{:.2f}x'},
         col_styles={'coverage': lambda v: C['green'] if isinstance(v, float) and v >= 1.0 else C['red']},
         date_str=metadata_str,
         date_label='',
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Redemption Stress')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fund_id, filename)
 
 
 def display_combined_stress_mkt_plus_liq(
@@ -1155,6 +1292,8 @@ def display_combined_stress_mkt_plus_liq(
     delta_equity=-0.20,
     redemption_pct=0.25,
     valuation_date: str | None = None,
+    fund_id: str | None = None,
+    export_id: str | None = None,
 ):
     """
     Display combined stress scenario: market shock + simultaneous redemption.
@@ -1176,6 +1315,8 @@ def display_combined_stress_mkt_plus_liq(
         Equity market shock (e.g. -0.20 for -20%). Default -0.20.
     redemption_pct : float, optional
         Redemption as fraction of NAV (e.g. 0.25 for 25%). Default 0.25.
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
     """
     from src.risk.risk_utils import stress_equity, redemption_stress
 
@@ -1214,7 +1355,7 @@ def display_combined_stress_mkt_plus_liq(
     metadata_parts.append(f'NAV: EUR {nav:,.0f}')
     metadata_str = ' | '.join(metadata_parts)
 
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption='Combined Stress Test — Market + Liquidity',
         col_styles={
@@ -1225,10 +1366,20 @@ def display_combined_stress_mkt_plus_liq(
         },
         date_str=metadata_str,
         date_label='',
+        return_html=True,
     )
 
+    display(HTML(html))
 
-def display_counterparty_stress(NAV, valuation_date: str | None = None, **kwargs):
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Combined Stress Test — Market + Liquidity')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_counterparty_stress(NAV, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None, **kwargs):
     """
     Display counterparty stress table.
 
@@ -1238,6 +1389,8 @@ def display_counterparty_stress(NAV, valuation_date: str | None = None, **kwargs
         Net asset value.
     valuation_date : str, optional
         Valuation date for display.
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
     **kwargs : dict
         Expected keys: 'cp_df', 'worst_cp', 'loss_eur', 'loss_pct'.
         Or pass individual arguments: cp_df, worst_cp, loss_eur, loss_pct.
@@ -1285,7 +1438,7 @@ def display_counterparty_stress(NAV, valuation_date: str | None = None, **kwargs
     metadata_parts.append(f'NAV: EUR {NAV:,.0f}')
     metadata_str = ' | '.join(metadata_parts)
 
-    display_dark_table(
+    html = display_dark_table(
         cp.drop(columns=['loss_pct_nav_raw']),
         caption='Counterparty Register',
         highlight_rows=[sep_idx],
@@ -1301,7 +1454,17 @@ def display_counterparty_stress(NAV, valuation_date: str | None = None, **kwargs
         },
         date_str=metadata_str,
         date_label='',
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Counterparty Register')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
 
 def display_attribution(attr, flagged):
@@ -1323,7 +1486,7 @@ def display_attribution(attr, flagged):
     )
 
 
-def display_historical_scenarios(historical_scenarios: dict):
+def display_historical_scenarios(historical_scenarios: dict, fund_id: str | None = None, export_id: str | None = None):
     """Render the HISTORICAL_SCENARIOS parameter table (shock definitions, not results)."""
     rows = []
     for _, p in historical_scenarios.items():
@@ -1336,7 +1499,7 @@ def display_historical_scenarios(historical_scenarios: dict):
             'GBP'         : f"{p['fx_shocks'].get('GBP', 0)*100:+.0f}%",
         })
     df = pd.DataFrame(rows)
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption='Historical Stress Scenarios — Shock Parameters',
         col_styles={
@@ -1347,10 +1510,20 @@ def display_historical_scenarios(historical_scenarios: dict):
             'GBP'         : lambda v: C['red']   if isinstance(v, str) and v.startswith('-') else None,
         },
         col_widths={'Scenario': '260px'},
+        return_html=True,
     )
 
+    display(HTML(html))
 
-def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False, valuation_date: str | None = None):
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Historical Stress Scenarios — Shock Parameters')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
     """Render stress scenario P&L results — custom and/or historical."""
     from src.risk.risk_utils import HISTORICAL_SCENARIOS, stress_historical
     NAV  = risk_df['market_value_eur'].sum()
@@ -1376,7 +1549,7 @@ def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool 
     df      = pd.DataFrame(rows)
     worst   = df['pnl_eur'].idxmin()
 
-    display_dark_table(
+    html = display_dark_table(
         df,
         caption='Stress Scenario Results',
         fmt={
@@ -1390,12 +1563,25 @@ def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool 
         highlight_rows=[worst],
         col_widths={'Scenario': '260px'},
         date_str=valuation_date,
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Stress Scenario Results')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 def display_ptc(result: dict, test_number: int | None = None,
                 col_widths_trade: dict | None = None,
                 col_widths_metrics: dict | None = None,
                 col_widths_breaches: dict | None = None,
-                valuation_date: str | None = None) -> None:
+                valuation_date: str | None = None,
+                fund_id: str | None = None,
+                export_id: str | None = None,
+                return_html: bool = False) -> str | None:
     """Render pre-trade check as 3 separate independent tables.
 
     Table 1 (Trade Details): 4 columns
@@ -1410,6 +1596,8 @@ def display_ptc(result: dict, test_number: int | None = None,
         Column widths for metrics table: {'metric': 'XXXpx', 'pre': 'XXXpx', 'post': 'XXXpx'}
     col_widths_breaches : dict, optional
         Column widths for breaches table: {'item': 'XXXpx', 'value': 'XXXpx'}
+    return_html : bool, default False
+        If True, return combined HTML string instead of displaying. If False, display in notebook.
     """
     from datetime import datetime, timedelta
     import pandas as pd
@@ -1718,13 +1906,27 @@ def display_ptc(result: dict, test_number: int | None = None,
         f'</tbody></table>'
     )
 
-    # Display all 3 tables
+    # Combine all 3 tables into one HTML
+    combined_html = table1_html + '<br>' + table2_html + '<br>' + table3_html
+
+    # Return HTML if requested
+    if return_html:
+        return combined_html
+
+    # Otherwise display in notebook
     display(HTML(table1_html))
     display(HTML(table2_html))
     display(HTML(table3_html))
 
+    # Save as PNG if export_id is provided
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Pre-Trade Check')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(combined_html, result.get('fund_id', 'unknown'), filename)
 
-def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None = None) -> None:
+
+def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None) -> None:
     """
     Display asset class breakdown with market value, position count, and weight.
 
@@ -1732,6 +1934,8 @@ def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None =
     ----------
     df : pd.DataFrame
         Risk DataFrame with columns: asset_class, market_value_eur, isin.
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
 
     Returns
     -------
@@ -1757,7 +1961,7 @@ def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None =
     # Rename for display
     breakdown.columns = ['Market Value (EUR)', '# Positions', '% NAV']
 
-    display_dark_table(
+    html = display_dark_table(
         breakdown,
         caption='Asset Class Breakdown',
         col_align_override={'Asset Class': 'left',
@@ -1765,10 +1969,20 @@ def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None =
                            '# Positions': 'right',
                            '% NAV': 'right'},
         date_str=valuation_date,
+        return_html=True,
     )
 
+    display(HTML(html))
 
-def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: str | None = None) -> None:
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Asset Class Breakdown')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None) -> None:
     """
     Display top N positions as an HTML table with asset class, issuer, market value, and weight.
 
@@ -1778,6 +1992,8 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
         Risk DataFrame with columns: asset_class, issuer, market_value_eur.
     n_top : int
         Number of top positions to display. Default: 100.
+    export_id : str or None, default None
+        If provided, save rendered HTML as PNG
 
     Returns
     -------
@@ -1809,12 +2025,22 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
     col_align = {col: 'left' if col in ['Asset Class', 'Issuer'] else 'right'
                  for col in top_pos.columns}
 
-    display_dark_table(
+    html = display_dark_table(
         top_pos,
         caption=f'Top {n_top} Positions',
         col_align_override=col_align,
         date_str=valuation_date,
+        return_html=True,
     )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify(f'Top {n_top} Positions')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
 
 
 def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp_loss_pct):

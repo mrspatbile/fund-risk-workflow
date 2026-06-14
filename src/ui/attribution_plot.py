@@ -8,7 +8,7 @@ from src.ui.plot_style import C, ACCENT, ACCENT2, ACCENT3, FONT
 from src.ui.nb_utils import save_fig
 
 
-def plot_attribution_cumsum(attr_cumsum, fund_id, valuation_date: str | None = None):
+def plot_attribution_cumsum(attr_cumsum, fund_id, valuation_date: str | None = None, export_id: str | None = None):
     """
     Plot cumulative P&L attribution by risk factor.
 
@@ -73,21 +73,31 @@ def plot_attribution_cumsum(attr_cumsum, fund_id, valuation_date: str | None = N
         x=0.03,
     )
 
-    # Valuation date as axes title (below suptitle)
+    # Valuation date as figure text (below suptitle)
     if valuation_date:
-        ax.set_title(
-            f'As of {valuation_date}',
+        fig.text(
+            0.03, 0.93,
+            f'Computation Date {valuation_date}',
             fontsize=11,
-            fontweight='normal',
             color=C['muted'],
-            loc='left',
-            pad=0,
+            va='top',
         )
 
     ax.legend(fontsize=9)
-    plt.tight_layout(rect=[0, 0, 1, 1])
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
 
-    save_fig(fig, fund_id, "05. PnL attribution")
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify
+        title_slug = _slugify('P&L attribution')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = Path('fig') / fund_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+    else:
+        save_fig(fig, fund_id, "05. PnL attribution")
+
     plt.show()
 
     return fig, ax

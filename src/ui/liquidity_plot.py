@@ -8,7 +8,7 @@ from src.ui.plot_style import C, ACCENT, FONT
 from src.ui.nb_utils import save_fig
 
 
-def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_date: str | None = None):
+def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_date: str | None = None, export_id: str | None = None):
     """
     Plot liquidity profile — exposure by bucket with value labels.
 
@@ -33,6 +33,7 @@ def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_d
     """
 
     fig, ax = plt.subplots(figsize=(7, 3))
+    fig.subplots_adjust(top=0.88)
 
     bars = ax.bar(
         bucket_df['liquidity_bucket'],
@@ -48,22 +49,22 @@ def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_d
     # Main title as figure suptitle
     fig.suptitle(
         'Liquidity Profile — Absolute Exposure by Bucket',
-        fontsize=11,
+        fontsize=14,
         fontweight='bold',
         color=C['cyan'],
         ha='left',
         x=0.03,
+        y=0.98,
     )
 
-    # Valuation date as axes title (below suptitle)
+    # Valuation date as figure text (below suptitle)
     if valuation_date:
-        ax.set_title(
+        fig.text(
+            0.03, 0.9,
             f'As of {valuation_date}',
             fontsize=9.5,
-            fontweight='normal',
             color=C['muted'],
-            loc='left',
-            pad=0,
+            va='top',
         )
 
     # Label bars with values > 2%
@@ -80,8 +81,20 @@ def plot_liquidity_profile(bucket_df, fund_id, metric='pct_nav_abs', valuation_d
                 fontweight='bold',
             )
 
-    plt.tight_layout(rect=[0, 0, 1, 1.05])
-    save_fig(fig, fund_id, "04. Liquidity buckets")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify
+        title_slug = _slugify('Liquidity profile')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = Path('fig') / fund_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+    else:
+        save_fig(fig, fund_id, "04. Liquidity buckets")
+
     plt.show()
 
     return fig, ax

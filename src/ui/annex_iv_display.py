@@ -114,7 +114,9 @@ def _get_row_index(df: pd.DataFrame, sections: list[str],
 def annex_iv_section(annex_iv: dict, section: str,
                      col_widths: dict | None = None,
                      fmt: dict | None = None,
-                     spacer_width: str | int | None = None) -> None:
+                     spacer_width: str | int | None = None,
+                     fund_id: str | None = None,
+                     export_id: str | None = None) -> None:
     """
     Display a formatted HTML table for a single Annex IV report section.
 
@@ -193,7 +195,7 @@ def annex_iv_section(annex_iv: dict, section: str,
         colname, sub_sections = SECTIONS_DICT[section]
         section_rows = _get_row_index(df, sub_sections, colname)
 
-    phtml.display_dark_table(
+    html = phtml.display_dark_table(
         df,
         caption=section.upper().replace('_', ' '),
         fmt=fmt,
@@ -201,4 +203,15 @@ def annex_iv_section(annex_iv: dict, section: str,
         highlight_rows=section_rows,
         col_widths=col_widths,
         spacer_width=spacer_width,
+        return_html=True,
     )
+
+    from IPython.display import display, HTML
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        section_slug = _slugify(section)
+        filename = f'{export_id}_annex_iv_{section_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
