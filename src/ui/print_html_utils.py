@@ -2174,7 +2174,7 @@ def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp
     )
 
 
-def display_ucits_compliance_checks(compliance_result: dict, export_id: str | None = None, fund_id: str | None = None):
+def display_ucits_compliance_checks(compliance_result: dict, export_id: str | None = None, fund_id: str | None = None, valuation_date: str | None = None):
     """
     Display UCITS position-level compliance checks.
 
@@ -2186,6 +2186,8 @@ def display_ucits_compliance_checks(compliance_result: dict, export_id: str | No
         Export ID for saving output
     fund_id : str, optional
         Fund identifier for output directory
+    valuation_date : str, optional
+        Valuation date for display header
     """
     # Build summary table
     checks = [
@@ -2206,10 +2208,17 @@ def display_ucits_compliance_checks(compliance_result: dict, export_id: str | No
                 return C['red']
         return None
 
+    # Build date_str with status
+    date_str = None
+    if valuation_date:
+        status_text = compliance_result['overall_status']
+        date_str = f"{valuation_date} | Status: {status_text}"
+
     html = display_dark_table(
         summary_df,
-        caption=f"UCITS Compliance Checks — Status: {compliance_result['overall_status']}",
+        caption="UCITS Compliance Checks",
         col_styles={'Status': _status_color},
+        date_str=date_str,
         return_html=True,
     )
 
@@ -2331,6 +2340,74 @@ def display_ucits_srri(srri_result: dict, export_id: str | None = None, fund_id:
     if export_id is not None:
         from src.ui.nb_utils import _slugify, save_html_as_png
         title_slug = _slugify('UCITS SRRI')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_relative_var_point_in_time(fund_var_1d_pct: float, reference_var_1d_pct: float,
+                                              relative_var_ratio: float, var_holding_period: int,
+                                              relative_var_limit: float, status: str,
+                                              valuation_date: str | None = None, fund_id: str | None = None,
+                                              export_id: str | None = None):
+    """
+    Display UCITS relative VaR point-in-time analysis with as-of date.
+
+    Parameters
+    ----------
+    fund_var_1d_pct : float
+        Fund 1-day VaR as decimal (e.g., 0.015 for 1.5%)
+    reference_var_1d_pct : float
+        Reference portfolio 1-day VaR as decimal
+    relative_var_ratio : float
+        Relative VaR ratio (fund VaR / reference VaR)
+    var_holding_period : int
+        Holding period in days (e.g., 20)
+    relative_var_limit : float
+        Relative VaR limit multiplier (e.g., 2.0)
+    status : str
+        Status string (e.g., '🟢 OK', '🟡 WARNING', '🔴 BREACH')
+    valuation_date : str, optional
+        Valuation date for display
+    fund_id : str, optional
+        Fund identifier for export
+    export_id : str, optional
+        Export ID for saving output
+    """
+    import numpy as np
+
+    df = pd.DataFrame([
+        [f'Fund VaR {var_holding_period}d', f"{fund_var_1d_pct * np.sqrt(var_holding_period)*100:.3f}%"],
+        [f'Reference VaR {var_holding_period}d', f"{reference_var_1d_pct * np.sqrt(var_holding_period)*100:.3f}%"],
+        ['Relative VaR Ratio', f"{relative_var_ratio:.2f}x"],
+        ['Limit', f"{relative_var_limit:.1f}x"],
+        ['Utilisation', f"{relative_var_ratio/relative_var_limit*100:.1f}%"],
+        ['Status', status],
+    ], columns=['Metric', 'Value'])
+
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'BREACH' in v:
+                return C['red']
+            elif 'WARNING' in v:
+                return C['amber']
+            elif 'OK' in v:
+                return C['green']
+        return None
+
+    html = display_dark_table(
+        df,
+        caption='UCITS Relative VaR',
+        col_styles={'Status': _status_color},
+        date_str=valuation_date,
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS Relative VaR')
         filename = f'{export_id}_{title_slug}'
         fid = fund_id or 'unknown'
         save_html_as_png(html, fid, filename)
