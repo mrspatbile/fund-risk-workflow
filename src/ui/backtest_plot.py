@@ -94,44 +94,69 @@ def plot_var_backtest(dates, returns, var_hist, fund_id, title=None, zone=None,
             va='top',
         )
 
-    ax.set_ylabel('Daily P&L / VaR (%)', fontsize=9)
+    # Y-axis formatting: show percentages on tick labels
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y)))
+    ax.set_ylabel('Daily P&L / VaR', fontsize=9)
     ax.set_xlabel('Trading Days', fontsize=9)
 
-    # Legend outside on right, top-aligned
-    legend = ax.legend(fontsize=10, loc='upper left', bbox_to_anchor=(1.02, 1))
+    # Legend outside on right, top-aligned with transparent rounded box
+    legend = ax.legend(fontsize=10, loc='upper left', bbox_to_anchor=(1.02, 1), frameon=True)
     legend_bg = legend.get_frame()
+    legend_bg.set_facecolor('#f5f5f5')
+    legend_bg.set_alpha(0.07)
+    legend_bg.set_edgecolor('#cccccc')
+    legend_bg.set_linewidth(0.8)
+    legend_bg.set_boxstyle('round,pad=0.5')
 
-    # Add test results below legend
+    # Add test results in clean cards below legend (same size as legend box)
     if kupiec_pvalue is not None or christoffersen_pvalue is not None:
-        y_pos = 0.45
+        from matplotlib.patches import FancyBboxPatch
 
-        # Kupiec test
+        card_y = 0.65  # Start position for test cards
+        box_width = 0.18  # Width to match legend box
+        box_height = 0.18  # Height to encompass all elements
+
+        # Kupiec test card
         if kupiec_pvalue is not None:
             kupiec_result = 'PASS' if kupiec_pvalue > 0.05 else 'FAIL'
-            kupiec_color = 'darkgreen' if kupiec_pvalue > 0.05 else 'darkred'
+            kupiec_color = '#3d7f1f' if kupiec_pvalue > 0.05 else '#8b0000'
 
-            ax.text(1.07, y_pos, 'Kupiec POF', transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace')
-            ax.text(1.07, y_pos - 0.05, f'p={kupiec_pvalue:.4f}', transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace')
-            ax.text(1.07, y_pos - 0.10, kupiec_result, transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace',
-                   weight='bold', color=kupiec_color)
+            # Background box (same size as legend)
+            box = FancyBboxPatch((1.05, card_y - box_height), box_width, box_height,
+                                boxstyle='round,pad=0.02', transform=ax.transAxes,
+                                facecolor='#f5f5f5', alpha=0.07, edgecolor='#cccccc', linewidth=0.8)
+            ax.add_patch(box)
 
-            y_pos -= 0.18
+            # Text elements inside box
+            ax.text(1.07, card_y - 0.01, 'Kupiec POF', transform=ax.transAxes,
+                   fontsize=9, verticalalignment='top', family='sans-serif', color=C['muted'])
+            ax.text(1.07, card_y - 0.07, f'p={kupiec_pvalue:.4f}', transform=ax.transAxes,
+                   fontsize=8, verticalalignment='top', family='sans-serif', color=C['muted'])
+            ax.text(1.07, card_y - 0.13, kupiec_result, transform=ax.transAxes,
+                   fontsize=9, verticalalignment='top', family='sans-serif',
+                   weight='semibold', color=kupiec_color)
 
-        # Christoffersen test
+            card_y -= 0.25
+
+        # Christoffersen test card
         if christoffersen_pvalue is not None:
             chris_result = 'PASS' if christoffersen_pvalue > 0.05 else 'FAIL'
-            chris_color = 'darkgreen' if christoffersen_pvalue > 0.05 else 'darkred'
+            chris_color = '#3d7f1f' if christoffersen_pvalue > 0.05 else '#8b0000'
 
-            ax.text(1.07, y_pos, 'Christoffersen', transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace')
-            ax.text(1.07, y_pos - 0.05, f'p={christoffersen_pvalue:.4f}', transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace')
-            ax.text(1.07, y_pos - 0.10, chris_result, transform=ax.transAxes,
-                   fontsize=9, verticalalignment='top', family='monospace',
-                   weight='bold', color=chris_color)
+            # Background box (same size as legend)
+            box = FancyBboxPatch((1.05, card_y - box_height), box_width, box_height,
+                                boxstyle='round,pad=0.02', transform=ax.transAxes,
+                                facecolor='#f5f5f5', alpha=0.07, edgecolor='#cccccc', linewidth=0.8)
+            ax.add_patch(box)
+
+            # Text elements inside box
+            ax.text(1.07, card_y - 0.01, 'Christoffersen', transform=ax.transAxes,
+                   fontsize=9, verticalalignment='top', family='sans-serif', color=C['muted'])
+            ax.text(1.07, card_y - 0.07, f'p={christoffersen_pvalue:.4f}', transform=ax.transAxes,
+                   fontsize=8, verticalalignment='top', family='sans-serif', color=C['muted'])
+            ax.text(1.07, card_y - 0.13, chris_result, transform=ax.transAxes,
+                   fontsize=9, verticalalignment='top', family='sans-serif',
+                   weight='semibold', color=chris_color)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
 
