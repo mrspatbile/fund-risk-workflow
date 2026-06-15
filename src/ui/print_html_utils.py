@@ -2037,9 +2037,12 @@ def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None =
     breakdown['market_value_eur'] = breakdown['market_value_eur'].map('{:,.0f}'.format)
     breakdown['weight_pct'] = breakdown['weight_pct'].map('{:.2f}%'.format)
     breakdown['n_positions'] = breakdown['n_positions'].map('{:d}'.format)
+    breakdown = breakdown.reset_index()
+
 
     # Rename for display
-    breakdown.columns = ['Market Value (EUR)', '# Positions', '% NAV']
+    breakdown.columns = ['Asset Class', 'Market Value (EUR)', '# Positions', '% NAV']
+    
 
     html = display_dark_table(
         breakdown,
