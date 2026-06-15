@@ -309,7 +309,7 @@ def compute_ucits_relative_var_point_in_time(engine, fund_id: str, var_result: d
     """Compute relative VaR point-in-time."""
     from src.data.reference_data import load_reference_portfolio
 
-    ref_portfolio_id = rmp.get('reference_portfolio_id')
+    ref_portfolio_id = rmp['global_exposure_policy']['reference_portfolio_id']
     ref_portfolio = load_reference_portfolio(ref_portfolio_id)
 
     # Build reference portfolio returns
