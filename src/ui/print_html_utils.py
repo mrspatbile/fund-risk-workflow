@@ -2398,3 +2398,185 @@ def display_ucits_srri_point_in_time(result: dict, valuation_date: str | None = 
     if export_id:
         from src.ui.nb_utils import _slugify, save_html_as_png
         save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('UCITS SRRI')}")
+
+
+def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
+                           fund_id: str | None = None, valuation_date: str | None = None,
+                           export_id: str | None = None):
+    """
+    Display rolling SRRI monitoring: volatility chart with SRRI thresholds and history panel.
+
+    Parameters
+    ----------
+    srri_rolling : dict
+        Result from compute_srri_rolling_monthly()
+    current_disclosed_srri : int
+        The officially disclosed SRRI bucket (1-7)
+    fund_id : str, optional
+        Fund ID for export filename
+    valuation_date : str, optional
+        Valuation date for display
+    export_id : str, optional
+        Export ID prefix for saving plots
+    """
+    from src.ui.nb_utils import _slugify, save_fig
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+    from src.ui.plot_style import ACCENT, C
+    import numpy as np
+
+    rolling_df = srri_rolling['rolling_srri_df'].copy()
+
+    if rolling_df.empty:
+        print("No rolling SRRI data available")
+        return
+
+    # Extract key metrics
+    current_srri = srri_rolling['current_srri']
+    current_vol = srri_rolling['current_volatility_pct']
+    kiid_required = srri_rolling['kiid_update_required']
+    latest_date = rolling_df.iloc[-1]['date']
+    latest_date_str = latest_date.strftime('%Y-%m-%d') if hasattr(latest_date, 'strftime') else str(latest_date)
+
+    # ===== MAIN FIGURE: Plot LEFT, history panel RIGHT =====
+    fig = plt.figure(figsize=(14, 6.5))
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[5.8, 1.4], wspace=0.04,
+                  left=0.05, right=0.94, top=0.88, bottom=0.12)
+
+    # Main axis: volatility chart with SRRI thresholds
+    ax_main = fig.add_subplot(gs[0, 0])
+
+    dates = rolling_df['date'].values
+    volatilities = rolling_df['volatility_pct'].values
+
+    # SRRI threshold boundaries (CESR/10-673) and blue color gradient (enhanced contrast)
+    srri_boundaries = [0.0, 0.5, 2.0, 5.0, 10.0, 15.0, 25.0, 100.0]
+    blues = ['#E6F2FF', '#CCE5FF', '#9ECCFF', '#6699FF', '#3366FF', '#1A4DB8', '#001A66']
+
+    # Plot SRRI threshold bands (alpha=0.12 for stronger visibility)
+    for i in range(len(blues)):
+        ax_main.axhspan(srri_boundaries[i], srri_boundaries[i+1], alpha=0.12, color=blues[i])
+
+    # Plot volatility line (dominant visual)
+    ax_main.plot(dates, volatilities, color=ACCENT, linewidth=2.5, marker='o',
+                 markersize=3.5, zorder=5)
+
+    # Mark SRRI category changes with RED markers (no outline, no text)
+    has_category_change = False
+    for i in range(1, len(rolling_df)):
+        prev_srri = int(rolling_df.iloc[i-1]['srri'])
+        curr_srri = int(rolling_df.iloc[i]['srri'])
+        if prev_srri != curr_srri:
+            date_change = rolling_df.iloc[i]['date']
+            vol_change = rolling_df.iloc[i]['volatility_pct']
+            ax_main.scatter([date_change], [vol_change], s=60, color='#E74C3C', marker='o',
+                           zorder=6, edgecolors='none', label='SRRI Category Change' if not has_category_change else '')
+            has_category_change = True
+
+    # Mark KIID update trigger dates with red stars (if any)
+    if len(srri_rolling['trigger_dates']) > 0:
+        for trigger_date in srri_rolling['trigger_dates']:
+            mask = rolling_df['date'] == trigger_date
+            if mask.any():
+                trigger_vol = rolling_df[mask]['volatility_pct'].values[0]
+                ax_main.scatter([trigger_date], [trigger_vol], s=120, color='#E74C3C', marker='*',
+                               zorder=7, edgecolors='none')
+
+    # Y-axis: ticks ONLY at SRRI boundaries, formatted with % and no .0
+    y_max = max(volatilities) * 1.15
+    ax_main.set_ylim(0, y_max)
+    ax_main.set_yticks(srri_boundaries[1:-1])  # 0.5, 2.0, 5.0, 10.0, 15.0, 25.0
+
+    # Format y-axis labels: remove .0, add %
+    y_tick_labels = []
+    for v in srri_boundaries[1:-1]:
+        if v == int(v):
+            y_tick_labels.append(f'{int(v)}%')
+        else:
+            y_tick_labels.append(f'{v}%')
+    ax_main.set_yticklabels(y_tick_labels, fontsize=9)
+
+    # ===== SRRI bucket labels (1-7) on right edge, inside plot, alpha=0.07 =====
+    # Only show labels up to the maximum volatility level observed
+    max_vol = max(volatilities)
+    max_srri_to_show = 7 if max_vol >= 25.0 else 6  # Skip SRRI 7 if max vol < 25%
+
+    label_positions = [(srri_boundaries[i] + srri_boundaries[i+1]) / 2 for i in range(len(blues))]
+    ax_lim_right = dates[-1]
+    for i in range(max_srri_to_show):
+        y_pos = label_positions[i]
+        ax_main.text(ax_lim_right, y_pos, f'SRRI {i+1}', fontsize=7.5, ha='right', va='center',
+                    bbox=dict(boxstyle='round,pad=0.25', facecolor='white', alpha=0.07,
+                             edgecolor='none'))
+
+    ax_main.set_ylabel('Annualised Volatility', fontsize=10, fontweight='bold')
+    ax_main.set_xlabel('')  # Remove x-axis label
+    ax_main.grid(True, axis='y', alpha=0.2, linestyle='--', linewidth=0.5)
+    ax_main.tick_params(labelsize=9)
+
+    # Add legend if there are category changes
+    if has_category_change:
+        ax_main.legend(fontsize=9, loc='upper left', framealpha=0.9)
+
+    # ===== RIGHT PANEL: 6-month history table (OUTSIDE plot area) =====
+    ax_history = fig.add_subplot(gs[0, 1])
+    ax_history.axis('off')
+
+    # Title (OUTSIDE the box, above it, grey/muted color)
+    ax_history.text(0.05, 1.0, 'Last 6 mo SRRI', transform=ax_history.transAxes, fontsize=10,
+                   ha='left', va='bottom', fontweight='bold', color=C['muted'])
+
+    # Build history table with enhanced spacing and centered columns
+    recent_df = rolling_df.tail(6).copy()
+
+    # Column headers (centered)
+    header_line = f"{'Date':^8}  {'Vol%':^8}  {'SRRI':^6}  {'Update KIID':^12}"
+    history_lines = [header_line]
+    history_lines.append('─' * 42)
+
+    # Data rows (centered values)
+    for idx, row in recent_df.iterrows():
+        date_str = row['date'].strftime('%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+        srri_val = int(row['srri'])
+        vol_pct = row['volatility_pct']
+        kiid_flag = 'Yes' if (len(srri_rolling['trigger_dates']) > 0 and row['date'] >= srri_rolling['trigger_dates'][0]) else 'No'
+
+        data_line = f"{date_str:^8}  {vol_pct:^8.2f}  {srri_val:^6}  {kiid_flag:^12}"
+        history_lines.append(data_line)
+
+    history_text = '\n'.join(history_lines)
+
+    ax_history.text(0.05, 0.95, history_text, transform=ax_history.transAxes, fontsize=8,
+                   ha='left', va='top', family='monospace', linespacing=1.5,
+                   bbox=dict(boxstyle='round,pad=0.6', facecolor='white', alpha=0.07,
+                            edgecolor='none'))
+
+    # ===== Titles: Following VAR backtest style (cyan suptitle, grey subtitle, LEFT-aligned) =====
+    fig.suptitle(
+        f'SRRI Monitoring | Rolling Volatility | {fund_id or "Fund"}',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+    )
+
+    fig.text(
+        0.03, 0.935,
+        f'Computation Date {valuation_date}',
+        fontsize=11,
+        color=C['muted'],
+        va='top',
+    )
+
+    # Save plot using VAR backtest approach
+    if export_id:
+        from src.ui.nb_utils import _get_project_root
+        title_slug = _slugify('SRRI Monitoring')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = _get_project_root() / 'figs' / fund_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+
+    plt.show()
