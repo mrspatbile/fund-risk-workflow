@@ -262,3 +262,154 @@ def compute_srri_from_fund(engine, fund_id: str) -> dict:
         'observation_count': len(weekly_ret),
         'description': srri_as_string(sri_bucket),
     }
+
+
+def compute_srri_rolling_monthly(
+    engine,
+    fund_id: str,
+    as_of_date: str,
+    current_disclosed_srri: int = None,
+    window_weeks: int = 260,
+    persistence_months: int = 4,
+) -> dict:
+    """
+    Compute rolling monthly SRRI and check KIID update trigger.
+
+    Queries NAV history from positions table, resamples to weekly, and computes SRRI at each
+    month-end using a trailing 260-week window. Checks for 4-month persistence of SRRI
+    category change versus the officially disclosed SRRI to determine KIID update trigger.
+
+    Parameters
+    ----------
+    engine : sqlalchemy.Engine
+    fund_id : str
+    as_of_date : str
+        Valuation date (YYYY-MM-DD), used to determine "current" status
+    current_disclosed_srri : int, required
+        The officially disclosed/current SRRI category (1-7).
+        KIID update is triggered only if computed SRRI differs from this baseline
+        and persists for the configured number of months.
+        Must be explicitly provided; will not be inferred from history.
+    window_weeks : int, default 260
+        Rolling window size in weeks (standard: 260 for 5 years)
+    persistence_months : int, default 4
+        Number of consecutive months required for KIID update trigger
+
+    Returns
+    -------
+    dict
+        {
+            'rolling_srri_df': pd.DataFrame with columns [date, srri, volatility_pct],
+            'current_srri': int (1-7),
+            'current_disclosed_srri': int (1-7) or None,
+            'current_volatility_pct': float,
+            'baseline_missing': bool, True if current_disclosed_srri was not provided,
+            'kiid_update_required': bool, False if baseline_missing is True,
+            'trigger_dates': list of dates where trigger occurred,
+            'window_weeks': int,
+            'persistence_months': int,
+        }
+
+    Notes
+    -----
+    - A 260-week NAV window produces 259 weekly returns (pct_change drops first NaT)
+    - Month-end rows are filtered to on_or_before as_of_date (no future month-ends)
+    - If current_disclosed_srri is None, baseline_missing=True and kiid_update_required=False
+    """
+    from src.data.database import query_nav_history
+
+    # Query NAV history (computed from positions table)
+    nav_df = query_nav_history(engine, fund_id)
+
+    if nav_df.empty:
+        raise ValueError(f"No NAV history found for {fund_id}")
+
+    nav_df['date'] = pd.to_datetime(nav_df['date'])
+    as_of_date_ts = pd.Timestamp(as_of_date)
+    nav_series = nav_df.set_index('date')['nav_eur']
+
+    # Resample to weekly (last value of each week)
+    nav_weekly = nav_series.resample('W').last()
+
+    # Month-end dates from the weekly series, filtered to on-or-before as_of_date
+    all_monthly_ends = nav_weekly.resample('ME').last().index
+    monthly_ends = all_monthly_ends[all_monthly_ends <= as_of_date_ts]
+
+    # Compute SRRI at each month-end
+    rolling_srri_records = []
+    for month_end in monthly_ends:
+        # Get trailing 260 weeks from this month-end
+        window_start = month_end - pd.DateOffset(weeks=window_weeks)
+        window_data = nav_weekly[(nav_weekly.index > window_start) & (nav_weekly.index <= month_end)]
+
+        if len(window_data) < 52:  # At least 1 year of data
+            continue
+
+        # Compute weekly returns and SRRI
+        # 260-week window -> 259 weekly returns (pct_change drops first NaT)
+        weekly_ret = window_data.pct_change().dropna()
+        return_observation_count = len(weekly_ret)
+
+        if return_observation_count < 52:
+            continue
+
+        sigma_weekly = weekly_ret.std()
+        sigma_ann = sigma_weekly * np.sqrt(52)
+        sri_bucket = map_volatility_to_srri_bucket(sigma_ann * 100)
+
+        # User-facing record (no observation count in display)
+        rolling_srri_records.append({
+            'date': month_end,
+            'srri': sri_bucket,
+            'volatility_pct': sigma_ann * 100,
+            # Internal validation: return_observation_count is ~259 for 260-week window
+            # Not included in display table per user request
+        })
+
+    rolling_srri_df = pd.DataFrame(rolling_srri_records)
+
+    if rolling_srri_df.empty:
+        raise ValueError(f"Insufficient data to compute rolling SRRI for {fund_id}")
+
+    # Extract current SRRI (most recent month-end)
+    current_row = rolling_srri_df.iloc[-1]
+    current_srri = current_row['srri']
+    current_volatility = current_row['volatility_pct']
+
+    # Check if disclosed SRRI baseline was provided
+    baseline_missing = current_disclosed_srri is None
+
+    # Check KIID update trigger: current SRRI differs from disclosed AND persists
+    # If baseline is missing, do not trigger and return baseline_missing flag
+    trigger_dates = []
+    kiid_update_required = False
+
+    if not baseline_missing:
+        # KIID update is required only if:
+        # 1. Current SRRI != disclosed SRRI, AND
+        # 2. Current SRRI has persisted for configured months (from recent backwards)
+        if current_srri != current_disclosed_srri and len(rolling_srri_df) >= persistence_months:
+            # Count consecutive recent months at current_srri (from end backwards)
+            consecutive_at_current = 0
+            for idx in range(len(rolling_srri_df) - 1, -1, -1):
+                if rolling_srri_df.iloc[idx]['srri'] == current_srri:
+                    consecutive_at_current += 1
+                else:
+                    break
+
+            if consecutive_at_current >= persistence_months:
+                kiid_update_required = True
+                # Record when trigger was satisfied (when persistence threshold reached)
+                trigger_dates = [rolling_srri_df.iloc[len(rolling_srri_df) - consecutive_at_current]['date']]
+
+    return {
+        'rolling_srri_df': rolling_srri_df,
+        'current_srri': int(current_srri),
+        'current_disclosed_srri': int(current_disclosed_srri) if current_disclosed_srri is not None else None,
+        'current_volatility_pct': float(current_volatility),
+        'baseline_missing': baseline_missing,
+        'kiid_update_required': kiid_update_required,
+        'trigger_dates': trigger_dates,
+        'window_weeks': window_weeks,
+        'persistence_months': persistence_months,
+    }

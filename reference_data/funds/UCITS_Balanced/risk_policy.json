@@ -42,6 +42,7 @@
   },
 
   "srri_monitoring": {
+    "current_disclosed_srri": 5,
     "window_weeks": 260,
     "update_frequency_months": 1,
     "category_change_persistence_months": 4
