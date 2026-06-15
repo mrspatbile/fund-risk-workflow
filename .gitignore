@@ -7,9 +7,14 @@ __pycache__/
 .venv/
 data/
 docs/_old
+docs/refactor_plans
 notebooks/data/
 reports/
 notebooks/portfolio_management/
 notebooks/old - liquidity_fund_risk.ipynb
 *.egg-info/
 src/cache_old/
+# notebooks/funds/aifm_infra_fund.ipynb   
+# notebooks/funds/aifm_pe_buyout.ipynb    
+# notebooks/funds/aifm_private_debt.ipynb 
+# notebooks/funds/aifm_real_estate.ipynb  

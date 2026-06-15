@@ -7,6 +7,8 @@
   "liquidity_profile": "daily_redemption",
   "valuation_frequency": "daily",
 
+  "reference_portfolio_id": "ucits_balanced_60_40",
+
   "priips_kid": {
     "risk_indicator": "Summary Risk Indicator (SRI)",
     "sri_class": null,
@@ -14,5 +16,41 @@
     "costs_disclosure": true
   },
 
-  "_note": "UCITS regulatory limits (absolute VaR, relative VaR, 5/10/40 rule, counterparty limits, borrowing limits) are defined centrally in reference_data/regulation/ucits_regulatory_framework.json, not duplicated here."
+  "stress_testing": {
+    "scenarios": [
+      {"name": "equity_crash", "description": "Equity decline", "shock_pct": -30},
+      {"name": "rate_shock", "description": "Parallel rate shift", "shock_bps": 200},
+      {"name": "credit_widening", "description": "Credit spread widening", "shock_bps": 150},
+      {"name": "fx_stress", "description": "FX depreciation", "shock_pct": -15},
+      {"name": "combined", "description": "Simultaneous shocks", "combined": true},
+      {"name": "historical_2008", "description": "2008 financial crisis"},
+      {"name": "historical_2020", "description": "2020 COVID crash"},
+      {"name": "historical_2022", "description": "2022 rate shock"}
+    ]
+  },
+
+  "backtesting": {
+    "lookback_days": 250,
+    "observation_window_months": 12,
+    "breach_zone_thresholds": {"green": 4, "amber": 9, "red": 10}
+  },
+
+  "srri_monitoring": {
+    "window_weeks": 260,
+    "update_frequency_months": 1,
+    "category_change_persistence_months": 4
+  },
+
+  "liquidity_monitoring": {
+    "pct_adv": 25,
+    "notice_period_days": 5,
+    "stress_scenarios": ["normal", "large", "stress", "largest_investor"]
+  },
+
+  "internal_monitoring": {
+    "largest_position_warning_pct": 8,
+    "liquidity_coverage_threshold_days": 5
+  },
+
+  "_note": "UCITS regulatory limits (absolute VaR, relative VaR, 5/10/40 rule, counterparty limits, borrowing limits) are defined centrally in reference_data/regulation/ucits_regulatory_framework.json, not duplicated here. This file contains only fund-level operational parameters and monitoring thresholds."
 }

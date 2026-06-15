@@ -430,6 +430,23 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'vacancy_alarm_threshold_pct': 'Vacancy alarm threshold',
     }
 
+    def format_scenario(scenario):
+        """Format a stress scenario dict to readable string."""
+        if not isinstance(scenario, dict):
+            return str(scenario)
+
+        name = scenario.get('description', scenario.get('name', 'Unknown'))
+
+        # Extract shock magnitude
+        if 'shock_pct' in scenario:
+            shock = f"({scenario['shock_pct']:.0f}%)"
+        elif 'shock_bps' in scenario:
+            shock = f"({scenario['shock_bps']:.0f}bps)"
+        else:
+            shock = ''
+
+        return f"{name} {shock}".strip()
+
     def format_value(value, field_name=''):
         """Format a value for display."""
         if value is None or value == '' or (isinstance(value, list) and len(value) == 0):
@@ -438,7 +455,12 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         if isinstance(value, bool):
             return 'Yes' if value else 'No'
         elif isinstance(value, list):
-            return ', '.join(str(v) for v in value)
+            # Special handling for stress scenarios
+            if field_name == 'scenarios' or any('shock' in str(v) for v in value if isinstance(v, dict)):
+                formatted_scenarios = [format_scenario(v) for v in value]
+                return ', '.join(formatted_scenarios)
+            else:
+                return ', '.join(str(v) for v in value)
         elif isinstance(value, (int, float)):
             # Format as percentage if field name contains 'pct'
             if 'pct' in field_name.lower():
@@ -508,6 +530,12 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                                 sub_items.append(f'{sub_label}: {formatted}')
                     if sub_items:
                         rows.append((f'  {label}', ', '.join(sub_items)))
+                # Handle lists of dicts (like scenarios)
+                elif isinstance(param_value, list) and param_value and isinstance(param_value[0], dict):
+                    label = readable_label(param_key)
+                    formatted = format_value(param_value, param_key)
+                    if formatted is not None:
+                        rows.append((f'  {label}', formatted))
                 else:
                     formatted = format_value(param_value, param_key)
                     if formatted is not None:
@@ -2139,3 +2167,165 @@ def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp
             ),
         },
     )
+
+
+def display_ucits_compliance_checks(compliance_result: dict, export_id: str | None = None, fund_id: str | None = None):
+    """
+    Display UCITS position-level compliance checks.
+
+    Parameters
+    ----------
+    compliance_result : dict
+        Result from ucits_compliance_checks.run_ucits_compliance_checks()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    """
+    # Build summary table
+    checks = [
+        ['Long-only constraint', compliance_result['long_only']['status']],
+        ['10% position limit', compliance_result['concentration']['status']],
+        ['Eligible assets', compliance_result['eligible_assets']['status']],
+        ['Weights sum to 100%', compliance_result['weights']['status']],
+    ]
+
+    summary_df = pd.DataFrame(checks, columns=['Check', 'Status'])
+
+    # Color status
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'OK' in v:
+                return C['green']
+            elif 'FLAG' in v or 'FAIL' in v:
+                return C['red']
+        return None
+
+    html = display_dark_table(
+        summary_df,
+        caption=f"UCITS Compliance Checks — Status: {compliance_result['overall_status']}",
+        col_styles={'Status': _status_color},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Detail any breaches
+    if compliance_result['concentration']['breaches']:
+        breach_df = pd.DataFrame(compliance_result['concentration']['breaches'])
+        breach_df.columns = ['Instrument', 'Weight (%)']
+        breach_df['Weight (%)'] = breach_df['Weight (%)'].map('{:.1f}%'.format)
+        print("\n⚠ 10% Limit Breaches:")
+        display_dark_table(breach_df, caption="Non-ETF positions exceeding 10% NAV")
+
+    if compliance_result['eligible_assets']['illiquid']:
+        illiquid_df = pd.DataFrame(compliance_result['eligible_assets']['illiquid'])
+        illiquid_df.columns = ['Instrument', 'Asset Class']
+        print("\n⚠ Illiquid Instruments:")
+        display_dark_table(illiquid_df, caption="Assets with zero ADV")
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS Compliance Checks')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_relative_var(rel_var_result: dict, export_id: str | None = None, fund_id: str | None = None):
+    """
+    Display UCITS relative VaR analysis.
+
+    Parameters
+    ----------
+    rel_var_result : dict
+        Result from ucits_relative_var.compute_ucits_relative_var()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    """
+    df = pd.DataFrame([
+        ['Fund VaR (20d, 99%)', f"{rel_var_result['fund_var_pct']:.3f}%"],
+        ['Reference Portfolio VaR', f"{rel_var_result['reference_var_pct']:.3f}%"],
+        ['Relative VaR Ratio', f"{rel_var_result['relative_var_ratio']:.2f}x"],
+        ['UCITS Limit', f"{rel_var_result['limit_multiplier']:.1f}x"],
+        ['Utilisation', f"{rel_var_result['utilisation_pct']:.1f}%"],
+        ['Status', rel_var_result['status']],
+    ], columns=['Metric', 'Value'])
+
+    # Color status
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'COMPLIANT' in v or 'OK' in v:
+                return C['green']
+            elif 'BREACH' in v or 'FAIL' in v:
+                return C['red']
+        return None
+
+    html = display_dark_table(
+        df,
+        caption='UCITS Relative VaR Limit Monitoring',
+        col_styles={'Status': _status_color},
+        col_widths={'Metric': '200px', 'Value': '150px'},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS Relative VaR')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_srri(srri_result: dict, export_id: str | None = None, fund_id: str | None = None):
+    """
+    Display UCITS Summary Risk Indicator (SRRI) analysis.
+
+    Parameters
+    ----------
+    srri_result : dict
+        Result from ucits_srri.compute_srri_from_nav_history()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    """
+    from src.risk.ucits_srri import srri_as_string
+
+    srri_bucket = srri_result['sri_bucket']
+    srri_desc = srri_as_string(srri_bucket)
+
+    # Warn if insufficient data
+    if srri_result.get('status') == 'INSUFFICIENT_DATA':
+        print(f"⚠ SRRI based on {srri_result['observation_count']} weeks (insufficient for standard 260-week window)")
+
+    df = pd.DataFrame([
+        ['SRRI Category', f'{srri_bucket} — {srri_desc}'],
+        ['Annualised Volatility', f"{srri_result['volatility_annual_pct']:.2f}%"],
+        ['Weekly Volatility', f"{srri_result['volatility_weekly_pct']:.2f}%"],
+        ['Observation Count', str(srri_result['observation_count'])],
+        ['Time Window', f"{srri_result['time_window_years']:.1f} years"],
+    ], columns=['Metric', 'Value'])
+
+    html = display_dark_table(
+        df,
+        caption='UCITS Summary Risk Indicator (SRRI)',
+        col_widths={'Metric': '200px', 'Value': '250px'},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS SRRI')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
