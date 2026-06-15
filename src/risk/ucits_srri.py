@@ -236,3 +236,29 @@ def srri_as_string(bucket: int) -> str:
         7: 'Very High Risk',
     }
     return descriptions.get(bucket, f'Category {bucket}')
+
+
+def compute_srri_from_fund(engine, fund_id: str) -> dict:
+    """Compute SRRI from fund NAV history."""
+    from src.data.database import query_nav_history
+
+    nav_history_full = query_nav_history(engine, fund_id)
+    nav_history_full['date'] = pd.to_datetime(nav_history_full['date'])
+    nav_history_full = nav_history_full.set_index('date')
+
+    cutoff = nav_history_full.index.max() - pd.DateOffset(weeks=260)
+    nav_history_5y = nav_history_full[nav_history_full.index >= cutoff]
+
+    weekly_nav = nav_history_5y['nav_eur'].resample('W').last()
+    weekly_ret = weekly_nav.pct_change().dropna()
+    sigma_weekly = weekly_ret.std()
+    sigma_ann = sigma_weekly * np.sqrt(52)
+
+    sri_bucket = map_volatility_to_srri_bucket(sigma_ann * 100)
+
+    return {
+        'sri_bucket': sri_bucket,
+        'volatility_annual_pct': sigma_ann * 100,
+        'observation_count': len(weekly_ret),
+        'description': srri_as_string(sri_bucket),
+    }

@@ -2345,44 +2345,20 @@ def display_ucits_srri(srri_result: dict, export_id: str | None = None, fund_id:
         save_html_as_png(html, fid, filename)
 
 
-def display_ucits_relative_var_point_in_time(fund_var_1d_pct: float, reference_var_1d_pct: float,
-                                              relative_var_ratio: float, var_holding_period: int,
-                                              relative_var_limit: float, status: str,
-                                              valuation_date: str | None = None, fund_id: str | None = None,
-                                              export_id: str | None = None):
-    """
-    Display UCITS relative VaR point-in-time analysis with as-of date.
-
-    Parameters
-    ----------
-    fund_var_1d_pct : float
-        Fund 1-day VaR as decimal (e.g., 0.015 for 1.5%)
-    reference_var_1d_pct : float
-        Reference portfolio 1-day VaR as decimal
-    relative_var_ratio : float
-        Relative VaR ratio (fund VaR / reference VaR)
-    var_holding_period : int
-        Holding period in days (e.g., 20)
-    relative_var_limit : float
-        Relative VaR limit multiplier (e.g., 2.0)
-    status : str
-        Status string (e.g., '🟢 OK', '🟡 WARNING', '🔴 BREACH')
-    valuation_date : str, optional
-        Valuation date for display
-    fund_id : str, optional
-        Fund identifier for export
-    export_id : str, optional
-        Export ID for saving output
-    """
+def display_ucits_relative_var_point_in_time(result: dict, valuation_date: str | None = None,
+                                              fund_id: str | None = None, export_id: str | None = None):
+    """Display UCITS relative VaR from computed result."""
     import numpy as np
 
     df = pd.DataFrame([
-        [f'Fund VaR {var_holding_period}d', f"{fund_var_1d_pct * np.sqrt(var_holding_period)*100:.3f}%"],
-        [f'Reference VaR {var_holding_period}d', f"{reference_var_1d_pct * np.sqrt(var_holding_period)*100:.3f}%"],
-        ['Relative VaR Ratio', f"{relative_var_ratio:.2f}x"],
-        ['Limit', f"{relative_var_limit:.1f}x"],
-        ['Utilisation', f"{relative_var_ratio/relative_var_limit*100:.1f}%"],
-        ['Status', status],
+        [f"Fund VaR {result['var_holding_period']}d",
+         f"{result['fund_var_1d_pct'] * np.sqrt(result['var_holding_period'])*100:.3f}%"],
+        [f"Reference VaR {result['var_holding_period']}d",
+         f"{result['reference_var_1d_pct'] * np.sqrt(result['var_holding_period'])*100:.3f}%"],
+        ['Relative VaR Ratio', f"{result['relative_var_ratio']:.2f}x"],
+        ['Limit', f"{result['relative_var_limit']:.1f}x"],
+        ['Utilisation', f"{result['utilisation_pct']:.1f}%"],
+        ['Status', result['status']],
     ], columns=['Metric', 'Value'])
 
     def _status_color(v):
@@ -2395,19 +2371,30 @@ def display_ucits_relative_var_point_in_time(fund_var_1d_pct: float, reference_v
                 return C['green']
         return None
 
-    html = display_dark_table(
-        df,
-        caption='UCITS Relative VaR',
-        col_styles={'Status': _status_color},
-        date_str=valuation_date,
-        return_html=True,
-    )
-
+    html = display_dark_table(df, caption='UCITS Relative VaR', col_styles={'Status': _status_color},
+                             date_str=valuation_date, return_html=True)
     display(HTML(html))
 
-    if export_id is not None:
+    if export_id:
         from src.ui.nb_utils import _slugify, save_html_as_png
-        title_slug = _slugify('UCITS Relative VaR')
-        filename = f'{export_id}_{title_slug}'
-        fid = fund_id or 'unknown'
-        save_html_as_png(html, fid, filename)
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('UCITS Relative VaR')}")
+
+
+def display_ucits_srri_point_in_time(result: dict, valuation_date: str | None = None,
+                                     fund_id: str | None = None, export_id: str | None = None):
+    """Display UCITS SRRI from computed result."""
+    from src.risk.ucits_srri import srri_as_string
+
+    df = pd.DataFrame([
+        ['SRRI Category', f"{result['sri_bucket']} — {srri_as_string(result['sri_bucket'])}"],
+        ['Annualised Volatility', f"{result['volatility_annual_pct']:.2f}%"],
+        ['Weekly Observations', str(result['observation_count'])],
+    ], columns=['Metric', 'Value'])
+
+    html = display_dark_table(df, caption='UCITS Summary Risk Indicator (SRRI)',
+                             date_str=valuation_date, return_html=True)
+    display(HTML(html))
+
+    if export_id:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('UCITS SRRI')}")
