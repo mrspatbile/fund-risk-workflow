@@ -2574,7 +2574,7 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
         from src.ui.nb_utils import _get_project_root
         title_slug = _slugify('SRRI Monitoring')
         filename = f'{export_id}_{title_slug}'
-        out_dir = _get_project_root() / 'figs' / fund_id
+        out_dir = _get_project_root() / 'fig' / fund_id
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
         fig.savefig(path, dpi=150, bbox_inches='tight', pad_inches=0.25, facecolor=fig.get_facecolor())
