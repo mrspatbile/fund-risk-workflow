@@ -34,6 +34,12 @@
     "observation_window_months": 12,
     "breach_zone_thresholds": {"green": 4, "amber": 9, "red": 10}
   },
+  "var_framework": {
+    "models": ["historical", "parametric"],
+    "parametric_distribution": "student_t",
+    "parametric_degrees_of_freedom": 5,
+    "scaling_method": "sqrt_time"
+  },
 
   "srri_monitoring": {
     "window_weeks": 260,

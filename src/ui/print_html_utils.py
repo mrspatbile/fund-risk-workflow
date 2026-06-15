@@ -2087,7 +2087,7 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
     nav = float(df['market_value_eur'].sum())
 
     # Select available columns
-    cols = ['asset_class', 'issuer', 'market_value_eur']
+    cols = ['asset_class', 'instrument_name', 'market_value_eur']
     available_cols = [col for col in cols if col in df.columns]
 
     # Sort by market value descending and take top N
@@ -2098,9 +2098,11 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
     # Format columns
     top_pos['market_value_eur'] = top_pos['market_value_eur'].map('{:,.0f}'.format)
     top_pos['weight_pct'] = top_pos['weight_pct'].map('{:.2f}%'.format)
+    
+    # top_pos = top_pos.reset_index() 
 
     # Rename for display
-    col_names = {'asset_class': 'Asset Class', 'issuer': 'Issuer',
+    col_names = {'asset_class': 'Asset Class', 'instrument_name': 'Instrument',
                  'market_value_eur': 'Market Value (EUR)', 'weight_pct': '% NAV'}
     top_pos.columns = [col_names.get(col, col) for col in top_pos.columns]
 
