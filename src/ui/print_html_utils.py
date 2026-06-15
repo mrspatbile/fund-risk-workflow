@@ -2440,7 +2440,7 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
 
     # ===== MAIN FIGURE: Plot LEFT, history panel RIGHT =====
     fig = plt.figure(figsize=(14, 6.5))
-    gs = GridSpec(1, 2, figure=fig, width_ratios=[5.8, 1.4], wspace=0.04,
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[5.4, 1.8], wspace=0.04,
                   left=0.05, right=0.94, top=0.88, bottom=0.12)
 
     # Main axis: volatility chart with SRRI thresholds
@@ -2522,9 +2522,9 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
     ax_history = fig.add_subplot(gs[0, 1])
     ax_history.axis('off')
 
-    # Title (OUTSIDE the box, above it, grey/muted color)
-    ax_history.text(0.05, 1.0, 'Last 6 mo SRRI', transform=ax_history.transAxes, fontsize=10,
-                   ha='left', va='bottom', fontweight='bold', color=C['muted'])
+    # Title (RIGHT-anchored to prevent overflow)
+    ax_history.text(0.88, 1.0, 'Last 6 mo SRRI', transform=ax_history.transAxes, fontsize=9,
+                   ha='right', va='top', fontweight='bold', color=C['muted'])
 
     # Build history table with enhanced spacing and centered columns
     recent_df = rolling_df.tail(6).copy()
@@ -2546,8 +2546,8 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
 
     history_text = '\n'.join(history_lines)
 
-    ax_history.text(0.05, 0.95, history_text, transform=ax_history.transAxes, fontsize=8,
-                   ha='left', va='top', family='monospace', linespacing=1.5,
+    ax_history.text(0.88, 0.95, history_text, transform=ax_history.transAxes, fontsize=8,
+                   ha='right', va='top', family='monospace', linespacing=1.5,
                    bbox=dict(boxstyle='round,pad=0.6', facecolor='white', alpha=0.07,
                             edgecolor='none'))
 
@@ -2577,6 +2577,6 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
         out_dir = _get_project_root() / 'figs' / fund_id
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
-        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+        fig.savefig(path, dpi=150, bbox_inches='tight', pad_inches=0.25, facecolor=fig.get_facecolor())
 
     plt.show()
