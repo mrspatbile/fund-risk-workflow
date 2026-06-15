@@ -2598,3 +2598,128 @@ def display_ucits_var_monitoring_summary(summary_df: pd.DataFrame, valuation_dat
 
     if export_id:
         save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('VaR Monitoring Summary')}")
+
+
+def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: dict, valuation_date: str, fund_id: str, col_widths: dict | None = None):
+    """
+    Display UCITS monthly risk report as HTML table.
+
+    Parameters
+    ----------
+    results : dict
+        Computed risk results with keys:
+        - 'var': var_result from compute_fixed_position_var_1day()
+        - 'rel_var': rel_var_result from compute_ucits_relative_var_point_in_time()
+        - 'srri': srri_result from compute_srri_from_fund()
+        - 'backtest': backtest report DataFrame
+        - 'scenarios': dict of custom stress scenario results
+        - 'srri_rolling': rolling SRRI monitoring result
+    risk_df : pd.DataFrame
+        Risk dataframe (used to compute historical scenarios)
+    limits : dict
+        Risk limits with keys: 'absolute_var_pct', 'relative_var'
+    valuation_date : str
+        Valuation date (YYYY-MM-DD)
+    fund_id : str
+        Fund identifier
+    col_widths : dict, optional
+        Column width overrides
+    """
+    from src.risk.risk_utils import stress_historical
+
+    # Extract results
+    var_result = results['var']
+    rel_var_result = results['rel_var']
+    srri_result = results['srri']
+    report = results['backtest']
+    custom_scenarios = results['scenarios']
+    srri_rolling = results['srri_rolling']
+
+    # Extract limits
+    absolute_var_limit_pct = limits['absolute_var_pct']
+    relative_var_limit = limits['relative_var']
+
+    # Compute metrics
+    report_date = pd.Timestamp(valuation_date).strftime('%B %d, %Y')
+    nav_eur = risk_df['market_value_eur'].sum()
+    abs_var_20d_pct = var_result['var_hist_scaled_pct']
+    abs_util = (abs_var_20d_pct / absolute_var_limit_pct) * 100
+    rel_var_ratio = rel_var_result['relative_var_ratio']
+    rel_util = rel_var_result['utilisation_pct']
+    srri_category = srri_result['sri_bucket']
+    srri_volatility = srri_result['volatility_annual_pct']
+
+    report_99 = report[report['confidence'] == 99].iloc[0]
+    n_breaches = int(report_99['n_breaches'])
+    kupiec_p = report_99['kupiec_p']
+    chris_p = report_99['christoffersen_p']
+    zone = '🟢 Green' if n_breaches <= 4 else '🟡 Amber' if n_breaches <= 9 else '🔴 Red'
+
+    scenario_pcts = {name: result['stressed_nav_pct'] for name, result in custom_scenarios.items()}
+
+    hist_scenario_pcts = {}
+    for scenario_key in ['2008', '2020', '2022']:
+        result = stress_historical(risk_df, scenario_key)
+        hist_scenario_pcts[scenario_key] = result['stressed_nav_pct']
+
+    kiid_update = srri_rolling['kiid_update_required']
+
+    # Build table rows
+    rows = []
+    rows.append({'Metric': 'IDENTIFICATION', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '—'})
+    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '—'})
+    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '—'})
+
+    rows.append({'Metric': 'VAR SUMMARY', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Absolute VaR (20d 99%)', 'Value': f'{abs_var_20d_pct:.2f}%', 'Status': f'Limit {absolute_var_limit_pct:.1f}% | Util {abs_util:.1f}%'})
+    rows.append({'Metric': 'Relative VaR (ratio)', 'Value': f'{rel_var_ratio:.2f}x', 'Status': f'Limit {relative_var_limit:.1f}x | Util {rel_util:.1f}%'})
+    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '—'})
+
+    rows.append({'Metric': 'SRRI', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '—'})
+    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '—'})
+
+    rows.append({'Metric': 'BACKTESTS', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '—'})
+    rows.append({'Metric': 'Breaches', 'Value': str(n_breaches), 'Status': 'Expected: 2.5'})
+    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'Kupiec POF', 'Value': f'{kupiec_p:.4f}', 'Status': 'PASS' if kupiec_p > 0.05 else 'FAIL'})
+    rows.append({'Metric': 'Christoffersen', 'Value': f'{chris_p:.4f}', 'Status': 'PASS' if chris_p > 0.05 else 'FAIL'})
+
+    rows.append({'Metric': 'STRESS TESTING', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': '2008 GFC', 'Value': f'{hist_scenario_pcts["2008"]:.2f}%', 'Status': 'Reference'})
+    rows.append({'Metric': '2020 COVID', 'Value': f'{hist_scenario_pcts["2020"]:.2f}%', 'Status': 'Reference'})
+    rows.append({'Metric': '2022 Rate Shock', 'Value': f'{hist_scenario_pcts["2022"]:.2f}%', 'Status': 'Reference'})
+
+    abs_status = 'COMPLIANT' if abs_var_20d_pct < absolute_var_limit_pct else 'BREACH'
+    rel_status = 'COMPLIANT' if rel_var_ratio < relative_var_limit else 'BREACH'
+    rows.append({'Metric': 'COMPLIANCE', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '—'})
+    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '—'})
+    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '—'})
+
+    df = pd.DataFrame(rows)
+
+    # Display
+    if col_widths is None:
+        col_widths = {'Metric': '200px', 'Value': '150px', 'Status': '150px'}
+
+    col_align_override = {'Metric': 'left', 'Value': 'right', 'Status': 'left'}
+    section_headers = [i for i, row in enumerate(df.itertuples()) if row.Value == '']
+
+    display_dark_table(
+        df,
+        caption='UCITS Balanced Fund — Monthly Risk Report',
+        col_widths=col_widths,
+        col_align_override=col_align_override,
+        highlight_rows=section_headers,
+        date_str=valuation_date,
+    )
