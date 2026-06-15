@@ -2580,3 +2580,21 @@ def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
         fig.savefig(path, dpi=150, bbox_inches='tight', pad_inches=0.25, facecolor=fig.get_facecolor())
 
     plt.show()
+
+
+def display_ucits_var_monitoring_summary(summary_df: pd.DataFrame, valuation_date: str | None = None, export_id: str | None = None, fund_id: str | None = None):
+    """Display UCITS VaR Monitoring Summary table."""
+    from src.ui.nb_utils import _slugify, save_html_as_png
+
+    html = display_dark_table(
+        summary_df,
+        caption='VaR Monitoring Summary',
+        date_str=valuation_date,
+        date_label='As of',
+        col_widths={'Metric': '240px'},
+        return_html=True
+    )
+    display(HTML(html))
+
+    if export_id:
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('VaR Monitoring Summary')}")
