@@ -304,6 +304,25 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
     rows = []
     notes = []
 
+    # Load scenario definitions for readable names
+    def load_scenario_names(source_file):
+        """Load scenario definitions and create ID-to-name mapping."""
+        mapping = {}
+        try:
+            scenario_path = module_dir / f'../../reference_data/risk_scenarios/{source_file}.json'
+            with open(scenario_path) as f:
+                scenario_data = json.load(f)
+                for scenario_id, scenario_def in scenario_data.get('scenarios', {}).items():
+                    scenario_name = scenario_def.get('scenario_name', scenario_id)
+                    mapping[scenario_id] = scenario_name
+        except (FileNotFoundError, KeyError, json.JSONDecodeError):
+            pass
+        return mapping
+
+    # Preload scenario mappings
+    univariate_scenarios_map = load_scenario_names('ucits_univariate_stress_scenarios')
+    historical_scenarios_map = load_scenario_names('scenario_library_2_historical')
+
     # Section title mappings (maps actual JSON keys to display titles)
     section_titles = {
         'var_framework': 'VaR Framework',
@@ -401,6 +420,13 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'top_3_investors_threshold_pct': 'Top 3 investors threshold',
         'top_5_investors_threshold_pct': 'Top 5 investors threshold',
         'scenario_types': 'Scenario types',
+        'univariate_scenarios': 'Univariate Scenarios',
+        'most_relevant_historical_scenarios': 'Most Relevant Historical Scenarios',
+        'source': 'Source',
+        'basis': 'Basis',
+        'prescribed_scenarios': 'Prescribed Scenarios',
+        'selected_scenarios': 'Selected Scenarios',
+        'requires_holding_period_days': 'Requires Holding Period Days',
         # Alternative asset and fund-specific fields
         'benchmark_pme': 'Benchmark PME',
         'committed_capital_eur': 'Committed capital',
@@ -441,6 +467,22 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'tracking': 'Tracking',
         'unrated_exposure_max_pct': 'Unrated exposure max',
         'vacancy_alarm_threshold_pct': 'Vacancy alarm threshold',
+    }
+
+    # Value mappings for readable display of parameter values
+    value_mappings = {
+        'commitment_exposure_pct_tna': 'Commitment Exposure',
+        'absolute_var_pct_tna': 'Absolute VaR',
+        'relative_var_pct': 'Relative VaR',
+        'absolute_var': 'Absolute VaR',
+        'sqrt_time': 'Square Root of Holding Period',
+        'student_t': 't-distribution',
+        'parametric': 'Parametric',
+        'historical': 'Historical',
+        'kupiec_pof': 'Kupiec POF',
+        'christoffersen': 'Christoffersen',
+        'daily_redemption': 'Daily Redemption',
+        'ucits_balanced_60_40': 'UCITS Balanced 60/40',
     }
 
     def format_scenario(scenario):
@@ -486,6 +528,9 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                 return f"{int(value):,}"
             return str(value)
         else:
+            # Check if string value has a readable mapping
+            if isinstance(value, str) and value in value_mappings:
+                return value_mappings[value]
             return str(value)
 
     def readable_label(field_name):
@@ -531,18 +576,37 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                     notes.append((param_key.lstrip('_'), param_value if isinstance(param_value, str) else str(param_value)))
                     continue
 
-                # Handle nested dicts by flattening into comma-separated string
+                # Handle nested dicts — each field on separate line, scenarios with readable names
                 if isinstance(param_value, dict):
                     label = readable_label(param_key)
-                    sub_items = []
+                    rows.append((f'  {label}', ''))
+
                     for sub_key, sub_value in param_value.items():
-                        if not sub_key.startswith('_'):
+                        if sub_key.startswith('_'):
+                            continue
+
+                        sub_label = readable_label(sub_key)
+
+                        # Special handling for prescribed_scenarios and selected_scenarios lists
+                        if sub_key in ('prescribed_scenarios', 'selected_scenarios') and isinstance(sub_value, list):
+                            # Determine which mapping to use based on section context
+                            scenario_map = {}
+                            if 'univariate' in param_key.lower():
+                                scenario_map = univariate_scenarios_map
+                            elif 'historical' in param_key.lower():
+                                scenario_map = historical_scenarios_map
+
+                            # Display all scenarios in HTML list format
+                            scenario_names = [scenario_map.get(sid, sid) for sid in sub_value]
+                            scenario_html = '<ul style="margin: 0; padding-left: 20px;">\n'
+                            for name in scenario_names:
+                                scenario_html += f'  <li>{name}</li>\n'
+                            scenario_html += '</ul>'
+                            rows.append((f'    {sub_label}', scenario_html))
+                        else:
                             formatted = format_value(sub_value, sub_key)
                             if formatted is not None:
-                                sub_label = readable_label(sub_key)
-                                sub_items.append(f'{sub_label}: {formatted}')
-                    if sub_items:
-                        rows.append((f'  {label}', ', '.join(sub_items)))
+                                rows.append((f'    {sub_label}', formatted))
                 # Handle lists of dicts (like scenarios)
                 elif isinstance(param_value, list) and param_value and isinstance(param_value[0], dict):
                     label = readable_label(param_key)

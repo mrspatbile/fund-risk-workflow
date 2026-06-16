@@ -30,8 +30,7 @@
     "use_stress_testing": true,
     "univariate_scenarios": {
       "source": "ucits_univariate_stress_scenarios",
-      "basis": "CSSF UCITS prescribed univariate stress tests",
-      "selected_scenarios": [
+      "prescribed_scenarios": [
         "equity_markets_down_30",
         "equity_markets_up_30",
         "interest_rate_curves_up_200bps",
@@ -43,7 +42,6 @@
     },
     "most_relevant_historical_scenarios": {
       "source": "scenario_library_2_historical",
-      "basis": "UCITS selected historical scenarios for most relevant stress testing",
       "selected_scenarios": [
         "historical_2008_black_week",
         "historical_2020_covid",
@@ -55,12 +53,7 @@
 
   "backtesting": {
     "lookback_days": 250,
-    "observation_window_months": 12,
-    "breach_zone_thresholds": {
-      "green": 4,
-      "amber": 9,
-      "red": 10
-    }
+    "observation_window_months": 12
   },
 
   "var_framework": {

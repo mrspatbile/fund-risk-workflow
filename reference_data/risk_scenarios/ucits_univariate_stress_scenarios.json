@@ -8,7 +8,7 @@
   "scenarios": {
     "equity_markets_down_30": {
       "test_category": "Equity",
-      "scenario_name": "Equity markets down 30%",
+      "scenario_name": "Equity markets -30%",
       "description": "Simultaneous 30% decline across all equity positions",
       "asset_classes": ["Equity"],
       "shock": -0.30,
@@ -20,7 +20,7 @@
 
     "equity_markets_up_30": {
       "test_category": "Equity",
-      "scenario_name": "Equity markets up 30%",
+      "scenario_name": "Equity markets +30%",
       "description": "Simultaneous 30% appreciation across all equity positions",
       "asset_classes": ["Equity"],
       "shock": 0.30,
@@ -32,7 +32,7 @@
 
     "interest_rate_curves_up_200bps": {
       "test_category": "Interest Rate",
-      "scenario_name": "Interest rate curves shift up 200 bps",
+      "scenario_name": "Interest rate curves +200 bps",
       "description": "Parallel upward shift of 200 basis points across all interest rate curves",
       "asset_classes": ["Bond", "Loan", "CLO"],
       "shock": 0.02,
@@ -45,7 +45,7 @@
 
     "credit_spreads_down_50pct": {
       "test_category": "Credit",
-      "scenario_name": "Credit spreads tighten 50% (multiplicative)",
+      "scenario_name": "Credit spreads -50% (multiplicative)",
       "description": "50% multiplicative tightening of all credit spreads (not additive bps)",
       "asset_classes": ["Bond", "Loan", "CLO"],
       "shock": -0.50,
@@ -58,7 +58,7 @@
 
     "credit_spreads_up_100pct": {
       "test_category": "Credit",
-      "scenario_name": "Credit spreads widen 100% (multiplicative)",
+      "scenario_name": "Credit spreads +100% (multiplicative)",
       "description": "100% multiplicative widening of all credit spreads (not additive bps)",
       "asset_classes": ["Bond", "Loan", "CLO"],
       "shock": 1.00,
@@ -71,7 +71,7 @@
 
     "base_currency_depreciation_30": {
       "test_category": "FX",
-      "scenario_name": "Base currency (EUR) depreciation 30%",
+      "scenario_name": "Base currency (EUR) -30%",
       "description": "30% depreciation of EUR against all other currencies",
       "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
       "shock": -0.30,
@@ -83,7 +83,7 @@
 
     "base_currency_appreciation_30": {
       "test_category": "FX",
-      "scenario_name": "Base currency (EUR) appreciation 30%",
+      "scenario_name": "Base currency (EUR) +30%",
       "description": "30% appreciation of EUR against all other currencies",
       "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
       "shock": 0.30,
