@@ -15,6 +15,32 @@ def _xnav(prefix: str = '') -> str:
     return f'{prefix}\n(×NAV)' if prefix else '\n(×NAV)'
 
 
+def format_redemption_scenario(scenario: dict) -> str:
+    """Format a redemption scenario dict for display as Name (X%) or Name (fund-specific).
+
+    Parameters
+    ----------
+    scenario : dict
+        Dict with 'name' and 'redemption_pct' keys.
+        If 'redemption_pct' is numeric, formats as "Name (X%)".
+        If 'redemption_pct' is 'largest_investor', formats as "Name (fund-specific)".
+
+    Returns
+    -------
+    str
+        Formatted scenario string, e.g. "Normal (10%)" or "Largest investor (fund-specific)".
+    """
+    name = scenario.get('name', '')
+    pct = scenario.get('redemption_pct')
+
+    if isinstance(pct, str) and pct == 'largest_investor':
+        return f"{name} (fund-specific)"
+    elif isinstance(pct, (int, float)):
+        return f"{name} ({int(pct * 100)}%)"
+    else:
+        return name
+
+
 def display_dark_table(
     df,
     caption                   : str        = '',
@@ -640,9 +666,19 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                 # Handle lists of dicts (like scenarios)
                 elif isinstance(param_value, list) and param_value and isinstance(param_value[0], dict):
                     label = readable_label(param_key)
-                    formatted = format_value(param_value, param_key)
-                    if formatted is not None:
-                        rows.append((f'  {label}', formatted))
+
+                    # Special handling for redemption scenarios
+                    if param_key == 'redemption_scenarios' and all(isinstance(s.get('redemption_pct'), (int, float, str)) for s in param_value):
+                        scenario_html = '<ul style="margin: 0; padding-left: 20px;">\n'
+                        for scenario in param_value:
+                            formatted_scenario = format_redemption_scenario(scenario)
+                            scenario_html += f'  <li>{formatted_scenario}</li>\n'
+                        scenario_html += '</ul>'
+                        rows.append((f'  {label}', scenario_html))
+                    else:
+                        formatted = format_value(param_value, param_key)
+                        if formatted is not None:
+                            rows.append((f'  {label}', formatted))
                 else:
                     formatted = format_value(param_value, param_key)
                     if formatted is not None:

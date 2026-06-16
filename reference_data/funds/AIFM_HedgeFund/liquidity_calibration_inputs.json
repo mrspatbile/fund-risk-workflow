@@ -1,0 +1,27 @@
+{
+  "fund_id": "AIFM_HedgeFund",
+  "calibration_id": "aifm_hedge_fund_liquidity_calibration",
+  "purpose": "Liquidity stress and LMT calibration input assumptions",
+  "contractual_terms": {
+    "redemption_terms": "monthly",
+    "notice_period_days": 30,
+    "lockup_days": 0,
+    "valuation_frequency": "monthly",
+    "liquidity_profile": "monthly_redemption"
+  },
+  "stress_assumptions": {
+    "pct_adv": 0.25,
+    "stress_window_days": 30
+  },
+  "redemption_scenario_policy": {
+    "scenario_names": ["Base", "Large", "Stress", "Largest investor"],
+    "largest_investor_source": "investors.json",
+    "fixed_scenarios_are_calibration_outputs": true
+  },
+  "lmt_calibration": {
+    "swing_pricing_threshold_pct": 0.05,
+    "anti_dilution_levy_threshold_pct": 0.05,
+    "redemption_gate_threshold_pct": 0.20,
+    "suspension_threshold_pct": 0.35
+  }
+}
