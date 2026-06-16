@@ -490,6 +490,12 @@ def generate_annex_iv_report(
     if engine is None:
         engine = get_engine()
 
+    # If output_dir is relative, resolve it from project root
+    from pathlib import Path
+    out_path_obj = Path(output_dir)
+    if not out_path_obj.is_absolute():
+        output_dir = str(Path(__file__).parent.parent.parent / output_dir)
+
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir,
                             f'annex_iv_report_{valuation_date}.xlsx')

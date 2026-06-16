@@ -14,5 +14,116 @@
     "costs_disclosure": true
   },
 
-  "_note": "UCITS regulatory limits (absolute VaR, relative VaR, 5/10/40 rule, counterparty limits, borrowing limits) are defined centrally in reference_data/regulation/ucits_regulatory_framework.json, not duplicated here."
+  "global_exposure_policy": {
+    "method": "absolute_var",
+    "method_routing": {
+      "commitment": "commitment_exposure_pct_tna",
+      "absolute_var": "absolute_var_pct_tna",
+      "relative_var": "relative_var_pct"
+    },
+    "reference_portfolio_id": "ucits_balanced_60_40",
+    "uses_commitment_disclosure": false,
+    "uses_derivative_notional_leverage_reporting": true
+  },
+
+  "stress_testing": {
+    "scenarios": [
+      {
+        "name": "equity_crash",
+        "description": "Equity decline",
+        "shock_pct": -30
+      },
+      {
+        "name": "rate_shock",
+        "description": "Parallel rate shift",
+        "shock_bps": 200
+      },
+      {
+        "name": "credit_widening",
+        "description": "Credit spread widening",
+        "shock_bps": 150
+      },
+      {
+        "name": "fx_stress",
+        "description": "FX depreciation",
+        "shock_pct": -15
+      },
+      {
+        "name": "combined",
+        "description": "Simultaneous shocks",
+        "combined": true
+      },
+      {
+        "name": "historical_2008",
+        "description": "2008 financial crisis"
+      },
+      {
+        "name": "historical_2020",
+        "description": "2020 COVID crash"
+      },
+      {
+        "name": "historical_2022",
+        "description": "2022 rate shock"
+      }
+    ]
+  },
+
+  "backtesting": {
+    "lookback_days": 250,
+    "observation_window_months": 12,
+    "breach_zone_thresholds": {
+      "green": 4,
+      "amber": 9,
+      "red": 10
+    }
+  },
+
+  "var_framework": {
+    "models": [
+      "historical",
+      "parametric"
+    ],
+    "parametric_distribution": "student_t",
+    "parametric_degrees_of_freedom": 5,
+    "scaling_method": "sqrt_time"
+  },
+
+  "attribution_policy": {
+    "enabled": true,
+    "method": "risk_factor_pnl",
+    "risk_factors": [
+      "equity",
+      "rates",
+      "credit",
+      "fx"
+    ],
+    "lookback_days": 250,
+    "frequency": "daily",
+    "reporting_use": "model_review"
+  },
+
+  "srri_monitoring": {
+    "current_disclosed_srri": 5,
+    "window_weeks": 260,
+    "update_frequency_months": 1,
+    "category_change_persistence_months": 4
+  },
+
+  "liquidity_monitoring": {
+    "pct_adv": 25,
+    "notice_period_days": 5,
+    "stress_scenarios": [
+      "normal",
+      "large",
+      "stress",
+      "largest_investor"
+    ]
+  },
+
+  "internal_monitoring": {
+    "largest_position_warning_pct": 8,
+    "liquidity_coverage_threshold_days": 5
+  },
+
+  "_note": "UCITS regulatory limits are defined centrally in reference_data/regulation/ucits_regulatory_framework.json. This file contains only fund-level operational parameters, monitoring choices, and internal thresholds."
 }

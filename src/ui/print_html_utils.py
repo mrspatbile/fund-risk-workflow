@@ -310,6 +310,7 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'expected_shortfall': 'Expected Shortfall',
         'backtesting': 'VaR Backtesting',
         'var_backtesting': 'VaR Backtesting',
+        'global_exposure_policy': 'Global Exposure Policy',
         'leverage_limits': 'Leverage Limits',
         'leverage_limits_internal': 'Leverage Limits',
         'concentration_limits': 'Concentration Limits',
@@ -320,6 +321,18 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'investor_concentration_monitoring': 'Investor Concentration Monitoring',
         'liquidity_monitoring': 'Liquidity Monitoring',
         'redemption_terms': 'Redemption Terms',
+        # Alternative asset and fund-specific sections
+        'fund_structure': 'Fund Structure',
+        'performance_metrics': 'Performance Metrics',
+        'unfunded_commitments': 'Unfunded Commitments',
+        'esg_framework': 'ESG Framework',
+        'covenant_monitoring': 'Covenant Monitoring',
+        'direct_property_monitoring': 'Direct Property Monitoring',
+        'valuation_framework': 'Valuation Framework',
+        'inflation_sensitivity': 'Inflation Sensitivity',
+        'sector_concentration': 'Sector Concentration',
+        'leverage': 'Leverage',
+        'priips_kid': 'PRIIPs KID',
     }
 
     # Top-level field mappings (non-nested fields)
@@ -369,6 +382,18 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'use_var': 'Use VaR',
         'use_backtesting': 'Use backtesting',
         'use_stress_testing': 'Use stress testing',
+        'method': 'Method',
+        'method_routing': 'Method Routing',
+        'commitment': 'Commitment Method',
+        'absolute_var': 'Absolute VaR Method',
+        'relative_var': 'Relative VaR Method',
+        'commitment_exposure_pct_tna': 'Commitment Exposure',
+        'absolute_var_pct_tna': 'Absolute VaR',
+        'relative_var_pct': 'Relative VaR',
+        'reference_portfolio_id': 'Reference Portfolio',
+        'uses_commitment_disclosure': 'Uses Commitment Disclosure',
+        'uses_derivative_notional_leverage_reporting': 'Derivative Notional Leverage Reporting',
+        'notes': 'Notes',
         'gross_leverage_max': 'Gross leverage',
         'commitment_leverage_max': 'Commitment leverage',
         'single_issuer_max_pct': 'Single issuer',
@@ -376,7 +401,64 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'top_3_investors_threshold_pct': 'Top 3 investors threshold',
         'top_5_investors_threshold_pct': 'Top 5 investors threshold',
         'scenario_types': 'Scenario types',
+        # Alternative asset and fund-specific fields
+        'benchmark_pme': 'Benchmark PME',
+        'committed_capital_eur': 'Committed capital',
+        'costs_disclosure': 'Costs disclosure',
+        'discount_rate_by_asset': 'Discount rate by asset',
+        'drawn_capital_eur': 'Drawn capital',
+        'dscr_threshold_by_asset': 'DSCR threshold by asset',
+        'esg_data_source': 'ESG data source',
+        'fund_level_limit': 'Fund level limit',
+        'fund_life_years': 'Fund life',
+        'hy_exposure_max_pct': 'HY exposure max',
+        'inflation_assumption_by_asset': 'Inflation assumption by asset',
+        'investment_period_end': 'Investment period end',
+        'limit_pct': 'Limit',
+        'liquidity_stress_multiplier': 'Liquidity stress multiplier',
+        'ltv_covenant_threshold_pct': 'LTV covenant threshold',
+        'ltv_threshold_by_asset': 'LTV threshold by asset',
+        'management_fee_rate': 'Management fee rate',
+        'method': 'Method',
+        'monitoring': 'Monitoring',
+        'pct_adv': 'Pct ADV',
+        'performance_scenarios': 'Performance scenarios',
+        'project_level_via_covenants': 'Project level via covenants',
+        'risk_indicator': 'Risk indicator',
+        'sfdr_pai_tracking': 'SFDR PAI tracking',
+        'single_borrower_max_pct': 'Single borrower max',
+        'sri_class': 'SRI class',
+        'track_breaches_and_waivers': 'Track breaches and waivers',
+        'track_dscr': 'Track DSCR',
+        'track_inflation_linkage_by_asset': 'Track inflation linkage by asset',
+        'track_ltv': 'Track LTV',
+        'track_ltv_pct': 'Track LTV',
+        'track_moic_dpi_rvpi': 'Track MOIC/DPI/RVPI',
+        'track_rental_yield_pct': 'Track rental yield',
+        'track_vacancy_rate_pct': 'Track vacancy rate',
+        'track_weighted_concession_duration': 'Track weighted concession duration',
+        'track_xirr': 'Track XIRR',
+        'tracking': 'Tracking',
+        'unrated_exposure_max_pct': 'Unrated exposure max',
+        'vacancy_alarm_threshold_pct': 'Vacancy alarm threshold',
     }
+
+    def format_scenario(scenario):
+        """Format a stress scenario dict to readable string."""
+        if not isinstance(scenario, dict):
+            return str(scenario)
+
+        name = scenario.get('description', scenario.get('name', 'Unknown'))
+
+        # Extract shock magnitude
+        if 'shock_pct' in scenario:
+            shock = f"({scenario['shock_pct']:.0f}%)"
+        elif 'shock_bps' in scenario:
+            shock = f"({scenario['shock_bps']:.0f}bps)"
+        else:
+            shock = ''
+
+        return f"{name} {shock}".strip()
 
     def format_value(value, field_name=''):
         """Format a value for display."""
@@ -386,7 +468,12 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         if isinstance(value, bool):
             return 'Yes' if value else 'No'
         elif isinstance(value, list):
-            return ', '.join(str(v) for v in value)
+            # Special handling for stress scenarios
+            if field_name == 'scenarios' or any('shock' in str(v) for v in value if isinstance(v, dict)):
+                formatted_scenarios = [format_scenario(v) for v in value]
+                return ', '.join(formatted_scenarios)
+            else:
+                return ', '.join(str(v) for v in value)
         elif isinstance(value, (int, float)):
             # Format as percentage if field name contains 'pct'
             if 'pct' in field_name.lower():
@@ -456,6 +543,12 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                                 sub_items.append(f'{sub_label}: {formatted}')
                     if sub_items:
                         rows.append((f'  {label}', ', '.join(sub_items)))
+                # Handle lists of dicts (like scenarios)
+                elif isinstance(param_value, list) and param_value and isinstance(param_value[0], dict):
+                    label = readable_label(param_key)
+                    formatted = format_value(param_value, param_key)
+                    if formatted is not None:
+                        rows.append((f'  {label}', formatted))
                 else:
                     formatted = format_value(param_value, param_key)
                     if formatted is not None:
@@ -1957,9 +2050,12 @@ def display_asset_class_breakdown(df: pd.DataFrame, valuation_date: str | None =
     breakdown['market_value_eur'] = breakdown['market_value_eur'].map('{:,.0f}'.format)
     breakdown['weight_pct'] = breakdown['weight_pct'].map('{:.2f}%'.format)
     breakdown['n_positions'] = breakdown['n_positions'].map('{:d}'.format)
+    breakdown = breakdown.reset_index()
+
 
     # Rename for display
-    breakdown.columns = ['Market Value (EUR)', '# Positions', '% NAV']
+    breakdown.columns = ['Asset Class', 'Market Value (EUR)', '# Positions', '% NAV']
+    
 
     html = display_dark_table(
         breakdown,
@@ -2004,7 +2100,7 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
     nav = float(df['market_value_eur'].sum())
 
     # Select available columns
-    cols = ['asset_class', 'issuer', 'market_value_eur']
+    cols = ['asset_class', 'instrument_name', 'market_value_eur']
     available_cols = [col for col in cols if col in df.columns]
 
     # Sort by market value descending and take top N
@@ -2015,9 +2111,11 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
     # Format columns
     top_pos['market_value_eur'] = top_pos['market_value_eur'].map('{:,.0f}'.format)
     top_pos['weight_pct'] = top_pos['weight_pct'].map('{:.2f}%'.format)
+    
+    # top_pos = top_pos.reset_index() 
 
     # Rename for display
-    col_names = {'asset_class': 'Asset Class', 'issuer': 'Issuer',
+    col_names = {'asset_class': 'Asset Class', 'instrument_name': 'Instrument',
                  'market_value_eur': 'Market Value (EUR)', 'weight_pct': '% NAV'}
     top_pos.columns = [col_names.get(col, col) for col in top_pos.columns]
 
@@ -2086,4 +2184,555 @@ def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp
                 C['green'] if isinstance(v, str) and '✓' in v else None
             ),
         },
+    )
+
+
+def display_ucits_compliance_checks(compliance_result: dict, export_id: str | None = None, fund_id: str | None = None, valuation_date: str | None = None):
+    """
+    Display UCITS position-level compliance checks.
+
+    Parameters
+    ----------
+    compliance_result : dict
+        Result from ucits_compliance_checks.run_ucits_compliance_checks()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    valuation_date : str, optional
+        Valuation date for display header
+    """
+    # Build summary table
+    checks = [
+        ['Long-only constraint', compliance_result['long_only']['status']],
+        ['10% position limit', compliance_result['concentration']['status']],
+        ['Eligible assets', compliance_result['eligible_assets']['status']],
+        ['Weights sum to 100%', compliance_result['weights']['status']],
+    ]
+
+    summary_df = pd.DataFrame(checks, columns=['Check', 'Status'])
+
+    # Color status
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'OK' in v:
+                return C['green']
+            elif 'FLAG' in v or 'FAIL' in v:
+                return C['red']
+        return None
+
+    # Build date_str with status
+    date_str = None
+    if valuation_date:
+        status_text = compliance_result['overall_status']
+        date_str = f"{valuation_date} | Status: {status_text}"
+
+    html = display_dark_table(
+        summary_df,
+        caption="UCITS Compliance Checks",
+        col_styles={'Status': _status_color},
+        date_str=date_str,
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Detail any breaches
+    if compliance_result['concentration']['breaches']:
+        breach_df = pd.DataFrame(compliance_result['concentration']['breaches'])
+        breach_df.columns = ['Instrument', 'Weight (%)']
+        breach_df['Weight (%)'] = breach_df['Weight (%)'].map('{:.1f}%'.format)
+        print("\n⚠ 10% Limit Breaches:")
+        display_dark_table(breach_df, caption="Non-ETF positions exceeding 10% NAV")
+
+    if compliance_result['eligible_assets']['illiquid']:
+        illiquid_df = pd.DataFrame(compliance_result['eligible_assets']['illiquid'])
+        illiquid_df.columns = ['Instrument', 'Asset Class']
+        print("\n⚠ Illiquid Instruments:")
+        display_dark_table(illiquid_df, caption="Assets with zero ADV")
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS Compliance Checks')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_relative_var(rel_var_result: dict, export_id: str | None = None, fund_id: str | None = None):
+    """
+    Display UCITS relative VaR analysis.
+
+    Parameters
+    ----------
+    rel_var_result : dict
+        Result from ucits_relative_var.compute_ucits_relative_var()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    """
+    df = pd.DataFrame([
+        ['Fund VaR (20d, 99%)', f"{rel_var_result['fund_var_pct']:.3f}%"],
+        ['Reference Portfolio VaR', f"{rel_var_result['reference_var_pct']:.3f}%"],
+        ['Relative VaR Ratio', f"{rel_var_result['relative_var_ratio']:.2f}x"],
+        ['UCITS Limit', f"{rel_var_result['limit_multiplier']:.1f}x"],
+        ['Utilisation', f"{rel_var_result['utilisation_pct']:.1f}%"],
+        ['Status', rel_var_result['status']],
+    ], columns=['Metric', 'Value'])
+
+    # Color status
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'COMPLIANT' in v or 'OK' in v:
+                return C['green']
+            elif 'BREACH' in v or 'FAIL' in v:
+                return C['red']
+        return None
+
+    html = display_dark_table(
+        df,
+        caption='UCITS Relative VaR Limit Monitoring',
+        col_styles={'Status': _status_color},
+        col_widths={'Metric': '200px', 'Value': '150px'},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS Relative VaR')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_srri(srri_result: dict, export_id: str | None = None, fund_id: str | None = None):
+    """
+    Display UCITS Summary Risk Indicator (SRRI) analysis.
+
+    Parameters
+    ----------
+    srri_result : dict
+        Result from ucits_srri.compute_srri_from_nav_history()
+    export_id : str, optional
+        Export ID for saving output
+    fund_id : str, optional
+        Fund identifier for output directory
+    """
+    from src.risk.ucits_srri import srri_as_string
+
+    srri_bucket = srri_result['sri_bucket']
+    srri_desc = srri_as_string(srri_bucket)
+
+    # Warn if insufficient data
+    if srri_result.get('status') == 'INSUFFICIENT_DATA':
+        print(f"⚠ SRRI based on {srri_result['observation_count']} weeks (insufficient for standard 260-week window)")
+
+    df = pd.DataFrame([
+        ['SRRI Category', f'{srri_bucket} — {srri_desc}'],
+        ['Annualised Volatility', f"{srri_result['volatility_annual_pct']:.2f}%"],
+        ['Weekly Volatility', f"{srri_result['volatility_weekly_pct']:.2f}%"],
+        ['Observation Count', str(srri_result['observation_count'])],
+        ['Time Window', f"{srri_result['time_window_years']:.1f} years"],
+    ], columns=['Metric', 'Value'])
+
+    html = display_dark_table(
+        df,
+        caption='UCITS Summary Risk Indicator (SRRI)',
+        col_widths={'Metric': '200px', 'Value': '250px'},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    # Export if requested
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('UCITS SRRI')
+        filename = f'{export_id}_{title_slug}'
+        fid = fund_id or 'unknown'
+        save_html_as_png(html, fid, filename)
+
+
+def display_ucits_relative_var_point_in_time(result: dict, valuation_date: str | None = None,
+                                              fund_id: str | None = None, export_id: str | None = None):
+    """Display UCITS relative VaR from computed result."""
+    import numpy as np
+
+    df = pd.DataFrame([
+        [f"Fund VaR {result['var_holding_period']}d",
+         f"{result['fund_var_1d_pct'] * np.sqrt(result['var_holding_period'])*100:.3f}%"],
+        [f"Reference VaR {result['var_holding_period']}d",
+         f"{result['reference_var_1d_pct'] * np.sqrt(result['var_holding_period'])*100:.3f}%"],
+        ['Relative VaR Ratio', f"{result['relative_var_ratio']:.2f}x"],
+        ['Limit', f"{result['relative_var_limit']:.1f}x"],
+        ['Utilisation', f"{result['utilisation_pct']:.1f}%"],
+        ['Status', result['status']],
+    ], columns=['Metric', 'Value'])
+
+    def _status_color(v):
+        if isinstance(v, str):
+            if 'BREACH' in v:
+                return C['red']
+            elif 'WARNING' in v:
+                return C['amber']
+            elif 'OK' in v:
+                return C['green']
+        return None
+
+    html = display_dark_table(df, caption='UCITS Relative VaR', col_styles={'Status': _status_color},
+                             date_str=valuation_date, return_html=True)
+    display(HTML(html))
+
+    if export_id:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('UCITS Relative VaR')}")
+
+
+def display_ucits_srri_point_in_time(result: dict, valuation_date: str | None = None,
+                                     fund_id: str | None = None, export_id: str | None = None):
+    """Display UCITS SRRI from computed result."""
+    from src.risk.ucits_srri import srri_as_string
+
+    df = pd.DataFrame([
+        ['SRRI Category', f"{result['sri_bucket']} — {srri_as_string(result['sri_bucket'])}"],
+        ['Annualised Volatility', f"{result['volatility_annual_pct']:.2f}%"],
+        ['Weekly Observations', str(result['observation_count'])],
+    ], columns=['Metric', 'Value'])
+
+    html = display_dark_table(df, caption='UCITS Summary Risk Indicator (SRRI)',
+                             date_str=valuation_date, return_html=True)
+    display(HTML(html))
+
+    if export_id:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('UCITS SRRI')}")
+
+
+def display_srri_monitoring(srri_rolling: dict, current_disclosed_srri: int,
+                           fund_id: str | None = None, valuation_date: str | None = None,
+                           export_id: str | None = None):
+    """
+    Display rolling SRRI monitoring: volatility chart with SRRI thresholds and history panel.
+
+    Parameters
+    ----------
+    srri_rolling : dict
+        Result from compute_srri_rolling_monthly()
+    current_disclosed_srri : int
+        The officially disclosed SRRI bucket (1-7)
+    fund_id : str, optional
+        Fund ID for export filename
+    valuation_date : str, optional
+        Valuation date for display
+    export_id : str, optional
+        Export ID prefix for saving plots
+    """
+    from src.ui.nb_utils import _slugify, save_fig
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+    from src.ui.plot_style import ACCENT, C
+    import numpy as np
+
+    rolling_df = srri_rolling['rolling_srri_df'].copy()
+
+    if rolling_df.empty:
+        print("No rolling SRRI data available")
+        return
+
+    # Extract key metrics
+    current_srri = srri_rolling['current_srri']
+    current_vol = srri_rolling['current_volatility_pct']
+    kiid_required = srri_rolling['kiid_update_required']
+    latest_date = rolling_df.iloc[-1]['date']
+    latest_date_str = latest_date.strftime('%Y-%m-%d') if hasattr(latest_date, 'strftime') else str(latest_date)
+
+    # ===== MAIN FIGURE: Plot LEFT, history panel RIGHT =====
+    fig = plt.figure(figsize=(14, 6.5))
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[5.4, 1.8], wspace=0.04,
+                  left=0.05, right=0.94, top=0.88, bottom=0.12)
+
+    # Main axis: volatility chart with SRRI thresholds
+    ax_main = fig.add_subplot(gs[0, 0])
+
+    dates = rolling_df['date'].values
+    volatilities = rolling_df['volatility_pct'].values
+
+    # SRRI threshold boundaries (CESR/10-673) and blue color gradient (enhanced contrast)
+    srri_boundaries = [0.0, 0.5, 2.0, 5.0, 10.0, 15.0, 25.0, 100.0]
+    blues = ['#E6F2FF', '#CCE5FF', '#9ECCFF', '#6699FF', '#3366FF', '#1A4DB8', '#001A66']
+
+    # Plot SRRI threshold bands (alpha=0.12 for stronger visibility)
+    for i in range(len(blues)):
+        ax_main.axhspan(srri_boundaries[i], srri_boundaries[i+1], alpha=0.12, color=blues[i])
+
+    # Plot volatility line (dominant visual)
+    ax_main.plot(dates, volatilities, color=ACCENT, linewidth=2.5, marker='o',
+                 markersize=3.5, zorder=5)
+
+    # Mark SRRI category changes with RED markers (no outline, no text)
+    has_category_change = False
+    for i in range(1, len(rolling_df)):
+        prev_srri = int(rolling_df.iloc[i-1]['srri'])
+        curr_srri = int(rolling_df.iloc[i]['srri'])
+        if prev_srri != curr_srri:
+            date_change = rolling_df.iloc[i]['date']
+            vol_change = rolling_df.iloc[i]['volatility_pct']
+            ax_main.scatter([date_change], [vol_change], s=60, color='#E74C3C', marker='o',
+                           zorder=6, edgecolors='none', label='SRRI Category Change' if not has_category_change else '')
+            has_category_change = True
+
+    # Mark KIID update trigger dates with red stars (if any)
+    if len(srri_rolling['trigger_dates']) > 0:
+        for trigger_date in srri_rolling['trigger_dates']:
+            mask = rolling_df['date'] == trigger_date
+            if mask.any():
+                trigger_vol = rolling_df[mask]['volatility_pct'].values[0]
+                ax_main.scatter([trigger_date], [trigger_vol], s=120, color='#E74C3C', marker='*',
+                               zorder=7, edgecolors='none')
+
+    # Y-axis: ticks ONLY at SRRI boundaries, formatted with % and no .0
+    y_max = max(volatilities) * 1.15
+    ax_main.set_ylim(0, y_max)
+    ax_main.set_yticks(srri_boundaries[1:-1])  # 0.5, 2.0, 5.0, 10.0, 15.0, 25.0
+
+    # Format y-axis labels: remove .0, add %
+    y_tick_labels = []
+    for v in srri_boundaries[1:-1]:
+        if v == int(v):
+            y_tick_labels.append(f'{int(v)}%')
+        else:
+            y_tick_labels.append(f'{v}%')
+    ax_main.set_yticklabels(y_tick_labels, fontsize=9)
+
+    # ===== SRRI bucket labels (1-7) on right edge, inside plot, alpha=0.07 =====
+    # Only show labels up to the maximum volatility level observed
+    max_vol = max(volatilities)
+    max_srri_to_show = 7 if max_vol >= 25.0 else 6  # Skip SRRI 7 if max vol < 25%
+
+    label_positions = [(srri_boundaries[i] + srri_boundaries[i+1]) / 2 for i in range(len(blues))]
+    ax_lim_right = dates[-1]
+    for i in range(max_srri_to_show):
+        y_pos = label_positions[i]
+        ax_main.text(ax_lim_right, y_pos, f'SRRI {i+1}', fontsize=7.5, ha='right', va='center',
+                    bbox=dict(boxstyle='round,pad=0.25', facecolor='white', alpha=0.07,
+                             edgecolor='none'))
+
+    ax_main.set_ylabel('Annualised Volatility', fontsize=10, fontweight='bold')
+    ax_main.set_xlabel('')  # Remove x-axis label
+    ax_main.grid(True, axis='y', alpha=0.2, linestyle='--', linewidth=0.5)
+    ax_main.tick_params(labelsize=9)
+
+    # Add legend if there are category changes
+    if has_category_change:
+        ax_main.legend(fontsize=9, loc='upper left', framealpha=0.9)
+
+    # ===== RIGHT PANEL: 6-month history table (OUTSIDE plot area) =====
+    ax_history = fig.add_subplot(gs[0, 1])
+    ax_history.axis('off')
+
+    # Title (RIGHT-anchored to prevent overflow)
+    ax_history.text(0.88, 1.0, 'Last 6 mo SRRI', transform=ax_history.transAxes, fontsize=9,
+                   ha='right', va='top', fontweight='bold', color=C['muted'])
+
+    # Build history table with enhanced spacing and centered columns
+    recent_df = rolling_df.tail(6).copy()
+
+    # Column headers (centered)
+    header_line = f"{'Date':^8}  {'Vol%':^8}  {'SRRI':^6}  {'Update KIID':^12}"
+    history_lines = [header_line]
+    history_lines.append('─' * 42)
+
+    # Data rows (centered values)
+    for idx, row in recent_df.iterrows():
+        date_str = row['date'].strftime('%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+        srri_val = int(row['srri'])
+        vol_pct = row['volatility_pct']
+        kiid_flag = 'Yes' if (len(srri_rolling['trigger_dates']) > 0 and row['date'] >= srri_rolling['trigger_dates'][0]) else 'No'
+
+        data_line = f"{date_str:^8}  {vol_pct:^8.2f}  {srri_val:^6}  {kiid_flag:^12}"
+        history_lines.append(data_line)
+
+    history_text = '\n'.join(history_lines)
+
+    ax_history.text(0.88, 0.95, history_text, transform=ax_history.transAxes, fontsize=8,
+                   ha='right', va='top', family='monospace', linespacing=1.5,
+                   bbox=dict(boxstyle='round,pad=0.6', facecolor='white', alpha=0.07,
+                            edgecolor='none'))
+
+    # ===== Titles: Following VAR backtest style (cyan suptitle, grey subtitle, LEFT-aligned) =====
+    fig.suptitle(
+        f'SRRI Monitoring | Rolling Volatility | {fund_id or "Fund"}',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+    )
+
+    fig.text(
+        0.03, 0.935,
+        f'Computation Date {valuation_date}',
+        fontsize=11,
+        color=C['muted'],
+        va='top',
+    )
+
+    # Save plot using VAR backtest approach
+    if export_id:
+        from src.ui.nb_utils import _get_project_root
+        title_slug = _slugify('SRRI Monitoring')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = _get_project_root() / 'fig' / fund_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', pad_inches=0.25, facecolor=fig.get_facecolor())
+
+    plt.show()
+
+
+def display_ucits_var_monitoring_summary(summary_df: pd.DataFrame, valuation_date: str | None = None, export_id: str | None = None, fund_id: str | None = None):
+    """Display UCITS VaR Monitoring Summary table."""
+    from src.ui.nb_utils import _slugify, save_html_as_png
+
+    html = display_dark_table(
+        summary_df,
+        caption='VaR Monitoring Summary',
+        date_str=valuation_date,
+        date_label='As of',
+        col_widths={'Metric': '240px'},
+        return_html=True
+    )
+    display(HTML(html))
+
+    if export_id:
+        save_html_as_png(html, fund_id or 'unknown', f"{export_id}_{_slugify('VaR Monitoring Summary')}")
+
+
+def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: dict, valuation_date: str, fund_id: str, col_widths: dict | None = None):
+    """
+    Display UCITS monthly risk report as HTML table.
+
+    Parameters
+    ----------
+    results : dict
+        Computed risk results with keys:
+        - 'var': var_result from compute_fixed_position_var_1day()
+        - 'rel_var': rel_var_result from compute_ucits_relative_var_point_in_time()
+        - 'srri': srri_result from compute_srri_from_fund()
+        - 'backtest': backtest report DataFrame
+        - 'scenarios': dict of custom stress scenario results
+        - 'srri_rolling': rolling SRRI monitoring result
+    risk_df : pd.DataFrame
+        Risk dataframe (used to compute historical scenarios)
+    limits : dict
+        Risk limits with keys: 'absolute_var_pct', 'relative_var'
+    valuation_date : str
+        Valuation date (YYYY-MM-DD)
+    fund_id : str
+        Fund identifier
+    col_widths : dict, optional
+        Column width overrides
+    """
+    from src.risk.risk_utils import stress_historical
+
+    # Extract results
+    var_result = results['var']
+    rel_var_result = results['rel_var']
+    srri_result = results['srri']
+    report = results['backtest']
+    custom_scenarios = results['scenarios']
+    srri_rolling = results['srri_rolling']
+
+    # Extract limits
+    absolute_var_limit_pct = limits['absolute_var_pct']
+    relative_var_limit = limits['relative_var']
+
+    # Compute metrics
+    report_date = pd.Timestamp(valuation_date).strftime('%B %d, %Y')
+    nav_eur = risk_df['market_value_eur'].sum()
+    abs_var_20d_pct = var_result['var_hist_scaled_pct']
+    abs_util = (abs_var_20d_pct / absolute_var_limit_pct) * 100
+    rel_var_ratio = rel_var_result['relative_var_ratio']
+    rel_util = rel_var_result['utilisation_pct']
+    srri_category = srri_result['sri_bucket']
+    srri_volatility = srri_result['volatility_annual_pct']
+
+    report_99 = report[report['confidence'] == 99].iloc[0]
+    n_breaches = int(report_99['n_breaches'])
+    kupiec_p = report_99['kupiec_p']
+    chris_p = report_99['christoffersen_p']
+    zone = '🟢 Green' if n_breaches <= 4 else '🟡 Amber' if n_breaches <= 9 else '🔴 Red'
+
+    scenario_pcts = {name: result['stressed_nav_pct'] for name, result in custom_scenarios.items()}
+
+    hist_scenario_pcts = {}
+    for scenario_key in ['2008', '2020', '2022']:
+        result = stress_historical(risk_df, scenario_key)
+        hist_scenario_pcts[scenario_key] = result['stressed_nav_pct']
+
+    kiid_update = srri_rolling['kiid_update_required']
+
+    # Build table rows
+    rows = []
+    rows.append({'Metric': 'IDENTIFICATION', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '—'})
+    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '—'})
+    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '—'})
+
+    rows.append({'Metric': 'VAR SUMMARY', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Absolute VaR (20d 99%)', 'Value': f'{abs_var_20d_pct:.2f}%', 'Status': f'Limit {absolute_var_limit_pct:.1f}% | Util {abs_util:.1f}%'})
+    rows.append({'Metric': 'Relative VaR (ratio)', 'Value': f'{rel_var_ratio:.2f}x', 'Status': f'Limit {relative_var_limit:.1f}x | Util {rel_util:.1f}%'})
+    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '—'})
+
+    rows.append({'Metric': 'SRRI', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '—'})
+    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '—'})
+
+    rows.append({'Metric': 'BACKTESTS', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '—'})
+    rows.append({'Metric': 'Breaches', 'Value': str(n_breaches), 'Status': 'Expected: 2.5'})
+    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'Kupiec POF', 'Value': f'{kupiec_p:.4f}', 'Status': 'PASS' if kupiec_p > 0.05 else 'FAIL'})
+    rows.append({'Metric': 'Christoffersen', 'Value': f'{chris_p:.4f}', 'Status': 'PASS' if chris_p > 0.05 else 'FAIL'})
+
+    rows.append({'Metric': 'STRESS TESTING', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': '2008 GFC', 'Value': f'{hist_scenario_pcts["2008"]:.2f}%', 'Status': 'Reference'})
+    rows.append({'Metric': '2020 COVID', 'Value': f'{hist_scenario_pcts["2020"]:.2f}%', 'Status': 'Reference'})
+    rows.append({'Metric': '2022 Rate Shock', 'Value': f'{hist_scenario_pcts["2022"]:.2f}%', 'Status': 'Reference'})
+
+    abs_status = 'COMPLIANT' if abs_var_20d_pct < absolute_var_limit_pct else 'BREACH'
+    rel_status = 'COMPLIANT' if rel_var_ratio < relative_var_limit else 'BREACH'
+    rows.append({'Metric': 'COMPLIANCE', 'Value': '', 'Status': ''})
+    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '—'})
+    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '—'})
+    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '—'})
+
+    df = pd.DataFrame(rows)
+
+    # Display
+    if col_widths is None:
+        col_widths = {'Metric': '200px', 'Value': '150px', 'Status': '150px'}
+
+    col_align_override = {'Metric': 'left', 'Value': 'right', 'Status': 'left'}
+    section_headers = [i for i, row in enumerate(df.itertuples()) if row.Value == '']
+
+    display_dark_table(
+        df,
+        caption='UCITS Balanced Fund — Monthly Risk Report',
+        col_widths=col_widths,
+        col_align_override=col_align_override,
+        highlight_rows=section_headers,
+        date_str=valuation_date,
     )

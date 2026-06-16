@@ -17,20 +17,23 @@ This repository is not a production ManCo platform, regulatory reporting engine 
 
 ---
 
-## Scope
+## Current Coverage
 
-The repository covers selected fund risk examples across liquid and illiquid fund profiles.
+| Workflow | Scope |
+| --- | --- |
+| AIFM Hedge Fund L/S | VaR, Expected Shortfall, backtesting, stress testing, liquidity monitoring, leverage monitoring, LMT mechanics |
 
-| Fund example             | Illiquid | Selected scope                                                   |
-| ------------------------ | :------: | ---------------------------------------------------------------- |
-| UCITS Balanced           |          | VaR, SRI, PRIIPs KID example, eligibility checks                 |
-| AIFM Hedge Fund L/S      |          | VaR, stress, liquidity monitoring, leverage, LMT mechanics       |
-| AIFM PE Buyout           |     ✓    | IRR, MOIC, DPI, RVPI, PME, value bridge, selected ESG indicators |
-| AIFM Private Debt        |     ✓    | credit risk indicators, covenant headroom, leverage indicators   |
-| AIFM Real Estate         |     ✓    | LTV, rental stress, yield-capitalisation NAV                     |
-| AIFM Infrastructure Core |     ✓    | DSCR, LTV, concession duration, inflation linkage                |
+## Under Development
 
-The hedge fund workflow is the most developed part of the repository. Other fund examples are included as selected methodology and output examples, not as full implementations.
+| Workflow | Scope |
+| --- | --- |
+| UCITS Balanced | VaR, SRI, PRIIPs KID example, eligibility checks |
+| AIFM PE Buyout | IRR, MOIC, DPI, RVPI, PME, value bridge, selected ESG indicators |
+| AIFM Private Debt | credit risk indicators, covenant headroom, leverage indicators |
+| AIFM Real Estate | LTV, rental stress, yield-capitalisation NAV |
+| AIFM Infrastructure Core | DSCR, LTV, concession duration, inflation linkage |
+
+The workflows listed above remain part of the repository roadmap and are being aligned with the refactored architecture used by the hedge fund workflow.
 
 ---
 
@@ -38,18 +41,17 @@ The hedge fund workflow is the most developed part of the repository. Other fund
 
 **VaR backtest with breach flags**
 
-![VaR backtest with breach flags](images/hf_var_backtest.png)
+![VaR backtest with breach flags](fig/AIFM_HedgeFund/09_var_backtest.png)
 
 The hedge fund workflow includes VaR backtesting with breach flags and test statistics across the simulated portfolio return series.
 
 ---
 
-**Liquidity monitoring output**
+**Pre-trade checks**
 
-![Liquidity monitoring output](images/board_report_p4.png)
+![Pre-trade checks output](fig/AIFM_HedgeFund/21_pre_trade_check.png)
 
-The liquidity example summarises selected liquidity buckets, redemption pressure and fund-level monitoring indicators.
-
+The pre-trade checks workflow combines multiple risk, exposure and investment-constraint checks to compare portfolio characteristics before and after a proposed trade.
 ---
 
 ## Risk analytics examples
@@ -185,8 +187,7 @@ Current limitations:
 * simplified fund assumptions
 * simulated positions and market data
 * limited validation layer
-* uneven depth across fund examples
-* not designed as a reusable package or production risk system
+* several workflows are being aligned with the refactored repository architecture* not designed as a reusable package or production risk system
 
 A more structured package implementation is handled separately in `manco-risk`.
 

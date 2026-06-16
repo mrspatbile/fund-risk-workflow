@@ -6,13 +6,21 @@ __pycache__/
 .DS_Store
 .venv/
 data/
-docs/
+docs/_old
+docs/refactor_plans
 notebooks/data/
 reports/
 notebooks/portfolio_management/
 notebooks/old - liquidity_fund_risk.ipynb
 *.egg-info/
 src/cache_old/
-fig/
+
+# notebooks/funds/aifm_infra_fund.ipynb   
+# notebooks/funds/aifm_pe_buyout.ipynb    
+# notebooks/funds/aifm_private_debt.ipynb 
+# notebooks/funds/aifm_real_estate.ipynb  
+
+# do not track generated figs except for the HF documentation figures
+fig/*
 !fig/AIFM_HedgeFund/
 !fig/AIFM_HedgeFund/**

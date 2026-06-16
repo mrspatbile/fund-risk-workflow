@@ -88,10 +88,10 @@ def plot_attribution_cumsum(attr_cumsum, fund_id, valuation_date: str | None = N
 
     if export_id is not None:
         from pathlib import Path
-        from src.ui.nb_utils import _slugify
+        from src.ui.nb_utils import _slugify, _get_project_root
         title_slug = _slugify('P&L attribution')
         filename = f'{export_id}_{title_slug}'
-        out_dir = Path('fig') / fund_id
+        out_dir = _get_project_root() / 'fig' / fund_id
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f'{filename}.png'
         fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())

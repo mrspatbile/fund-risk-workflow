@@ -1,0 +1,73 @@
+{
+  "fund_id": "UCITS_Balanced",
+  "description": "UCITS Balanced investor base — representative sample of 500+ retail investors with top 10 disclosed + aggregate remaining",
+  "target_nav_eur": 500000000,
+  "investors": [
+    {
+      "investor_id": "UC001",
+      "investor_name": "Pension Plan A",
+      "investor_type": "Pension Plan",
+      "nav_pct": 0.0200
+    },
+    {
+      "investor_id": "UC002",
+      "investor_name": "Distribution Platform B",
+      "investor_type": "Platform",
+      "nav_pct": 0.0170
+    },
+    {
+      "investor_id": "UC003",
+      "investor_name": "Insurance Wrapper C",
+      "investor_type": "Insurance",
+      "nav_pct": 0.0130
+    },
+    {
+      "investor_id": "UC004",
+      "investor_name": "Retail Investor D",
+      "investor_type": "Retail",
+      "nav_pct": 0.0080
+    },
+    {
+      "investor_id": "UC005",
+      "investor_name": "Retail Investor E",
+      "investor_type": "Retail",
+      "nav_pct": 0.0070
+    },
+    {
+      "investor_id": "UC006",
+      "investor_name": "Retail Investor F",
+      "investor_type": "Retail",
+      "nav_pct": 0.0065
+    },
+    {
+      "investor_id": "UC007",
+      "investor_name": "Retail Investor G",
+      "investor_type": "Retail",
+      "nav_pct": 0.0060
+    },
+    {
+      "investor_id": "UC008",
+      "investor_name": "Retail Investor H",
+      "investor_type": "Retail",
+      "nav_pct": 0.0055
+    },
+    {
+      "investor_id": "UC009",
+      "investor_name": "Retail Investor I",
+      "investor_type": "Retail",
+      "nav_pct": 0.0050
+    },
+    {
+      "investor_id": "UC010",
+      "investor_name": "Retail Investor J",
+      "investor_type": "Retail",
+      "nav_pct": 0.0045
+    },
+    {
+      "investor_id": "UC_REM",
+      "investor_name": "Remaining (490+ retail)",
+      "investor_type": "Retail",
+      "nav_pct": 0.9075
+    }
+  ]
+}

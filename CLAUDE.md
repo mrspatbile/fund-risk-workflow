@@ -113,13 +113,26 @@ setup_db.py
 
 ### `src/risk/`
 
-Legacy compatibility imports, compliance orchestration, and functions that are not yet cleanly moved.
+Risk aggregation, compliance orchestration, and functions not yet cleanly moved to computation.
 
-`risk_utils.py` may continue to exist as a compatibility and orchestration layer. Do not move remaining coupled functions unless a ticket explicitly asks for it.
+`risk_utils.py` may continue to exist as a compatibility and orchestration layer. Aggregation and summary functions that extract and format computation results (e.g., `compute_var_monitoring_summary()`) belong here.
+
+Do not move remaining coupled functions unless a ticket explicitly asks for it.
 
 ### `src/ui/`
 
 Notebook display helpers, chart helpers, and rendering utilities.
+
+Examples:
+
+```text
+display_dark_table()
+display_var_es()
+display_ucits_monthly_report()
+plot_var_backtest()
+```
+
+Display functions take computed results and render them as styled HTML tables or charts for notebooks.
 
 ## Current notebook structure direction
 
@@ -439,6 +452,7 @@ Governance reporting includes:
 
 ```text
 board risk reports
+monthly risk monitoring reports
 risk committee packs
 exception reports
 ```
@@ -505,6 +519,38 @@ For documentation-only work, show:
 ```text
 git diff --stat
 ```
+
+## Display function pattern
+
+Display functions in `src/ui/` follow this signature:
+
+```python
+def display_<report_name>(
+    results: dict,                      # computed results from risk calculations
+    risk_df: pd.DataFrame,              # enriched position data
+    limits: dict,                       # risk limits/thresholds
+    valuation_date: str,                # point-in-time valuation
+    fund_id: str,                       # fund identifier
+    col_widths: dict | None = None,     # optional styling overrides
+):
+    """Display structured report as HTML table."""
+```
+
+This pattern keeps computations separate from rendering. Notebooks import and call these functions with minimal code:
+
+```python
+from src.ui.print_html_utils import display_ucits_monthly_report
+
+display_ucits_monthly_report(
+    results={...},
+    risk_df=...,
+    limits={...},
+    valuation_date=...,
+    fund_id=...,
+)
+```
+
+Minimize arguments by grouping related computed values into dicts. The function handles all formatting and rendering internally.
 
 ## Code style
 
