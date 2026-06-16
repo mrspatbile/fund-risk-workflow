@@ -88,7 +88,7 @@ def display_dark_table(
     """
     
     _UPPER = {'Eur', 'Nav', 'Aum', 'Otc', 'Lcr', 'Rag', 'Dpi', 'Irr', 'Esg',
-              'Env', 'Soc', 'Gov', 'Pai', 'Hhi', 'Pb', 'Id', 'Qtd'}
+              'Env', 'Soc', 'Gov', 'Pai', 'Hhi', 'Pb', 'Id', 'Qtd', 'Tna'}
 
     def _fmt_col(col):
         # Spacer column header should be empty
@@ -422,6 +422,8 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'scenario_types': 'Scenario types',
         'univariate_scenarios': 'Univariate Scenarios',
         'most_relevant_historical_scenarios': 'Most Relevant Historical Scenarios',
+        'pct_tna': '% TNA',
+        'pnl_eur': 'P&L (EUR)',
         'source': 'Source',
         'basis': 'Basis',
         'prescribed_scenarios': 'Prescribed Scenarios',
@@ -1708,47 +1710,141 @@ def display_historical_scenarios(historical_scenarios: dict, fund_id: str | None
         save_html_as_png(html, fid, filename)
 
 
+def display_ucits_scenarios(risk_df, scenarios_result: dict, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
+    """
+    Render UCITS stress scenario P&L results from loader output.
+
+    Builds custom scenarios dict from UCITS loader output, displays results,
+    and shows any warnings.
+
+    Parameters
+    ----------
+    risk_df : pd.DataFrame
+        Position data with market_value_eur column
+    scenarios_result : dict
+        UCITS loader output with 'results', 'metadata', 'all_warnings' keys
+    valuation_date : str, optional
+        Display date (e.g., '2026-05-13')
+    fund_id : str, optional
+        Fund identifier for export
+    export_id : str, optional
+        Base filename for PNG export
+    """
+    # Build custom scenarios dict from loader output
+    custom_scenarios = {}
+    for scenario_id, result in scenarios_result['results'].items():
+        metadata_row = scenarios_result['metadata'][
+            scenarios_result['metadata']['scenario_id'] == scenario_id
+        ]
+        if not metadata_row.empty:
+            scenario_name = metadata_row.iloc[0]['scenario_name']
+            custom_scenarios[scenario_name] = {
+                'stressed_pnl_eur': result['stressed_pnl_eur'],
+                'stressed_nav_pct': result['stressed_nav_pct'],
+            }
+
+    # Display results
+    display_scenarios(
+        risk_df,
+        custom=custom_scenarios,
+        add_historical=False,
+        valuation_date=valuation_date,
+        fund_id=fund_id,
+        export_id=export_id
+    )
+
+    # Show warnings
+    if scenarios_result.get('all_warnings'):
+        print("\n⚠ Warnings:")
+        for warning in scenarios_result['all_warnings']:
+            print(f"  - {warning}")
+    else:
+        print("\n✓ All scenarios computed without warnings")
+
+
 def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
     """Render stress scenario P&L results — custom and/or historical."""
     from src.risk.risk_utils import HISTORICAL_SCENARIOS, stress_historical
-    NAV  = risk_df['market_value_eur'].sum()
-    rows = []
+    TNA  = risk_df['market_value_eur'].sum()
+
+    # Build univariate and historical scenario rows
+    univariate_rows = []
+    historical_rows = []
 
     if custom:
         for label, result in custom.items():
-            rows.append({
-                'Scenario': label,
-                'pnl_eur' : result['stressed_pnl_eur'],
-                'pct_nav' : result['stressed_pnl_eur'] / NAV * 100,
-            })
+            # Detect historical scenarios by date patterns in name (2008, 2020, 2022)
+            is_historical = any(year in label for year in ['2008', '2020', '2022'])
 
+            row = {
+                'Scenario': f'  {label}',
+                'pnl_eur' : result['stressed_pnl_eur'],
+                'pct_tna' : result['stressed_pnl_eur'] / TNA * 100,
+            }
+
+            if is_historical:
+                historical_rows.append(row)
+            else:
+                univariate_rows.append(row)
+
+    # Also add from HISTORICAL_SCENARIOS if add_historical=True
     if add_historical:
         for key, params in HISTORICAL_SCENARIOS.items():
             result = stress_historical(risk_df, key)
-            rows.append({
-                'Scenario': params['name'],
+            historical_rows.append({
+                'Scenario': f'  {params["name"]}',
                 'pnl_eur' : result['stressed_pnl_eur'],
-                'pct_nav' : result['stressed_pnl_eur'] / NAV * 100,
+                'pct_tna' : result['stressed_pnl_eur'] / TNA * 100,
             })
 
-    df      = pd.DataFrame(rows)
-    worst   = df['pnl_eur'].idxmin()
+    # Assemble final rows with section headers, pre-formatting numeric values
+    rows = []
+    highlight_indices = []
+
+    if univariate_rows:
+        rows.append({'Scenario': 'Univariate Stress Tests', 'pnl_eur': '', 'pct_tna': ''})
+        highlight_indices.append(len(rows) - 1)
+        for r in univariate_rows:
+            # Detect FX scenarios with no exposure
+            is_fx_no_exposure = 'Base currency' in r['Scenario'] and r["pnl_eur"] == 0
+
+            rows.append({
+                'Scenario': r['Scenario'],
+                'pnl_eur': 'no FX exposure' if is_fx_no_exposure else ('—' if r["pnl_eur"] == 0 else f'{r["pnl_eur"]:,.0f}'),
+                'pct_tna': '—' if r["pct_tna"] == 0 else f'{r["pct_tna"]:.2f}%',
+            })
+
+    if historical_rows:
+        rows.append({'Scenario': 'Most Relevant Historical Scenarios', 'pnl_eur': '', 'pct_tna': ''})
+        highlight_indices.append(len(rows) - 1)
+        for r in historical_rows:
+            rows.append({
+                'Scenario': r['Scenario'],
+                'pnl_eur': '—' if r["pnl_eur"] == 0 else f'{r["pnl_eur"]:,.0f}',
+                'pct_tna': '—' if r["pct_tna"] == 0 else f'{r["pct_tna"]:.2f}%',
+            })
+
+    df = pd.DataFrame(rows)
 
     html = display_dark_table(
         df,
-        caption='Stress Scenario Results',
-        fmt={
-            'pnl_eur': '{:,.0f}',
-            'pct_nav': '{:.2f}%',
-        },
+        caption='Stress Tests Results',
         col_styles={
-            'pnl_eur': lambda v: C['red']   if isinstance(v, float) and v < 0 else C['green'],
-            'pct_nav': lambda v: C['red']   if isinstance(v, float) and v < 0 else C['green'],
+            'pnl_eur': lambda v: (C['muted'] if v == 'no FX exposure' else (C['red'] if v.startswith('-') else C['green']) if isinstance(v, str) and v and v != '—' else None),
+            'pct_tna': lambda v: (C['red'] if v != '—' and float(v.rstrip('%')) < 0 else C['green']) if isinstance(v, str) and v and v != '—' else None,
         },
-        highlight_rows=[worst],
+        col_align_override={'pnl_eur': 'right', 'pct_tna': 'right'},
+        col_header_align_override={'pnl_eur': 'right', 'pct_tna': 'right'},
+        highlight_rows=highlight_indices,
         col_widths={'Scenario': '260px'},
         date_str=valuation_date,
         return_html=True,
+    )
+
+    # Style "no FX exposure" cells with smaller, regular font
+    html = html.replace(
+        'no FX exposure',
+        '<span style="font-weight: normal; font-size: 9px;">no FX exposure</span>'
     )
 
     display(HTML(html))

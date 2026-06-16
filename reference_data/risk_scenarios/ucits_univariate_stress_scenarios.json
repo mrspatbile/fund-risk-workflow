@@ -71,10 +71,10 @@
 
     "base_currency_depreciation_30": {
       "test_category": "FX",
-      "scenario_name": "Base currency (EUR) -30%",
+      "scenario_name": "Base currency depreciation -30%",
       "description": "30% depreciation of EUR against all other currencies",
       "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
-      "shock": -0.30,
+      "shock": 0.30,
       "unit": "pct",
       "applies_to_fields": ["market_value_eur"],
       "holding_period_days": null,
@@ -83,10 +83,10 @@
 
     "base_currency_appreciation_30": {
       "test_category": "FX",
-      "scenario_name": "Base currency (EUR) +30%",
+      "scenario_name": "Base currency appreciation +30%",
       "description": "30% appreciation of EUR against all other currencies",
       "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
-      "shock": 0.30,
+      "shock": -0.30,
       "unit": "pct",
       "applies_to_fields": ["market_value_eur"],
       "holding_period_days": null,
