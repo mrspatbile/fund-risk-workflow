@@ -45,8 +45,8 @@
 
     "credit_spreads_down_50pct": {
       "test_category": "Credit",
-      "scenario_name": "Credit spreads -50% (multiplicative)",
-      "description": "50% multiplicative tightening of all credit spreads (not additive bps)",
+      "scenario_name": "Credit spreads -50% proportional shift",
+      "description": "50% proportional tightening of all credit spreads (not additive bps)",
       "asset_classes": ["Bond", "Loan", "CLO"],
       "shock": -0.50,
       "unit": "proportional_pct",
@@ -58,8 +58,8 @@
 
     "credit_spreads_up_100pct": {
       "test_category": "Credit",
-      "scenario_name": "Credit spreads +100% (multiplicative)",
-      "description": "100% multiplicative widening of all credit spreads (not additive bps)",
+      "scenario_name": "Credit spreads +100% proportional shift",
+      "description": "100% proportional widening of all credit spreads (not additive bps)",
       "asset_classes": ["Bond", "Loan", "CLO"],
       "shock": 1.00,
       "unit": "proportional_pct",

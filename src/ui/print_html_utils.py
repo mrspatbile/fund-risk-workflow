@@ -576,13 +576,24 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                     notes.append((param_key.lstrip('_'), param_value if isinstance(param_value, str) else str(param_value)))
                     continue
 
+                # Skip internal flags — they're implicit in the section structure
+                if param_key in ('use_stress_testing',):
+                    continue
+
                 # Handle nested dicts — each field on separate line, scenarios with readable names
                 if isinstance(param_value, dict):
                     label = readable_label(param_key)
+                    # Make subsection labels bold with marker for stress_testing subsections
+                    if section_key == 'stress_testing' and param_key in ('univariate_scenarios', 'most_relevant_historical_scenarios'):
+                        label = f'<strong>▸ {label}</strong>'
                     rows.append((f'  {label}', ''))
 
                     for sub_key, sub_value in param_value.items():
                         if sub_key.startswith('_'):
+                            continue
+
+                        # Skip internal flags — they're implicit in the section structure
+                        if sub_key in ('requires_holding_period_days', 'use_stress_testing'):
                             continue
 
                         sub_label = readable_label(sub_key)
@@ -591,15 +602,32 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                         if sub_key in ('prescribed_scenarios', 'selected_scenarios') and isinstance(sub_value, list):
                             # Determine which mapping to use based on section context
                             scenario_map = {}
+                            scenario_details = {}
+                            is_historical = False
+
                             if 'univariate' in param_key.lower():
                                 scenario_map = univariate_scenarios_map
                             elif 'historical' in param_key.lower():
                                 scenario_map = historical_scenarios_map
+                                is_historical = True
+                                # Load full scenario data for holding period
+                                try:
+                                    hist_scenario_path = module_dir / f'../../reference_data/risk_scenarios/scenario_library_2_historical.json'
+                                    with open(hist_scenario_path) as f:
+                                        hist_data = json.load(f)
+                                        scenario_details = hist_data.get('scenarios', {})
+                                except (FileNotFoundError, KeyError, json.JSONDecodeError):
+                                    pass
 
                             # Display all scenarios in HTML list format
-                            scenario_names = [scenario_map.get(sid, sid) for sid in sub_value]
                             scenario_html = '<ul style="margin: 0; padding-left: 20px;">\n'
-                            for name in scenario_names:
+                            for sid in sub_value:
+                                name = scenario_map.get(sid, sid)
+                                # Append holding period for historical scenarios
+                                if is_historical and sid in scenario_details:
+                                    holding_period = scenario_details[sid].get('holding_period_days')
+                                    if holding_period:
+                                        name = f'{name}, hp={holding_period}d'
                                 scenario_html += f'  <li>{name}</li>\n'
                             scenario_html += '</ul>'
                             rows.append((f'    {sub_label}', scenario_html))
