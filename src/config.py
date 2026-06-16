@@ -46,15 +46,3 @@ LIQUIDITY_BUCKET_ORDER = [
 ]
 
 
-# ================================================================
-# Regulatory Thresholds
-# ================================================================
-
-
-# Real estate thresholds
-LTV_WARNING_THRESHOLD = 0.60        # Loan-to-value warning level
-LTV_STRESS_THRESHOLD = 0.75         # LTV stress testing threshold
-
-# Infrastructure thresholds
-DSCR_MINIMUM = 1.25                 # Debt service coverage ratio minimum
-DSCR_WARNING = 1.50                 # DSCR warning level
