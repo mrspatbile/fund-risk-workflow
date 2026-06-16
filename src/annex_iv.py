@@ -44,6 +44,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
+from src.config import LIQUIDITY_BUCKET_ORDER
 from src.data.database import (
     FUND_METADATA,
     InfraAsset,
@@ -430,13 +431,10 @@ def _build_leverage_detail(gross_lev: float, commit_lev: float, nav: float,
     return pd.DataFrame(rows, columns=['item', 'gross_eur', 'pct_nav'])
 
 
-_BUCKET_ORDER = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
-
-
 def _aggregate_liquidity_buckets(liq_pos: pd.DataFrame, nav: float) -> pd.DataFrame:
     df = (liq_pos.groupby('liquidity_bucket', observed=True)['market_value_eur']
           .sum()
-          .reindex(_BUCKET_ORDER, fill_value=0.0)
+          .reindex(LIQUIDITY_BUCKET_ORDER, fill_value=0.0)
           .reset_index()
           .rename(columns={'liquidity_bucket': 'bucket', 'market_value_eur': 'nav_eur'}))
     df['nav_pct']        = (df['nav_eur'] / nav * 100).round(2) if nav else 0.0

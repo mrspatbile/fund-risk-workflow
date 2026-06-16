@@ -32,6 +32,8 @@ Functions
 import numpy as np
 import pandas as pd
 
+from src.config import LIQUIDITY_BUCKET_ORDER
+
 
 def days_to_liquidate(
     positions: pd.DataFrame,
@@ -172,8 +174,6 @@ def compute_liquidity_profile(
     risk_df_liq = days_to_liquidate(risk_df, pct_adv=pct_adv)
     risk_df_liq = liquidity_buckets(risk_df_liq)
 
-    bucket_order = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
-
     bucket_summary = risk_df_liq.groupby('liquidity_bucket').agg(
         market_value_eur=('market_value_eur', 'sum'),
         abs_exposure=('market_value_eur', lambda x: x.abs().sum()),
@@ -183,7 +183,7 @@ def compute_liquidity_profile(
     bucket_summary['pct_nav_net'] = bucket_summary['market_value_eur'] / nav * 100
     bucket_summary['pct_nav_abs'] = bucket_summary['abs_exposure'] / nav * 100
 
-    bucket_full = bucket_summary.set_index('liquidity_bucket').reindex(bucket_order).fillna(0).reset_index()
+    bucket_full = bucket_summary.set_index('liquidity_bucket').reindex(LIQUIDITY_BUCKET_ORDER).fillna(0).reset_index()
 
     return {
         'risk_df_liq': risk_df_liq,
