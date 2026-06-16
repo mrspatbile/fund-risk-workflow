@@ -18,4 +18,8 @@ src/cache_old/
 # notebooks/funds/aifm_pe_buyout.ipynb    
 # notebooks/funds/aifm_private_debt.ipynb 
 # notebooks/funds/aifm_real_estate.ipynb  
-fig/
+
+# do not track figs except for the hf
+fig/*
+!fig/AIFM_HedgeFund/
+!fig/AIFM_HedgeFund/**
