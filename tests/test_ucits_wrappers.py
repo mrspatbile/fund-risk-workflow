@@ -23,6 +23,7 @@ def test_reference_data_loaders():
     """Test reference data loaders."""
     from src.data.reference_data import (
         load_rmp,
+        load_fund_profile,
         load_regulatory_framework,
         load_reference_portfolios,
         load_reference_portfolio,
@@ -30,11 +31,17 @@ def test_reference_data_loaders():
 
     print("\n[TEST] Reference data loaders...")
 
-    # Load RMP
+    # Load fund profile (static fund facts and regulatory classification)
+    profile = load_fund_profile('UCITS_Balanced')
+    assert profile['fund_id'] == 'UCITS_Balanced'
+    assert profile['fund_type'] == 'UCITS'
+    print(f"  ✓ load_fund_profile() works (static facts and classification)")
+
+    # Load risk policy (operational parameters and monitoring choices)
     rmp = load_rmp('UCITS_Balanced')
     assert rmp['fund_id'] == 'UCITS_Balanced'
-    assert 'reference_portfolio_id' in rmp
-    print(f"  ✓ load_rmp() works, reference_portfolio_id = {rmp['reference_portfolio_id']}")
+    assert rmp['global_exposure_policy']['reference_portfolio_id'] == 'ucits_balanced_60_40'
+    print(f"  ✓ load_rmp() works, reference_portfolio_id = {rmp['global_exposure_policy']['reference_portfolio_id']}")
 
     # Load regulatory framework
     ucits_regs = load_regulatory_framework('ucits_regulatory_framework')
