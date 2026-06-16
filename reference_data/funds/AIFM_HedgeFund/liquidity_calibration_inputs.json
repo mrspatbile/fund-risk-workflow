@@ -13,6 +13,31 @@
     "pct_adv": 0.25,
     "stress_window_days": 30
   },
+  "redemption_schedule_calibration": {
+    "investors": [
+      {
+        "type": "Pension Fund",
+        "weight": 0.50,
+        "base_redemption_rate": 0.030,
+        "stress_redemption_rate": 0.200
+      },
+      {
+        "type": "Fund of Funds",
+        "weight": 0.30,
+        "base_redemption_rate": 0.050,
+        "stress_redemption_rate": 0.250
+      },
+      {
+        "type": "Family Office",
+        "weight": 0.20,
+        "base_redemption_rate": 0.040,
+        "stress_redemption_rate": 0.180
+      }
+    ],
+    "stress_months": [3, 4],
+    "sigma": 0.40,
+    "seed": 42
+  },
   "redemption_scenario_policy": {
     "scenario_names": ["Base", "Large", "Stress", "Largest investor"],
     "largest_investor_source": "investors.json",
