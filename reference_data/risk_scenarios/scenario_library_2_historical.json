@@ -8,7 +8,7 @@
   "scenarios": {
     "historical_2008_black_week": {
       "test_category": "Historical",
-      "scenario_name": "2008 Financial Crisis (Sep-Dec 2008)",
+      "scenario_name": "2008 Financial Crisis, hp=20d",
       "description": "Global Financial Crisis period capturing equity market crashes, credit spread widening, and FX volatility",
       "period": "September - December 2008",
       "holding_period_days": 20,
@@ -45,7 +45,7 @@
 
     "historical_2020_covid": {
       "test_category": "Historical",
-      "scenario_name": "2020 COVID-19 Crash (Feb-Mar 2020)",
+      "scenario_name": "2020 COVID-19 Crash, hp=20d",
       "description": "COVID-19 pandemic initial shock period with equity decline, credit widening, and FX volatility",
       "period": "February - March 2020",
       "holding_period_days": 20,
@@ -82,7 +82,7 @@
 
     "historical_2022_rate_inflation": {
       "test_category": "Historical",
-      "scenario_name": "2022 Rate and Inflation Shock (Jan-Dec 2022)",
+      "scenario_name": "2022 Rate and Inflation Shock, hp=20d",
       "description": "Central bank rate hike cycle in response to inflation, with equity decline, rate increase, and spread widening",
       "period": "January - December 2022",
       "holding_period_days": 20,
