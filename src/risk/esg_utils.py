@@ -219,7 +219,7 @@ def build_private_esg_df(
                 'carbon_intensity': esg.get('carbon_intensity'),
                 'esg_exposure_eur': nav,
                 'esg_reporter'    : r.appraiser or 'Management estimate',
-                'esg_report_date' : r.date,
+                'esg_report_date' : r.valuation_date,
             })
 
     else:  # infra
@@ -257,7 +257,7 @@ def build_private_esg_df(
                 'carbon_intensity': esg.get('carbon_intensity'),
                 'esg_exposure_eur': nav,
                 'esg_reporter'    : r.appraiser or 'Independent appraiser',
-                'esg_report_date' : r.date,
+                'esg_report_date' : r.valuation_date,
             })
 
     return pd.DataFrame(rows)

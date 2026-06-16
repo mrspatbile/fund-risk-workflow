@@ -54,7 +54,7 @@ def all_funds(hedge_fund, private_debt, real_estate, ucits):
 # ----------------------------------------------------------------
 
 STANDARD_COLS = [
-    'fund_id', 'fund_name', 'date', 'isin', 'bloomberg_ticker',
+    'fund_id', 'fund_name', 'position_date', 'isin', 'bloomberg_ticker',
     'instrument_name', 'asset_class', 'sub_asset_class',
     'currency', 'quantity', 'price', 'market_value_local',
     'market_value_eur', 'weight_pct', 'country', 'rating',
@@ -97,23 +97,23 @@ class TestStandardColumns:
 class TestHistory:
 
     def test_hedge_fund_has_250_days(self, hedge_fund):
-        n_dates = hedge_fund['date'].nunique()
+        n_dates = hedge_fund['position_date'].nunique()
         assert n_dates >= 250, f'only {n_dates} days'
 
     def test_private_debt_has_250_days(self, private_debt):
-        n_dates = private_debt['date'].nunique()
+        n_dates = private_debt['position_date'].nunique()
         assert n_dates >= 250
 
     def test_real_estate_has_250_days(self, real_estate):
-        n_dates = real_estate['date'].nunique()
+        n_dates = real_estate['position_date'].nunique()
         assert n_dates >= 250
 
     def test_ucits_has_250_days(self, ucits):
-        n_dates = ucits['date'].nunique()
+        n_dates = ucits['position_date'].nunique()
         assert n_dates >= 250
 
     def test_no_weekends_in_dates(self, hedge_fund):
-        dates = pd.to_datetime(hedge_fund['date'])
+        dates = pd.to_datetime(hedge_fund['position_date'])
         assert dates.dt.dayofweek.max() <= 4
 
 
@@ -124,18 +124,18 @@ class TestHistory:
 class TestWeights:
 
     def test_hedge_fund_weights_sum_to_100(self, hedge_fund):
-        for date, group in hedge_fund.groupby('date'):
+        for date, group in hedge_fund.groupby('position_date'):
             total = group['weight_pct'].sum()
             assert abs(total - 100.0) < 1.0, \
                 f'weights sum to {total} on {date}'
 
     def test_private_debt_weights_sum_to_100(self, private_debt):
-        for date, group in private_debt.groupby('date'):
+        for date, group in private_debt.groupby('position_date'):
             total = group['weight_pct'].sum()
             assert abs(total - 100.0) < 1.0
 
     def test_ucits_weights_sum_to_100(self, ucits):
-        for date, group in ucits.groupby('date'):
+        for date, group in ucits.groupby('position_date'):
             total = group['weight_pct'].sum()
             assert abs(total - 100.0) < 1.0
 
@@ -283,7 +283,7 @@ class TestPricesAndValues:
 
     def test_last_price_matches_reference(self, hedge_fund):
         latest = hedge_fund[
-            hedge_fund['date'] == hedge_fund['date'].max()]
+            hedge_fund['position_date'] == hedge_fund['position_date'].max()]
         spy = latest[latest['bloomberg_ticker'] == 'SPY US Equity']
         assert float(spy['price'].values[0]) > 0
 
@@ -326,7 +326,7 @@ class TestMarketValueComputation:
             self, hedge_fund):
         bonds = hedge_fund[
             (hedge_fund['asset_class'] == 'Bond') &
-            (hedge_fund['date'] == hedge_fund['date'].max())
+            (hedge_fund['position_date'] == hedge_fund['position_date'].max())
         ].iloc[0]
         expected = bonds['quantity'] * bonds['price'] / 100
         assert abs(bonds['market_value_local'] - expected) < 1.0
@@ -335,7 +335,7 @@ class TestMarketValueComputation:
             self, private_debt):
         loans = private_debt[
             (private_debt['asset_class'] == 'Loan') &
-            (private_debt['date'] == private_debt['date'].max())
+            (private_debt['position_date'] == private_debt['position_date'].max())
         ].iloc[0]
         expected = loans['quantity'] * loans['price'] / 100
         assert abs(loans['market_value_local'] - expected) < 1.0
@@ -344,7 +344,7 @@ class TestMarketValueComputation:
             self, private_debt):
         clos = private_debt[
             (private_debt['asset_class'] == 'CLO') &
-            (private_debt['date'] == private_debt['date'].max())
+            (private_debt['position_date'] == private_debt['position_date'].max())
         ].iloc[0]
         expected = clos['quantity'] * clos['price'] / 100
         assert abs(clos['market_value_local'] - expected) < 1.0
@@ -354,7 +354,7 @@ class TestMarketValueComputation:
         equities = hedge_fund[
             (hedge_fund['asset_class'] == 'Equity') &
             (hedge_fund['quantity'] > 0) &
-            (hedge_fund['date'] == hedge_fund['date'].max())
+            (hedge_fund['position_date'] == hedge_fund['position_date'].max())
         ].iloc[0]
         expected = equities['quantity'] * equities['price']
         assert abs(equities['market_value_local'] - expected) < 1.0
@@ -363,7 +363,7 @@ class TestMarketValueComputation:
             self, hedge_fund):
         derivs = hedge_fund[
             (hedge_fund['asset_class'] == 'Derivative') &
-            (hedge_fund['date'] == hedge_fund['date'].max())
+            (hedge_fund['position_date'] == hedge_fund['position_date'].max())
         ].iloc[0]
         expected = derivs['quantity'] * derivs['price'] * 100
         assert abs(derivs['market_value_local'] - expected) < 1.0
@@ -372,7 +372,7 @@ class TestMarketValueComputation:
             self, hedge_fund):
         cash = hedge_fund[
             (hedge_fund['asset_class'] == 'Cash') &
-            (hedge_fund['date'] == hedge_fund['date'].max())
+            (hedge_fund['position_date'] == hedge_fund['position_date'].max())
         ].iloc[0]
         assert abs(cash['market_value_local'] - cash['quantity']) < 1.0
 
@@ -380,7 +380,7 @@ class TestMarketValueComputation:
             self, real_estate):
         direct = real_estate[
             (real_estate['is_direct_property'] == True) &
-            (real_estate['date'] == real_estate['date'].max())
+            (real_estate['position_date'] == real_estate['position_date'].max())
         ].iloc[0]
         assert abs(direct['market_value_local'] - direct['price']) < 1.0
 

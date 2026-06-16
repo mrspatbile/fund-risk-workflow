@@ -282,7 +282,7 @@ def ltv_profile(
         ).order_by(InfraCovenant.observation_date).all()
 
     df = pd.DataFrame([{
-        'date'          : pd.Timestamp(r.date),
+        'date'          : pd.Timestamp(r.observation_date),
         'ltv_actual'    : r.ltv_actual,
         'ltv_covenant'  : r.ltv_covenant,
         'ltv_headroom'  : r.ltv_headroom,

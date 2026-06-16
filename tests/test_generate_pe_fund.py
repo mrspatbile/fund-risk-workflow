@@ -29,11 +29,11 @@ class TestGenerateCashFlows:
 
     def test_all_flows_have_date(self):
         flows = generate_cash_flows()
-        assert all('date' in f for f in flows)
+        assert all('cash_flow_date' in f for f in flows)
 
     def test_flows_sorted_by_date(self):
         flows = generate_cash_flows()
-        dates = [f['date'] for f in flows]
+        dates = [f['cash_flow_date'] for f in flows]
         assert dates == sorted(dates)
 
 
@@ -65,10 +65,10 @@ class TestGenerateNavHistory:
     def test_nav_consistent_with_appraisal(self):
         val_reports = generate_valuation_reports()
         nav = generate_nav_history(val_reports)
-        nav_map = {(n['company_id'], n['date']): n['nav_eur']
+        nav_map = {(n['company_id'], n['nav_date']): n['nav_eur']
                    for n in nav if n['company_id']}
         for vr in val_reports:
-            key = (vr['company_id'], vr['date'])
+            key = (vr['company_id'], vr['valuation_date'])
             assert abs(nav_map[key] - vr['appraised_nav_eur']) < 0.01
 
 
@@ -87,7 +87,7 @@ class TestGenerateValuationReports:
         reports = generate_valuation_reports()
         retail = [r for r in reports
                   if r['company_id'] == 'PE_004'
-                  and r['date'] >= '2023-01-01']
+                  and r['valuation_date'] >= '2023-01-01']
         assert any('COVENANT' in r['key_risks'] for r in retail)
 
     def test_fintech_has_arr(self):
@@ -108,7 +108,7 @@ class TestGenerateValuationReports:
     def test_exited_company_stops_at_exit(self):
         reports = generate_valuation_reports()
         logistics = [r for r in reports if r['company_id'] == 'PE_003']
-        assert all(r['date'] <= '2023-06-30' for r in logistics)
+        assert all(r['valuation_date'] <= '2023-06-30' for r in logistics)
 
 
 class TestEvMultiplePath:
@@ -118,7 +118,7 @@ class TestEvMultiplePath:
         reports = generate_valuation_reports()
         pe001_q4_2021 = [
             r for r in reports
-            if r['company_id'] == 'PE_001' and r['date'] == '2021-12-31'
+            if r['company_id'] == 'PE_001' and r['valuation_date'] == '2021-12-31'
             and r['ebitda_ltm_eur'] > 0
         ]
         assert len(pe001_q4_2021) == 1, "Expected exactly one Q4 2021 row for PE_001"
@@ -131,10 +131,10 @@ class TestEvMultiplePath:
         reports = generate_valuation_reports()
         pe004 = sorted(
             [r for r in reports if r['company_id'] == 'PE_004' and r['ev_ebitda'] is not None],
-            key=lambda x: x['date']
+            key=lambda x: x['valuation_date']
         )
-        early = [r['ev_ebitda'] for r in pe004 if r['date'] < '2021-01-01']
-        late  = [r['ev_ebitda'] for r in pe004 if r['date'] >= '2023-01-01']
+        early = [r['ev_ebitda'] for r in pe004 if r['valuation_date'] < '2021-01-01']
+        late  = [r['ev_ebitda'] for r in pe004 if r['valuation_date'] >= '2023-01-01']
         assert sum(early) / len(early) > sum(late) / len(late), \
             "PE_004 multiples should compress over time"
 
@@ -148,7 +148,7 @@ class TestLiquidationFloor:
         for r in reports:
             floor = LIQUIDATION_VALUE[r['company_id']]
             assert r['appraised_nav_eur'] >= floor, (
-                f"{r['company_id']} on {r['date']}: NAV {r['appraised_nav_eur']:,.0f} "
+                f"{r['company_id']} on {r['valuation_date']}: NAV {r['appraised_nav_eur']:,.0f} "
                 f"below liquidation floor {floor:,.0f}"
             )
 
@@ -158,7 +158,7 @@ class TestLiquidationFloor:
         reports = generate_valuation_reports()
         pe004_late = [
             r for r in reports
-            if r['company_id'] == 'PE_004' and r['date'] >= '2024-01-01'
+            if r['company_id'] == 'PE_004' and r['valuation_date'] >= '2024-01-01'
         ]
         floor = LIQUIDATION_VALUE['PE_004']
         for r in pe004_late:
@@ -255,7 +255,7 @@ class TestGenerateCashFlowsWaterfall:
         for f in flows:
             if f['flow_type'] in dist_types:
                 assert f['amount_eur'] > 0, (
-                    f"{f['flow_type']} on {f['date']} has non-positive amount {f['amount_eur']}"
+                    f"{f['flow_type']} on {f['cash_flow_date']} has non-positive amount {f['amount_eur']}"
                 )
 
 class TestGenerateFundCashManagement:
@@ -271,7 +271,7 @@ class TestGenerateFundCashManagement:
         from src.data.generate_pe_fund import generate_fund_cash_management
         val_reports = generate_valuation_reports()
         result = generate_fund_cash_management(val_reports)
-        dates = [r['date'] for r in result]
+        dates = [r['cash_management_date'] for r in result]
         assert '2018-06-30' in dates
         assert '2026-03-31' in dates
 
@@ -281,7 +281,7 @@ class TestGenerateFundCashManagement:
         result = generate_fund_cash_management(val_reports)
         for r in result:
             assert r['cash_balance_eur'] >= 0, \
-                f"Negative cash balance on {r['date']}: {r['cash_balance_eur']:,.0f}"
+                f"Negative cash balance on {r['cash_management_date']}: {r['cash_balance_eur']:,.0f}"
 
     def test_sub_line_within_limit(self):
         from src.data.generate_pe_fund import generate_fund_cash_management, SUB_LINE_PCT, COMMITTED
@@ -290,7 +290,7 @@ class TestGenerateFundCashManagement:
         limit = COMMITTED * SUB_LINE_PCT
         for r in result:
             assert r['sub_line_drawn'] <= limit + 1.0, \
-                f"Sub line {r['sub_line_drawn']/1e6:.1f}M exceeds limit {limit/1e6:.1f}M on {r['date']}"
+                f"Sub line {r['sub_line_drawn']/1e6:.1f}M exceeds limit {limit/1e6:.1f}M on {r['cash_management_date']}"
 
     def test_cumulative_interest_earned_positive(self):
         from src.data.generate_pe_fund import generate_fund_cash_management
@@ -309,7 +309,7 @@ class TestGenerateFundCashManagement:
         val_reports = generate_valuation_reports()
         result = generate_fund_cash_management(val_reports)
         required = {
-            'fund_id', 'date', 'cash_balance_eur', 'cash_interest_earned',
+            'fund_id', 'cash_management_date', 'cash_balance_eur', 'cash_interest_earned',
             'cash_rate', 'sub_line_drawn', 'sub_line_limit',
             'sub_line_interest', 'sub_line_rate', 'net_cash_position',
             'cumulative_interest_earned', 'cumulative_interest_paid'
@@ -349,11 +349,11 @@ class TestSubLine:
         flows_sub    = generate_cash_flows(use_sub_line=True)
         flows_no_sub = generate_cash_flows(use_sub_line=False)
 
-        calls_sub    = {f['company_id']: pd.Timestamp(f['date'])
+        calls_sub    = {f['company_id']: pd.Timestamp(f['cash_flow_date'])
                         for f in flows_sub
                         if f['flow_type'] == 'capital_call'
                         and 'Initial' in f['description']}
-        calls_no_sub = {f['company_id']: pd.Timestamp(f['date'])
+        calls_no_sub = {f['company_id']: pd.Timestamp(f['cash_flow_date'])
                         for f in flows_no_sub
                         if f['flow_type'] == 'capital_call'
                         and 'Initial' in f['description']}

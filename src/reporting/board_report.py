@@ -47,6 +47,7 @@ from src.risk.risk_utils import (
 
 warnings.filterwarnings('ignore')
 
+from src.config import LIQUIDITY_BUCKET_ORDER
 from src.ui.plot_style import C,  FUND_COLORS
 
 
@@ -630,14 +631,13 @@ def _page_liquidity(metrics: Dict[str, dict], valuation_date: str) -> plt.Figure
 
     fund_list   = list(metrics.values())
     fund_labels = [m['label'].replace('AIFM ', '').replace('UCITS ', '') for m in fund_list]
-    bucket_keys = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
 
     # ── Stacked liquidity bucket chart ───────────────────────────────────
     ax_liq = _ax(fig, gs[0, :])
     _section_title(ax_liq, 'Liquidity Profile — ESMA Buckets (% NAV)')
 
     lefts = np.zeros(len(fund_list))
-    for b in bucket_keys:
+    for b in LIQUIDITY_BUCKET_ORDER:
         vals = [m['bucket_pcts'].get(b, 0) * 100 for m in fund_list]
         bars = ax_liq.barh(fund_labels, vals, left=lefts, height=0.45,
                             color=BUCKET_COLORS[b], alpha=0.88,
