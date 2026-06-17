@@ -11,12 +11,12 @@
     {
       "type": "Institutional",
       "base_redemption_rate": 0.040,
-      "stress_redemption_rate": 0.180
+      "stress_redemption_rate": 0.250
     },
     {
       "type": "Family Office",
       "base_redemption_rate": 0.020,
-      "stress_redemption_rate": 0.100
+      "stress_redemption_rate": 0.180
     }
   ],
   "stress_months": [3, 4],

@@ -1,73 +1,614 @@
 {
-  "fund_id": "UCITS_Balanced",
-  "description": "UCITS Balanced investor base — representative sample of 500+ retail investors with top 10 disclosed + aggregate remaining",
-  "target_nav_eur": 500000000,
-  "investors": [
-    {
-      "investor_id": "UC001",
-      "investor_name": "Pension Plan A",
-      "investor_type": "Pension Plan",
-      "nav_pct": 0.0200
-    },
-    {
-      "investor_id": "UC002",
-      "investor_name": "Distribution Platform B",
-      "investor_type": "Platform",
-      "nav_pct": 0.0170
-    },
-    {
-      "investor_id": "UC003",
-      "investor_name": "Insurance Wrapper C",
-      "investor_type": "Insurance",
-      "nav_pct": 0.0130
-    },
-    {
-      "investor_id": "UC004",
-      "investor_name": "Retail Investor D",
-      "investor_type": "Retail",
-      "nav_pct": 0.0080
-    },
-    {
-      "investor_id": "UC005",
-      "investor_name": "Retail Investor E",
-      "investor_type": "Retail",
-      "nav_pct": 0.0070
-    },
-    {
-      "investor_id": "UC006",
-      "investor_name": "Retail Investor F",
-      "investor_type": "Retail",
-      "nav_pct": 0.0065
-    },
-    {
-      "investor_id": "UC007",
-      "investor_name": "Retail Investor G",
-      "investor_type": "Retail",
-      "nav_pct": 0.0060
-    },
-    {
-      "investor_id": "UC008",
-      "investor_name": "Retail Investor H",
-      "investor_type": "Retail",
-      "nav_pct": 0.0055
-    },
-    {
-      "investor_id": "UC009",
-      "investor_name": "Retail Investor I",
-      "investor_type": "Retail",
-      "nav_pct": 0.0050
-    },
-    {
-      "investor_id": "UC010",
-      "investor_name": "Retail Investor J",
-      "investor_type": "Retail",
-      "nav_pct": 0.0045
-    },
-    {
-      "investor_id": "UC_REM",
-      "investor_name": "Remaining (490+ retail)",
-      "investor_type": "Retail",
-      "nav_pct": 0.9075
-    }
-  ]
+"fund_id": "UCITS_Balanced",
+"description": "UCITS Balanced investor base - representative sample of 500+ investors with top 100 disclosed + aggregate remaining",
+"target_nav_eur": 500000000,
+"investors": [
+{
+"investor_id": "UC001",
+"investor_name": "Pension Plan A",
+"investor_type": "Pension Plan",
+"nav_pct": 0.0200
+},
+{
+"investor_id": "UC002",
+"investor_name": "Distribution Platform B",
+"investor_type": "Platform",
+"nav_pct": 0.0170
+},
+{
+"investor_id": "UC003",
+"investor_name": "Insurance Wrapper C",
+"investor_type": "Insurance",
+"nav_pct": 0.0130
+},
+{
+"investor_id": "UC004",
+"investor_name": "Family Office D",
+"investor_type": "Family Office",
+"nav_pct": 0.0100
+},
+{
+"investor_id": "UC005",
+"investor_name": "Private Bank E",
+"investor_type": "Private Bank",
+"nav_pct": 0.0085
+},
+{
+"investor_id": "UC006",
+"investor_name": "Retail Investor F",
+"investor_type": "Retail",
+"nav_pct": 0.0080
+},
+{
+"investor_id": "UC007",
+"investor_name": "Corporate Treasury G",
+"investor_type": "Corporate",
+"nav_pct": 0.0075
+},
+{
+"investor_id": "UC008",
+"investor_name": "Retail Investor H",
+"investor_type": "Retail",
+"nav_pct": 0.0070
+},
+{
+"investor_id": "UC009",
+"investor_name": "Retail Investor I",
+"investor_type": "Retail",
+"nav_pct": 0.0065
+},
+{
+"investor_id": "UC010",
+"investor_name": "Fund of Funds J",
+"investor_type": "Fund of Funds",
+"nav_pct": 0.0060
+},
+{
+"investor_id": "UC011",
+"investor_name": "Retail Investor K",
+"investor_type": "Retail",
+"nav_pct": 0.0055
+},
+{
+"investor_id": "UC012",
+"investor_name": "Retail Investor L",
+"investor_type": "Retail",
+"nav_pct": 0.0053
+},
+{
+"investor_id": "UC013",
+"investor_name": "Distribution Platform M",
+"investor_type": "Platform",
+"nav_pct": 0.0051
+},
+{
+"investor_id": "UC014",
+"investor_name": "Retail Investor N",
+"investor_type": "Retail",
+"nav_pct": 0.0049
+},
+{
+"investor_id": "UC015",
+"investor_name": "Insurance Wrapper O",
+"investor_type": "Insurance",
+"nav_pct": 0.0047
+},
+{
+"investor_id": "UC016",
+"investor_name": "Retail Investor P",
+"investor_type": "Retail",
+"nav_pct": 0.0045
+},
+{
+"investor_id": "UC017",
+"investor_name": "Private Bank Q",
+"investor_type": "Private Bank",
+"nav_pct": 0.0043
+},
+{
+"investor_id": "UC018",
+"investor_name": "Retail Investor R",
+"investor_type": "Retail",
+"nav_pct": 0.0041
+},
+{
+"investor_id": "UC019",
+"investor_name": "Family Office S",
+"investor_type": "Family Office",
+"nav_pct": 0.0039
+},
+{
+"investor_id": "UC020",
+"investor_name": "Retail Investor T",
+"investor_type": "Retail",
+"nav_pct": 0.0037
+},
+{
+"investor_id": "UC021",
+"investor_name": "Corporate Treasury U",
+"investor_type": "Corporate",
+"nav_pct": 0.0035
+},
+{
+"investor_id": "UC022",
+"investor_name": "Retail Investor V",
+"investor_type": "Retail",
+"nav_pct": 0.0034
+},
+{
+"investor_id": "UC023",
+"investor_name": "Pension Plan W",
+"investor_type": "Pension Plan",
+"nav_pct": 0.0033
+},
+{
+"investor_id": "UC024",
+"investor_name": "Retail Investor X",
+"investor_type": "Retail",
+"nav_pct": 0.0032
+},
+{
+"investor_id": "UC025",
+"investor_name": "Fund of Funds Y",
+"investor_type": "Fund of Funds",
+"nav_pct": 0.0031
+},
+{
+"investor_id": "UC026",
+"investor_name": "Retail Investor Z",
+"investor_type": "Retail",
+"nav_pct": 0.0030
+},
+{
+"investor_id": "UC027",
+"investor_name": "Retail Investor A",
+"investor_type": "Retail",
+"nav_pct": 0.0029
+},
+{
+"investor_id": "UC028",
+"investor_name": "Sovereign Account B",
+"investor_type": "Sovereign",
+"nav_pct": 0.0028
+},
+{
+"investor_id": "UC029",
+"investor_name": "Retail Investor C",
+"investor_type": "Retail",
+"nav_pct": 0.0027
+},
+{
+"investor_id": "UC030",
+"investor_name": "Retail Investor D",
+"investor_type": "Retail",
+"nav_pct": 0.0026
+},
+{
+"investor_id": "UC031",
+"investor_name": "Retail Investor E",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC032",
+"investor_name": "Retail Investor F",
+"investor_type": "Retail",
+"nav_pct": 0.0024
+},
+{
+"investor_id": "UC033",
+"investor_name": "Distribution Platform G",
+"investor_type": "Platform",
+"nav_pct": 0.0023
+},
+{
+"investor_id": "UC034",
+"investor_name": "Retail Investor H",
+"investor_type": "Retail",
+"nav_pct": 0.0022
+},
+{
+"investor_id": "UC035",
+"investor_name": "Insurance Wrapper I",
+"investor_type": "Insurance",
+"nav_pct": 0.0021
+},
+{
+"investor_id": "UC036",
+"investor_name": "Retail Investor J",
+"investor_type": "Retail",
+"nav_pct": 0.0020
+},
+{
+"investor_id": "UC037",
+"investor_name": "Private Bank 37",
+"investor_type": "Private Bank",
+"nav_pct": 0.0019
+},
+{
+"investor_id": "UC038",
+"investor_name": "Retail Investor 38",
+"investor_type": "Retail",
+"nav_pct": 0.0018
+},
+{
+"investor_id": "UC039",
+"investor_name": "Family Office 39",
+"investor_type": "Family Office",
+"nav_pct": 0.0017
+},
+{
+"investor_id": "UC040",
+"investor_name": "Retail Investor 40",
+"investor_type": "Retail",
+"nav_pct": 0.0016
+},
+{
+"investor_id": "UC041",
+"investor_name": "Retail Investor 41",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC042",
+"investor_name": "Retail Investor 42",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC043",
+"investor_name": "Retail Investor 43",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC044",
+"investor_name": "Distribution Platform 44",
+"investor_type": "Platform",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC045",
+"investor_name": "Retail Investor 45",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC046",
+"investor_name": "Insurance Wrapper 46",
+"investor_type": "Insurance",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC047",
+"investor_name": "Retail Investor 47",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC048",
+"investor_name": "Private Bank 48",
+"investor_type": "Private Bank",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC049",
+"investor_name": "Retail Investor 49",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC050",
+"investor_name": "Family Office 50",
+"investor_type": "Family Office",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC051",
+"investor_name": "Retail Investor 51",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC052",
+"investor_name": "Corporate Treasury 52",
+"investor_type": "Corporate",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC053",
+"investor_name": "Retail Investor 53",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC054",
+"investor_name": "Fund of Funds 54",
+"investor_type": "Fund of Funds",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC055",
+"investor_name": "Retail Investor 55",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC056",
+"investor_name": "Pension Plan 56",
+"investor_type": "Pension Plan",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC057",
+"investor_name": "Retail Investor 57",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC058",
+"investor_name": "Sovereign Account 58",
+"investor_type": "Sovereign",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC059",
+"investor_name": "Retail Investor 59",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC060",
+"investor_name": "Retail Investor 60",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC061",
+"investor_name": "Retail Investor 61",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC062",
+"investor_name": "Retail Investor 62",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC063",
+"investor_name": "Retail Investor 63",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC064",
+"investor_name": "Distribution Platform 64",
+"investor_type": "Platform",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC065",
+"investor_name": "Retail Investor 65",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC066",
+"investor_name": "Insurance Wrapper 66",
+"investor_type": "Insurance",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC067",
+"investor_name": "Retail Investor 67",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC068",
+"investor_name": "Private Bank 68",
+"investor_type": "Private Bank",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC069",
+"investor_name": "Retail Investor 69",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC070",
+"investor_name": "Family Office 70",
+"investor_type": "Family Office",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC071",
+"investor_name": "Retail Investor 71",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC072",
+"investor_name": "Corporate Treasury 72",
+"investor_type": "Corporate",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC073",
+"investor_name": "Retail Investor 73",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC074",
+"investor_name": "Fund of Funds 74",
+"investor_type": "Fund of Funds",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC075",
+"investor_name": "Retail Investor 75",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC076",
+"investor_name": "Pension Plan 76",
+"investor_type": "Pension Plan",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC077",
+"investor_name": "Retail Investor 77",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC078",
+"investor_name": "Sovereign Account 78",
+"investor_type": "Sovereign",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC079",
+"investor_name": "Retail Investor 79",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC080",
+"investor_name": "Retail Investor 80",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC081",
+"investor_name": "Retail Investor 81",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC082",
+"investor_name": "Retail Investor 82",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC083",
+"investor_name": "Retail Investor 83",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC084",
+"investor_name": "Distribution Platform 84",
+"investor_type": "Platform",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC085",
+"investor_name": "Retail Investor 85",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC086",
+"investor_name": "Insurance Wrapper 86",
+"investor_type": "Insurance",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC087",
+"investor_name": "Retail Investor 87",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC088",
+"investor_name": "Private Bank 88",
+"investor_type": "Private Bank",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC089",
+"investor_name": "Retail Investor 89",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC090",
+"investor_name": "Family Office 90",
+"investor_type": "Family Office",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC091",
+"investor_name": "Retail Investor 91",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC092",
+"investor_name": "Corporate Treasury 92",
+"investor_type": "Corporate",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC093",
+"investor_name": "Retail Investor 93",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC094",
+"investor_name": "Fund of Funds 94",
+"investor_type": "Fund of Funds",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC095",
+"investor_name": "Retail Investor 95",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC096",
+"investor_name": "Pension Plan 96",
+"investor_type": "Pension Plan",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC097",
+"investor_name": "Retail Investor 97",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC098",
+"investor_name": "Sovereign Account 98",
+"investor_type": "Sovereign",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC099",
+"investor_name": "Retail Investor 99",
+"investor_type": "Retail",
+"nav_pct": 0.0025
+},
+{
+"investor_id": "UC100",
+"investor_name": "Retail Investor 100",
+"investor_type": "Retail",
+"nav_pct": 0.0020
+},
+{
+"investor_id": "UC_REM",
+"investor_name": "Remaining (400+ investors)",
+"investor_type": "Retail",
+"nav_pct": 0.6500,
+"aggregate_count": 490
+}
+]
 }

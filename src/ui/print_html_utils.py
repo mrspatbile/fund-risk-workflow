@@ -1556,6 +1556,7 @@ def display_redemption_stress(
         caption=f'Redemption Stress | {fund_id}',
         fmt={'redemption_eur': '{:,.0f}', 'liquid_eur': '{:,.0f}', 'coverage': '{:.2f}x'},
         col_styles={'coverage': lambda v: C['green'] if isinstance(v, float) and v >= 1.0 else C['red']},
+        col_widths={'Scenario': '120px', 'Redemption %': '60px', 'coverage': '100px', 'Action': '100px'},
         date_str=metadata_str,
         date_label='',
         return_html=True,
