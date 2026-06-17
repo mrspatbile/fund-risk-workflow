@@ -482,13 +482,18 @@ def display_lmt_summary(
         save_html_as_png(html, fund_id, filename, folder_suffix='_liquidity')
 
 
-def plot_lmt_paid_deferred_backlog(
+def plot_redemption(
     df_result: pd.DataFrame,
     fund_id: str,
     valuation_date: str,
     export_id: str | None = None,
+    scenario_label: str | None = None,
+    gate_threshold: float | None = None,
+    swing_threshold: float | None = None,
+    consecutive_gate_for_suspension: int | None = None,
+    redemption_model_note: str | None = None,
 ):
-    """Plot paid, deferred redemptions, and backlog over time.
+    """Plot redemptions: paid, deferred, and backlog over time.
 
     Parameters
     ----------
@@ -500,6 +505,17 @@ def plot_lmt_paid_deferred_backlog(
         Valuation date.
     export_id : str, optional
         If provided, save rendered output as PNG.
+    scenario_label : str, optional
+        Descriptive label for the scenario (e.g., "Without LMT Effects", "With LMT Effects").
+        If provided, appended to the chart title. Default None (no scenario label).
+    gate_threshold : float, optional
+        Gate threshold for LMT parameters display. If provided with other LMT params, shows inset.
+    swing_threshold : float, optional
+        Swing threshold for LMT parameters display.
+    consecutive_gate_for_suspension : int, optional
+        Consecutive gate threshold for LMT parameters display.
+    redemption_model_note : str, optional
+        Note about redemption model assumptions to display in inset. If None, uses default.
     """
     from pandas.tseries.offsets import DateOffset
 
@@ -514,23 +530,30 @@ def plot_lmt_paid_deferred_backlog(
         for i in range(1, 13)
     ]
 
-    ax.bar(months, df_result['deferred_eur'] / 1e6, color=ACCENT2, label='Deferred', width=0.5)
+    # Paid redemptions: blue (on bottom)
+    ax.bar(months, df_result['paid_eur'] / 1e6, color='#2563EB', label='Paid', width=0.5)
+
+    # Deferred redemptions: blue (transparent), with hatch (on top)
     ax.bar(
         months,
-        df_result['paid_eur'] / 1e6,
-        color=ACCENT,
-        label='Paid',
-        bottom=df_result['deferred_eur'] / 1e6,
+        df_result['deferred_eur'] / 1e6,
+        color='#2563EB',
+        alpha=0.4,
+        hatch='//',
+        label='Deferred',
+        bottom=df_result['paid_eur'] / 1e6,
         width=0.5,
+        edgecolor='#2563EB',
+        linewidth=0.5,
     )
 
-    dimmed_orange = '#D68632'  # Dimmed orange for backlog line
+    # Backlog: muted cyan (outstanding balance)
     ax.plot(
         months,
         df_result['backlog_eur'] / 1e6,
-        color=dimmed_orange,
+        color='#0891b2',
         marker='o',
-        linewidth=2,
+        linewidth=2.5,
         label='Backlog',
     )
 
@@ -543,8 +566,11 @@ def plot_lmt_paid_deferred_backlog(
     ax.grid(True, axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
 
     # Main title as figure suptitle
+    title = 'Redemptions'
+    if scenario_label:
+        title = f'{title} | {scenario_label}'
     fig.suptitle(
-        'Paid / Deferred / Backlog',
+        title,
         fontsize=14,
         fontweight='bold',
         color=C['cyan'],
@@ -561,6 +587,65 @@ def plot_lmt_paid_deferred_backlog(
             fontsize=9.5,
             color=C['muted'],
             va='top',
+        )
+
+    # Add compact LMT inset if LMTs are active
+    if gate_threshold is not None or swing_threshold is not None or consecutive_gate_for_suspension is not None:
+        # Extract LMT trigger months from df_result
+        gate_months = df_result[df_result['gate_active']]['month'].tolist()
+        swing_months = df_result[df_result['swing_active']]['month'].tolist()
+        suspension_months = df_result[df_result['suspension_active']]['month'].tolist()
+
+        # Build compact vertical column inset with table-style alignment
+        inset_lines = []
+
+        # Section 1: LMT parameters
+        inset_lines.append("LMT")
+        inset_lines.append("─" * 19)
+        if gate_threshold is not None:
+            inset_lines.append(f"     Gate: {gate_threshold*100:.0f}%")
+        if swing_threshold is not None:
+            inset_lines.append(f"    Swing: {swing_threshold*100:.0f}%")
+        if consecutive_gate_for_suspension is not None:
+            inset_lines.append(f"     Susp: {consecutive_gate_for_suspension}m")
+        inset_lines.append("")
+
+        # Section 2: Triggered months
+        inset_lines.append("Triggered")
+        inset_lines.append("─" * 19)
+        if gate_months:
+            inset_lines.append(f"     Gate: {','.join(map(str, gate_months))}")
+        else:
+            inset_lines.append("     Gate: none")
+        if swing_months:
+            inset_lines.append(f"    Swing: {','.join(map(str, swing_months))}")
+        else:
+            inset_lines.append("    Swing: none")
+        if suspension_months:
+            inset_lines.append(f"     Susp: {','.join(map(str, suspension_months))}")
+        else:
+            inset_lines.append("     Susp: none")
+        inset_lines.append("")
+
+        # Section 3: Feedback
+        inset_lines.append("Post-gate contagion")
+
+        inset_text = '\n'.join(inset_lines)
+
+        ax.text(
+            0.02, 0.96, inset_text,
+            transform=ax.transAxes,
+            fontsize=6.0,
+            ha="left",
+            va="top",
+            color="#9CA3AF",
+            family='monospace',
+            bbox=dict(
+                boxstyle="round,pad=0.50",
+                facecolor="#E5E7EB",
+                alpha=0.05,
+                edgecolor="none",
+            ),
         )
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -583,6 +668,7 @@ def plot_lmt_nav_evolution(
     fund_id: str,
     valuation_date: str,
     export_id: str | None = None,
+    scenario_label: str | None = None,
 ):
     """Plot NAV evolution: liquid vs illiquid assets.
 
@@ -596,6 +682,9 @@ def plot_lmt_nav_evolution(
         Valuation date.
     export_id : str, optional
         If provided, save rendered output as PNG.
+    scenario_label : str, optional
+        Descriptive label for the scenario (e.g., "Without LMT Effects", "With LMT Effects").
+        If provided, appended to the chart title. Default None (no scenario label).
     """
     from pandas.tseries.offsets import DateOffset
 
@@ -610,12 +699,13 @@ def plot_lmt_nav_evolution(
         for i in range(1, 13)
     ]
 
+    # NAV evolution: liquid (bright blue) and illiquid (dark blue)
     ax.stackplot(
         months,
         df_result['illiquid_nav_eur'] / 1e6,
         df_result['liquid_nav_eur'] / 1e6,
         labels=['Illiquid NAV', 'Liquid NAV'],
-        colors=[ACCENT2, ACCENT],
+        colors=['#0c4a6e', '#2563EB'],  # dark blue, bright blue
         alpha=0.8,
     )
     ax.set_xticks(months)
@@ -624,8 +714,11 @@ def plot_lmt_nav_evolution(
     ax.legend(loc='upper right', fontsize=8)
 
     # Main title as figure suptitle
+    title = 'NAV Evolution'
+    if scenario_label:
+        title = f'{title} | {scenario_label}'
     fig.suptitle(
-        'NAV Evolution',
+        title,
         fontsize=14,
         fontweight='bold',
         color=C['cyan'],

@@ -49,3 +49,5 @@ $$r^{\text{norm,wt}} = \sum_i w_i \cdot \mu_i^{\text{norm}}$$
 $$r^{\text{stress,wt}} = \sum_i w_i \cdot \mu_i^{\text{stress}}$$
 
 These provide a benchmark for the simulated redemption path.
+
+
