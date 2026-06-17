@@ -91,7 +91,7 @@ def run_lmt_trigger_analysis(
     lmt_config = lmt_inputs['lmt_config']
     schedule = lmt_inputs['schedule']
 
-    df_analysis = lmt_trigger_analysis(
+    lmt_result = lmt_trigger_analysis(
         nav=nav,
         liquid_pct=lmt_config['liquid_pct'],
         gate_threshold=lmt_config['gate_threshold'],
@@ -103,7 +103,7 @@ def run_lmt_trigger_analysis(
     )
 
     return {
-        'df_analysis': df_analysis,
+        'df_analysis': lmt_result['df'],
         'lmt_config': lmt_config,
         'schedule': schedule,
     }

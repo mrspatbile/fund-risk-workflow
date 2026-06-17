@@ -280,7 +280,7 @@ def lmt_trigger_analysis(
     swing_factor: float                    = 0.005,
     contagion_multiplier: float            = 1.0,
     apply_contagion: bool                  = True,
-) -> pd.DataFrame:
+) -> dict:
     """
     MRS-84: AIFMD II LMT time-series simulation.
 
@@ -328,21 +328,25 @@ def lmt_trigger_analysis(
 
     Returns
     -------
-    pd.DataFrame with 12 rows and columns:
-        month                    : period number (1–12)
-        base_gross_pct           : raw schedule value before contagion (%)
-        effective_gross_pct      : contagion-adjusted gross rate actually used (%)
-        effective_gross_eur      : contagion-adjusted gross request in EUR
-        paid_eur                 : amount paid to redeeming investors this month
-        deferred_eur             : newly deferred from this month's gross request
-        backlog_eur              : cumulative unpaid balance carried forward
-        gate_active              : bool — gate in force this month
-        swing_active             : bool — swing pricing applied this month
-        suspension_active        : bool — suspension in force
-        consecutive_gate_months  : running count of consecutive gate months
-        liquid_nav_eur           : liquid sleeve at end of month
-        illiquid_nav_eur         : illiquid sleeve (static)
-        total_nav_eur            : liquid + illiquid at end of month
+    dict with keys:
+        'df' : pd.DataFrame with 12 rows and columns:
+            month                    : period number (1–12)
+            base_gross_pct           : raw schedule value before contagion (%)
+            effective_gross_pct      : contagion-adjusted gross rate actually used (%)
+            effective_gross_eur      : contagion-adjusted gross request in EUR
+            paid_eur                 : amount paid to redeeming investors this month
+            deferred_eur             : newly deferred from this month's gross request
+            backlog_eur              : cumulative unpaid balance carried forward
+            gate_active              : bool — gate in force this month
+            swing_active             : bool — swing pricing applied this month
+            suspension_active        : bool — suspension in force
+            consecutive_gate_months  : running count of consecutive gate months
+            liquid_nav_eur           : liquid sleeve at end of month
+            illiquid_nav_eur         : illiquid sleeve (static)
+            total_nav_eur            : liquid + illiquid at end of month
+        'gate_threshold' : float or None (from input)
+        'swing_threshold' : float or None (from input)
+        'consecutive_gate_for_suspension' : int or None (from input)
 
     Examples
     --------
@@ -433,7 +437,12 @@ def lmt_trigger_analysis(
             'total_nav_eur'          : round(liquid_nav + illiquid_nav, 2),
         })
 
-    return pd.DataFrame(rows)
+    return {
+        'df': pd.DataFrame(rows),
+        'gate_threshold': gate_threshold,
+        'swing_threshold': swing_threshold,
+        'consecutive_gate_for_suspension': consecutive_gate_for_suspension,
+    }
 
 
 def investor_concentration(

@@ -695,11 +695,12 @@ _LMT_COLS = [
 class TestLmtTriggerAnalysis:
 
     def _run(self, schedule, **kwargs):
-        return lmt_trigger_analysis(
+        result = lmt_trigger_analysis(
             _LMT_NAV, _LMT_LIQUID_PCT,
             _LMT_GATE, _LMT_SWING,
             schedule, **kwargs,
         )
+        return result['df']
 
     # ── Structure ────────────────────────────────────────────────
 
