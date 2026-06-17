@@ -547,11 +547,11 @@ def plot_redemption(
         linewidth=0.5,
     )
 
-    # Backlog: muted cyan (outstanding balance)
+    # Backlog: muted orange (outstanding balance)
     ax.plot(
         months,
         df_result['backlog_eur'] / 1e6,
-        color='#0891b2',
+        color='#D97706',
         marker='o',
         linewidth=2.5,
         label='Backlog',

@@ -5,19 +5,16 @@
   "investors": [
     {
       "type": "Retail",
-      "weight": 0.40,
       "base_redemption_rate": 0.030,
       "stress_redemption_rate": 0.120
     },
     {
       "type": "Institutional",
-      "weight": 0.45,
       "base_redemption_rate": 0.040,
       "stress_redemption_rate": 0.180
     },
     {
       "type": "Family Office",
-      "weight": 0.15,
       "base_redemption_rate": 0.020,
       "stress_redemption_rate": 0.100
     }
