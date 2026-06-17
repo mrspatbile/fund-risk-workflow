@@ -199,6 +199,7 @@ def summarize_investor_base_by_type(investor_base: dict) -> pd.DataFrame:
     ----------
     investor_base : dict
         Investor register with 'investors' list.
+        Investors may have 'aggregate_count' field: if present and > 1, used instead of counting as 1.
 
     Returns
     -------
@@ -211,13 +212,16 @@ def summarize_investor_base_by_type(investor_base: dict) -> pd.DataFrame:
     df = pd.DataFrame(investor_base['investors'])
     nav_eur = investor_base.get('target_nav_eur', 1.0)
 
+    # Use aggregate_count if present, otherwise count as 1
+    df['investor_count'] = df['aggregate_count'].fillna(1) if 'aggregate_count' in df.columns else 1
+
     summary = (
         df.groupby('investor_type', as_index=False)
         .agg({
-            'investor_id': 'count',
+            'investor_count': 'sum',
             'nav_pct': 'sum',
         })
-        .rename(columns={'investor_id': 'count', 'nav_pct': 'aum_pct'})
+        .rename(columns={'investor_count': 'count', 'nav_pct': 'aum_pct'})
     )
     summary['aum_eur'] = summary['aum_pct'] * nav_eur
     summary = summary[['investor_type', 'count', 'aum_pct', 'aum_eur']]
@@ -248,3 +252,35 @@ def format_scenario_for_display(scenario: dict) -> str:
         return f"{name} ({int(pct * 100)}%)"
     else:
         return name
+
+
+def prepare_investor_assumptions_calibration(
+    investors_enriched: list,
+) -> pd.DataFrame:
+    """Prepare investor assumptions with computed weights for display.
+
+    Parameters
+    ----------
+    investors_enriched : list
+        List of investor dicts with type, weight, base_redemption_rate, stress_redemption_rate.
+
+    Returns
+    -------
+    pd.DataFrame
+        Formatted dataframe with columns:
+        - Calibration Type
+        - Computed Weight %
+        - Base Rate %
+        - Stress Rate %
+    """
+    df_investors = pd.DataFrame(investors_enriched)
+
+    display_df = df_investors[['type', 'weight', 'base_redemption_rate', 'stress_redemption_rate']].copy()
+    display_df.columns = ['Calibration Type', 'Computed Weight', 'Base Rate', 'Stress Rate']
+
+    # Format as percentages
+    display_df['Computed Weight %'] = (display_df['Computed Weight'] * 100).round(1).astype(str) + '%'
+    display_df['Base Rate %'] = (display_df['Base Rate'] * 100).round(1).astype(str) + '%'
+    display_df['Stress Rate %'] = (display_df['Stress Rate'] * 100).round(1).astype(str) + '%'
+
+    return display_df[['Calibration Type', 'Computed Weight %', 'Base Rate %', 'Stress Rate %']]
