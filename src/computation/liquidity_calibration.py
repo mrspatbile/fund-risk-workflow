@@ -9,6 +9,48 @@ Handles:
 
 import numpy as np
 import pandas as pd
+from scipy.stats import beta
+
+
+def beta_params_from_mean_concentration(
+    mean: float,
+    concentration: float,
+) -> tuple[float, float]:
+    """Convert mean redemption rate and concentration into beta parameters.
+
+    Uses the method-of-moments parametrisation for a beta distribution:
+    - mean is the expected redemption rate
+    - concentration controls the dispersion around the mean
+
+    Higher concentration produces sharper distributions (less dispersed).
+    Lower concentration produces flatter distributions (more dispersed).
+
+    Parameters
+    ----------
+    mean : float
+        Expected redemption rate (must be between 0 and 1, exclusive).
+    concentration : float
+        Concentration parameter (must be positive).
+        Typical range: 1–10 for fund redemption calibrations.
+
+    Returns
+    -------
+    tuple[float, float]
+        (alpha, beta) for scipy.stats.beta.
+
+    Raises
+    ------
+    ValueError
+        If mean is not in (0, 1) or concentration <= 0.
+    """
+    if not 0 < mean < 1:
+        raise ValueError("mean must be strictly between 0 and 1.")
+    if concentration <= 0:
+        raise ValueError("concentration must be positive.")
+
+    alpha = mean * concentration
+    beta_val = (1.0 - mean) * concentration
+    return alpha, beta_val
 
 
 def build_redemption_schedule(
@@ -17,8 +59,10 @@ def build_redemption_schedule(
 ) -> list:
     """Generate monthly redemption schedule from investor base parameters.
 
-    For normal months: AUM-weighted lognormal draw per investor type,
-    where E[draw] = base_redemption_rate by lognormal parametrisation.
+    For normal months: AUM-weighted beta distribution draw per investor type,
+    where E[draw] = base_redemption_rate. The beta distribution keeps
+    simulated redemption rates bounded between 0 and 1.
+
     For stress months: AUM-weighted stress rates (deterministic override).
 
     Parameters
@@ -27,7 +71,7 @@ def build_redemption_schedule(
         Dict with keys:
         - 'investors': list of dicts with 'weight', 'base_redemption_rate', 'stress_redemption_rate'
         - 'stress_months': set or list of month numbers (1-indexed) to use stress rates
-        - 'sigma': dispersion parameter for lognormal draws
+        - 'redemption_concentration': concentration parameter for beta distribution
         - 'seed': random seed for reproducibility
 
     n_months : int, default 12
@@ -39,7 +83,7 @@ def build_redemption_schedule(
         Monthly redemption rates as fractions of NAV (n_months floats).
     """
     rng = np.random.default_rng(calibration_config['seed'])
-    sigma = calibration_config['sigma']
+    concentration = calibration_config['redemption_concentration']
     stress_months = set(calibration_config['stress_months'])
     investors = calibration_config['investors']
 
@@ -51,11 +95,10 @@ def build_redemption_schedule(
             if m in stress_months:
                 rate += w * inv['stress_redemption_rate']
             else:
-                # Lognormal with mean = base_redemption_rate
-                # Parametrised: mu = log(base_rate) - sigma^2/2
+                # Beta distribution: bounded [0,1] with mean = base_redemption_rate
                 base_rate = inv['base_redemption_rate']
-                mu = np.log(base_rate) - 0.5 * sigma ** 2
-                rate += w * float(rng.lognormal(mean=mu, sigma=sigma))
+                alpha, beta_val = beta_params_from_mean_concentration(base_rate, concentration)
+                rate += w * float(rng.beta(alpha, beta_val))
         schedule.append(float(np.clip(rate, 0.0, 1.0)))
 
     return schedule

@@ -73,10 +73,9 @@ from src.risk.infra_utils import (
 from src.risk.leverage_config import INSTRUMENT_SOURCE
 from src.risk.pe_utils import fund_irr, pe_multiples
 from src.risk.risk_utils import (
-    days_to_liquidate,
+    compute_liquidity_profile,
     es_historical,
     investor_concentration,
-    liquidity_buckets,
     var_historical,
     var_scale,
 )
@@ -522,8 +521,8 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
     gross_lev, breakdown = _compute_gross_leverage(risk_df, nav)
     commit_lev           = _compute_commitment_leverage(risk_df, nav)
 
-    liq_pos = liquidity_buckets(days_to_liquidate(risk_df, pct_adv=0.25))
-    liq_df  = _aggregate_liquidity_buckets(liq_pos, nav)
+    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq_df  = _aggregate_liquidity_buckets(liq['risk_df_liq'], nav)
 
     exposures = _build_exposures(risk_df, nav)
 

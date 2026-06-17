@@ -23,6 +23,35 @@
     }
   ],
   "stress_months": [3, 4],
-  "sigma": 0.30,
-  "seed": 42
+  "redemption_concentration": 6.0,
+  "seed": 42,
+
+  "contractual_terms": {
+    "redemption_terms": "daily",
+    "notice_period_days": 1,
+    "lockup_days": 0,
+    "valuation_frequency": "daily",
+    "redemption_settlement_days": 3,
+    "liquidity_profile": "daily_redemption"
+  },
+
+  "stress_assumptions": {
+    "pct_adv": 0.25,
+    "stress_window_days": 5
+  },
+
+  "redemption_scenario_policy": {
+    "scenario_names": ["Base", "Large", "Stress", "Largest investor"],
+    "largest_investor_source": "investors.json",
+    "fixed_scenarios_are_calibration_outputs": true
+  },
+
+  "lmt_calibration": {
+    "liquid_pct": 0.85,
+    "gate_threshold_pct": 0.10,
+    "swing_threshold_pct": 0.05,
+    "contagion_multiplier": 1.3,
+    "consecutive_gate_months": 3,
+    "backlog_pct": 0.25
+  }
 }

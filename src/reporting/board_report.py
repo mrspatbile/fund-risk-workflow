@@ -42,7 +42,7 @@ from src.risk.risk_utils import (
     var_historical, var_scale, es_historical, es_scale,
     stress_equity, stress_rates, stress_credit,
     stress_combined, stress_historical, stress_property, stress_rental,
-    days_to_liquidate, liquidity_buckets,
+    compute_liquidity_profile,
 )
 
 warnings.filterwarnings('ignore')
@@ -158,8 +158,8 @@ def _load_fund_metrics(
     commit_lev = (longs + shorts) / nav
 
     # ── Liquidity buckets ─────────────────────────────────────────────────
-    liq_df = days_to_liquidate(risk_df, pct_adv=0.25)
-    liq_df = liquidity_buckets(liq_df)
+    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq_df = liq['risk_df_liq']
 
     bucket_pcts: Dict[str, float] = {}
     for b in ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']:

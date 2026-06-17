@@ -427,7 +427,7 @@ def display_redemption_stress_table(
             'Can Meet': '✓' if result.get('can_meet_redemption', True) else '✗',
         })
 
-    df = pd.DataFrame(stress_rows).set_index('Fund')
+    df = pd.DataFrame(stress_rows)
 
     html = display_dark_table(
         df,
@@ -472,7 +472,7 @@ def display_lmt_cross_fund_summary(
             'Total paid (€m)': f"{df['paid_eur'].sum() / 1e6:.1f}",
         })
 
-    df_summary = pd.DataFrame(summary_rows).set_index('Fund')
+    df_summary = pd.DataFrame(summary_rows)
 
     html = display_dark_table(
         df_summary,
