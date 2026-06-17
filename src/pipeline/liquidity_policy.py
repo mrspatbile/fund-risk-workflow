@@ -8,21 +8,58 @@ import json
 from pathlib import Path
 
 
-def build_fund_liquidity_policy(
-    fund_id: str,
-    calibration_inputs: dict,
-    scenarios_result: dict,
-    nav_eur: float,
-) -> dict:
-    """Build a liquidity monitoring policy block for a fund.
+def load_redemption_scenarios_from_rmp(fund_id: str) -> list:
+    """Load and filter redemption scenarios from fund RMP.
 
-    Creates a structured policy recommendation based on fund calibration,
-    investor scenarios, and NAV.
+    Extracts numeric redemption scenarios from risk_policy.json liquidity_monitoring.
+    Filters out non-numeric values (e.g., "largest_investor" string marker).
+    The display function will compute the actual largest investor scenario.
 
     Parameters
     ----------
     fund_id : str
         Fund identifier (e.g., 'UCITS_Balanced')
+
+    Returns
+    -------
+    list of tuples
+        [(redemption_pct, scenario_name), ...] with numeric pcts only.
+        E.g., [(0.10, 'Normal'), (0.25, 'Large'), (0.50, 'Stress')]
+    """
+    from src.data.reference_data import load_rmp
+
+    rmp = load_rmp(fund_id)
+    liq_monitoring = rmp.get('liquidity_monitoring', {})
+    scenarios_from_rmp = liq_monitoring.get('redemption_scenarios', [])
+
+    # Filter to numeric scenarios only
+    redemption_scenarios = [
+        (s['redemption_pct'], s['name'])
+        for s in scenarios_from_rmp
+        if isinstance(s['redemption_pct'], (int, float))
+    ]
+
+    return redemption_scenarios
+
+
+def build_fund_liquidity_policy(
+    fund_id: str,
+    engine,
+    calibration_inputs: dict,
+    scenarios_result: dict,
+    valuation_date: str,
+) -> dict:
+    """Build a liquidity monitoring policy block for a fund.
+
+    Creates a structured policy recommendation based on fund calibration,
+    investor scenarios, and NAV. Computes NAV internally from positions.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier (e.g., 'UCITS_Balanced')
+    engine
+        Database engine for querying positions.
     calibration_inputs : dict
         Raw calibration data from load_investor_and_calibration_data().
         Requires: contractual_terms, stress_assumptions
@@ -30,8 +67,8 @@ def build_fund_liquidity_policy(
         Output from compute_redemption_scenarios() with:
         - 'redemption_scenarios': list of scenario dicts
         - 'largest_investor_name', 'largest_investor_pct'
-    nav_eur : float
-        Fund NAV in EUR
+    valuation_date : str
+        Valuation date for position query (e.g., '2026-05-13')
 
     Returns
     -------
@@ -41,7 +78,12 @@ def build_fund_liquidity_policy(
         - redemption_scenarios, largest_investor_name/pct
         - _note: summary of calibration
     """
+    from src.data.database import query_positions
     from src.ui.liquidity_calibration_display import suggest_liquidity_policy_block
+
+    # Query positions and compute NAV
+    pos = query_positions(engine, fund_id, valuation_date)
+    nav_eur = pos['market_value_eur'].sum()
 
     # Extract contractual terms (required)
     contractual = calibration_inputs['contractual_terms']

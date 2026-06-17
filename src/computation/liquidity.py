@@ -146,20 +146,18 @@ def liquidity_buckets(
 
 def compute_liquidity_profile(
     risk_df: pd.DataFrame,
-    nav: float,
     pct_adv: float = 0.25,
 ) -> dict:
     """
     Compute liquidity profile — ESMA buckets with summary statistics.
 
     Combines days_to_liquidate() and liquidity_buckets() with aggregation.
+    NAV is computed internally from risk_df.
 
     Parameters
     ----------
     risk_df : pd.DataFrame
         Risk-ready positions with market_value_eur, adv_eur, asset_class columns
-    nav : float
-        Fund NAV in EUR
     pct_adv : float, optional
         Max % of ADV tradeable per day without market impact. Default 0.25 (25%).
 
@@ -170,7 +168,11 @@ def compute_liquidity_profile(
             Positions with added columns: days_to_liquidate, liquidity_bucket
         bucket_full : pd.DataFrame
             Liquidity summary by bucket (ESMA standard order)
+        nav : float
+            Fund NAV computed from risk_df
     """
+    nav = risk_df['market_value_eur'].sum()
+
     risk_df_liq = days_to_liquidate(risk_df, pct_adv=pct_adv)
     risk_df_liq = liquidity_buckets(risk_df_liq)
 
@@ -188,6 +190,7 @@ def compute_liquidity_profile(
     return {
         'risk_df_liq': risk_df_liq,
         'bucket_full': bucket_full,
+        'nav': nav,
     }
 
 

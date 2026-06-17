@@ -158,7 +158,7 @@ def _load_fund_metrics(
     commit_lev = (longs + shorts) / nav
 
     # ── Liquidity buckets ─────────────────────────────────────────────────
-    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     liq_df = liq['risk_df_liq']
 
     bucket_pcts: Dict[str, float] = {}

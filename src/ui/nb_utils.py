@@ -180,11 +180,11 @@ def save_table_png(html: str, fund_id: str, filename: str) -> str:
     return str(path)
 
 
-def save_html_as_png(html: str, fund_id: str, filename: str, scale: float = 2.0) -> str:
+def save_html_as_png(html: str, fund_id: str, filename: str, scale: float = 2.0, folder_suffix: str | None = None) -> str:
     """
     Save HTML content as PNG using Playwright.
 
-    Saves to fig/<fund_id>/<filename>.png with high DPI by default.
+    Saves to fig/<fund_id><folder_suffix>/<filename>.png with high DPI by default.
 
     Parameters
     ----------
@@ -196,13 +196,16 @@ def save_html_as_png(html: str, fund_id: str, filename: str, scale: float = 2.0)
         Base filename without extension
     scale : float, default 2.0
         Device scale factor for DPI (2.0 = 2x resolution, ~288 DPI at 96 base)
+    folder_suffix : str, optional
+        Suffix to append to fund_id folder (e.g., '_liquidity' creates fig/AIFM_HedgeFund_liquidity/)
 
     Returns
     -------
     str
         Absolute path of saved PNG file
     """
-    path = _make_export_path(fund_id, filename)
+    folder_name = fund_id + (folder_suffix or '')
+    path = _make_export_path(folder_name, filename)
     asyncio.get_event_loop().run_until_complete(
         _save_html_png_async(html, str(path), scale=scale)
     )

@@ -148,7 +148,7 @@ def _run_scenarios_hf(risk_df: pd.DataFrame, nav: float) -> List[dict]:
     _add('Counterparty (GS default, 80% coll.)', -cp_loss, 'Counterparty')
 
     # combined stress: equity −20% + 25% redemption
-    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     r_eq     = stress_equity(risk_df, delta_equity=-0.20)
     r_red    = redemption_stress(liq['risk_df_liq'], nav, redemption_pct=0.25)
     liq_st   = r_red['liquid_assets_eur'] * 0.80   # liquid assets −20%
@@ -190,7 +190,7 @@ def _run_scenarios_pd(risk_df: pd.DataFrame, nav: float) -> List[dict]:
         _add('Counterparty (largest borrower, 40% recovery)', 0.0, 'Counterparty')
 
     # combined: credit +150bps + 25% redemption
-    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     cr        = stress_credit(risk_df, delta_spread=0.015)
     r_red     = redemption_stress(liq['risk_df_liq'], nav, redemption_pct=0.25)
     liq_st    = r_red['liquid_assets_eur'] * 0.90   # 10% haircut
@@ -231,7 +231,7 @@ def _run_scenarios_re(risk_df: pd.DataFrame, nav: float) -> List[dict]:
          tenant_nav_impact, 'Counterparty')
 
     # combined: property −20% + 25% redemption
-    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     prop_loss = stress_property(risk_df, delta_value_by_type={
         'Office': -0.20, 'Logistics': -0.20, 'Retail': -0.25, 'Residential': -0.15
     })['stressed_pnl_eur']

@@ -521,7 +521,7 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
     gross_lev, breakdown = _compute_gross_leverage(risk_df, nav)
     commit_lev           = _compute_commitment_leverage(risk_df, nav)
 
-    liq = compute_liquidity_profile(risk_df, nav, pct_adv=0.25)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     liq_df  = _aggregate_liquidity_buckets(liq['risk_df_liq'], nav)
 
     exposures = _build_exposures(risk_df, nav)

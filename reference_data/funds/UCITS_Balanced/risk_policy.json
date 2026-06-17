@@ -1,6 +1,5 @@
 {
   "fund_id": "UCITS_Balanced",
-  "redemption_terms": "daily",
   "notice_period_days": 1,
   "lockup_days": 0,
   "liquidity_profile": "daily_redemption",

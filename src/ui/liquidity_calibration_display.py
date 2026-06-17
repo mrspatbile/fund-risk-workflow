@@ -12,6 +12,166 @@ from src.ui.plot_style import C, ACCENT, ACCENT2, ACCENT3, apply_ax_style, secti
 from src.ui.print_html_utils import display_dark_table
 
 
+def display_fund_liquidity_overview(
+    fund_id: str,
+    engine,
+    export_id: str | None = None,
+):
+    """Display fund overview combined with liquidity monitoring parameters.
+
+    Single table showing fund identity + liquidity monitoring thresholds.
+
+    Parameters
+    ----------
+    fund_id : str
+        Fund identifier
+    engine : sqlalchemy.engine
+        Database engine
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    import json
+    from pathlib import Path
+    from src.data.reference_data import load_fund_profile
+
+    # Load fund profile
+    fund_profile = load_fund_profile(fund_id)
+
+    # Load risk policy for liquidity monitoring
+    module_dir = Path(__file__).parent
+    risk_policy_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'risk_policy.json'
+    with open(risk_policy_path) as f:
+        rmp = json.load(f)
+
+    rows = []
+    highlight_indices = []
+
+    # Section 1: Fund Overview
+    highlight_indices.append(len(rows))
+    rows.append({"Property": "Fund Overview", "Value": ""})
+
+    fund_info = {
+        "Fund Name": fund_profile.get("fund_name", fund_id),
+        "Type": fund_profile.get("fund_type", "—"),
+        "Strategy": fund_profile.get("strategy", "—"),
+        "Currency": fund_profile.get("currency", "EUR"),
+        "Domicile": fund_profile.get("domicile", "—"),
+        "Regulator": fund_profile.get("regulator", "—"),
+    }
+    for key, value in fund_info.items():
+        rows.append({"Property": key, "Value": value})
+
+    # Section 2: Liquidity Monitoring
+    highlight_indices.append(len(rows))
+    rows.append({"Property": "Liquidity Monitoring", "Value": ""})
+
+    # Combine from risk_policy and liquidity_calibration_inputs
+    liq_monitoring = rmp.get("liquidity_monitoring", {})
+    contractual = {}
+    try:
+        calib_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'liquidity_calibration_inputs.json'
+        with open(calib_path) as f:
+            calib = json.load(f)
+            contractual = calib.get("contractual_terms", {})
+    except:
+        pass
+
+    liq_info = {
+        "Redemption Frequency": contractual.get("redemption_terms", "—"),
+        "Notice Period": f"{contractual.get('notice_period_days', '—')} days",
+        "Liquidity Profile": contractual.get("liquidity_profile", "—"),
+        "Stress Window": f"{liq_monitoring.get('stress_window_days', '—')} days",
+        "Pct ADV": f"{liq_monitoring.get('pct_adv', '—')*100:.0f}%" if isinstance(liq_monitoring.get('pct_adv'), (int, float)) else "—",
+    }
+    for key, value in liq_info.items():
+        rows.append({"Property": key, "Value": value})
+
+    df = pd.DataFrame(rows)
+
+    html = display_dark_table(
+        df,
+        caption=f"Fund Liquidity Overview | {fund_profile.get('fund_name', fund_id)}",
+        col_align_override={"Property": "left", "Value": "left"},
+        col_widths={"Property": "240px", "Value": "250px"},
+        highlight_rows=highlight_indices,
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('Fund Liquidity Overview')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fund_id, filename, folder_suffix='_liquidity')
+
+
+def display_top_investors(
+    investor_base: dict,
+    fund_id: str,
+    valuation_date: str,
+    top_n: int = 5,
+    export_id: str | None = None,
+):
+    """Display top N investors by AUM.
+
+    Parameters
+    ----------
+    investor_base : dict
+        Investor register from investors.json with 'investors' list.
+    fund_id : str
+        Fund identifier.
+    valuation_date : str
+        Valuation date (e.g., '2026-05-13').
+    top_n : int, default 5
+        Number of top investors to display.
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    from src.computation.liquidity_calibration import summarize_investor_base_by_type
+    import pandas as pd
+
+    nav = investor_base.get('target_nav_eur', 1.0)
+    investors = investor_base.get('investors', [])
+
+    if not investors:
+        display(HTML("<div style='color: #999; font-size: 12px;'>No investor data available.</div>"))
+        return
+
+    # Convert to dataframe and filter out "Remaining" aggregates
+    df_investors = pd.DataFrame(investors)
+    df_investors = df_investors[
+        ~(df_investors['investor_id'].str.contains('REM', na=False, case=False) |
+          df_investors['investor_name'].str.lower().str.contains('remaining', na=False))
+    ]
+
+    # Sort by nav_pct and get top N
+    df_top = df_investors.nlargest(top_n, 'nav_pct')[['investor_name', 'investor_type', 'nav_pct']].copy()
+
+    # Format for display
+    df_top['aum_eur'] = df_top['nav_pct'] * nav
+    df_top['nav_pct_display'] = df_top['nav_pct'].apply(lambda x: f'{x*100:.1f}%')
+    df_top['aum_display'] = df_top['aum_eur'].apply(lambda x: f'€{x/1e6:.1f}m')
+
+    display_df = df_top[['investor_name', 'investor_type', 'nav_pct_display', 'aum_display']].copy()
+    display_df.columns = ['Investor', 'Type', '% NAV', 'AUM (EUR)']
+
+    # Format date string
+    date_str = f'As of {valuation_date}' if valuation_date else ''
+
+    html = display_dark_table(
+        display_df,
+        caption=f'Top {top_n} Investors | {fund_id}',
+        col_align_override={'Investor': 'left', 'Type': 'left', '% NAV': 'right', 'AUM (EUR)': 'right'},
+        col_widths={'Investor': '200px', 'Type': '100px', '% NAV': '100px', 'AUM (EUR)': '100px'},
+        date_str=date_str,
+        date_label='',
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+
 def display_investor_base(
     investor_base: dict,
     fund_id: str,
@@ -49,7 +209,7 @@ def display_investor_base(
 
     html = display_dark_table(
         display_df,
-        caption=f'Investor Base Summary — {fund_id}',
+        caption=f'Investor Base Summary | {fund_id}',
         col_align_override={'aum_pct': 'right', 'aum_eur': 'right'},
         col_widths={'investor_type': '180px', 'count': '60px', 'aum_pct': '100px', 'aum_eur': '120px'},
         return_html=True,
@@ -115,9 +275,147 @@ def display_redemption_scenarios(
 
     html = display_dark_table(
         df,
-        caption=f'Redemption Scenarios — {fund_id}',
+        caption=f'Redemption Scenarios | {fund_id}',
         col_align_override={'Redemption': 'right'},
         col_widths={'Scenario': '180px', 'Redemption': '200px'},
+        return_html=True,
+    )
+
+    display(HTML(html))
+
+
+def display_lmt_parameters(
+    calibration_inputs: dict,
+    fund_id: str,
+    export_id: str | None = None,
+):
+    """Display LMT parameters as styled HTML table from liquidity calibration inputs.
+
+    Parameters
+    ----------
+    calibration_inputs : dict
+        Raw calibration data from load_investor_and_calibration_data().
+    fund_id : str
+        Fund identifier.
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    rows = []
+    highlight_indices = []
+
+    # Section: Contractual Terms
+    highlight_indices.append(len(rows))
+    rows.append({'Parameter': 'CONTRACTUAL TERMS', 'Value': ''})
+    for key, val in calibration_inputs.get('contractual_terms', {}).items():
+        rows.append({
+            'Parameter': key.replace('_', ' ').title(),
+            'Value': str(val)
+        })
+
+    # Section: Stress Assumptions
+    highlight_indices.append(len(rows))
+    rows.append({'Parameter': 'STRESS ASSUMPTIONS', 'Value': ''})
+    for key, val in calibration_inputs.get('stress_assumptions', {}).items():
+        rows.append({
+            'Parameter': key.replace('_', ' ').title(),
+            'Value': str(val)
+        })
+
+    # Section: LMT Calibration
+    highlight_indices.append(len(rows))
+    rows.append({'Parameter': 'LMT CALIBRATION', 'Value': ''})
+    for key, val in calibration_inputs.get('lmt_calibration', {}).items():
+        rows.append({
+            'Parameter': key.replace('_', ' ').title(),
+            'Value': str(val)
+        })
+
+    df = pd.DataFrame(rows)
+
+    display_dark_table(
+        df,
+        caption=f'LMT Parameters | {fund_id}',
+        date_str='',
+        highlight_rows=highlight_indices,
+    )
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        # Build HTML for export
+        html_to_export = display_dark_table(
+            df,
+            caption=f'LMT Parameters | {fund_id}',
+            date_str='',
+            highlight_rows=highlight_indices,
+            return_html=True,
+        )
+        title_slug = _slugify('LMT Parameters')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html_to_export, fund_id, filename, folder_suffix='_liquidity')
+
+
+def display_lmt_calibration_assumptions(
+    calibration_inputs: dict,
+    fund_id: str,
+    export_id: str | None = None,
+):
+    """Display liquidity calibration assumptions as formatted table with sections.
+
+    Parameters
+    ----------
+    calibration_inputs : dict
+        Raw calibration data from load_investor_and_calibration_data().
+    fund_id : str
+        Fund identifier.
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    rows = []
+    highlight_indices = []
+
+    # Section 1: Contractual Terms
+    highlight_indices.append(len(rows))
+    rows.append({"Parameter": "Contractual Terms", "Value": ""})
+
+    contractual = calibration_inputs.get('contractual_terms', {})
+    for key, value in contractual.items():
+        param_name = key.replace('_', ' ').title()
+        rows.append({"Parameter": param_name, "Value": str(value)})
+
+    # Section 2: Stress Assumptions
+    highlight_indices.append(len(rows))
+    rows.append({"Parameter": "Stress Assumptions", "Value": ""})
+
+    stress = calibration_inputs.get('stress_assumptions', {})
+    for key, value in stress.items():
+        param_name = key.replace('_', ' ').title()
+        if isinstance(value, float) and key == 'pct_adv':
+            value_display = f'{value*100:.1f}%'
+        else:
+            value_display = str(value)
+        rows.append({"Parameter": param_name, "Value": value_display})
+
+    # Section 3: LMT Calibration
+    highlight_indices.append(len(rows))
+    rows.append({"Parameter": "LMT Calibration", "Value": ""})
+
+    lmt_calib = calibration_inputs.get('lmt_calibration', {})
+    for key, value in lmt_calib.items():
+        param_name = key.replace('_', ' ').title()
+        if isinstance(value, float) and '_pct' in key:
+            value_display = f'{value*100:.1f}%'
+        else:
+            value_display = str(value)
+        rows.append({"Parameter": param_name, "Value": value_display})
+
+    df = pd.DataFrame(rows)
+
+    html = display_dark_table(
+        df,
+        caption=f"Liquidity Calibration Assumptions | {fund_id}",
+        col_align_override={"Parameter": "left", "Value": "left"},
+        col_widths={"Parameter": "280px", "Value": "180px"},
+        highlight_rows=highlight_indices,
         return_html=True,
     )
 
@@ -157,9 +455,9 @@ def display_lmt_summary(
     suspension_months = df_result[df_result['suspension_active']]['month'].tolist()
 
     summary_rows = [
-        ('Gate first fires (month)', gate_months[0] if gate_months else '—'),
-        ('Swing first fires (month)', swing_months[0] if swing_months else '—'),
-        ('Suspension triggers (month)', suspension_months[0] if suspension_months else '—'),
+        ('Gate first fires (month)', gate_months[0] if gate_months else '|'),
+        ('Swing first fires (month)', swing_months[0] if swing_months else '|'),
+        ('Suspension triggers (month)', suspension_months[0] if suspension_months else '|'),
         ('Peak backlog (€m)', f"{df_result['backlog_eur'].max() / 1e6:.1f}"),
         ('Total paid over period (€m)', f"{df_result['paid_eur'].sum() / 1e6:.1f}"),
         ('Terminal liquid NAV (€m)', f"{df_result['liquid_nav_eur'].iloc[-1] / 1e6:.1f}"),
@@ -169,7 +467,7 @@ def display_lmt_summary(
 
     html = display_dark_table(
         df_display,
-        caption=f'LMT Trigger Summary — {fund_id}',
+        caption=f'LMT Trigger Summary | {fund_id}',
         col_align_override={'Value': 'right'},
         col_widths={'Metric': '240px', 'Value': '150px'},
         return_html=True,
@@ -177,91 +475,318 @@ def display_lmt_summary(
 
     display(HTML(html))
 
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify('LMT Summary')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fund_id, filename, folder_suffix='_liquidity')
 
-def plot_lmt_analysis(
+
+def plot_lmt_paid_deferred_backlog(
     df_result: pd.DataFrame,
     fund_id: str,
     valuation_date: str,
     export_id: str | None = None,
 ):
-    """Plot LMT analysis: paid/deferred/backlog, NAV evolution, LMT flags.
+    """Plot paid, deferred redemptions, and backlog over time.
 
     Parameters
     ----------
     df_result : pd.DataFrame
         Result from lmt_trigger_analysis().
-
     fund_id : str
         Fund identifier.
-
     valuation_date : str
         Valuation date.
-
     export_id : str, optional
         If provided, save rendered output as PNG.
     """
+    from pandas.tseries.offsets import DateOffset
+
     months = df_result['month'].values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    fig.subplots_adjust(top=0.88)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    # Generate month labels (e.g., "Jun/26", "Jul/26", ...)
+    computation_date = pd.Timestamp(valuation_date)
+    month_labels = [
+        (computation_date + DateOffset(months=i)).strftime("%b/%y")
+        for i in range(1, 13)
+    ]
 
-    # Panel 1: Paid / Deferred / Backlog
-    ax = axes[0]
-    ax.bar(months, df_result['paid_eur'] / 1e6, color=ACCENT, label='Paid', width=0.5)
+    ax.bar(months, df_result['deferred_eur'] / 1e6, color=ACCENT2, label='Deferred', width=0.5)
     ax.bar(
         months,
-        df_result['deferred_eur'] / 1e6,
-        color=ACCENT2,
-        label='Deferred',
-        bottom=df_result['paid_eur'] / 1e6,
+        df_result['paid_eur'] / 1e6,
+        color=ACCENT,
+        label='Paid',
+        bottom=df_result['deferred_eur'] / 1e6,
         width=0.5,
     )
-    ax2 = ax.twinx()
-    ax2.plot(
+
+    dimmed_orange = '#D68632'  # Dimmed orange for backlog line
+    ax.plot(
         months,
         df_result['backlog_eur'] / 1e6,
-        color=ACCENT3,
+        color=dimmed_orange,
         marker='o',
-        linewidth=1.5,
-        label='Backlog (rhs)',
+        linewidth=2,
+        label='Backlog',
     )
-    ax2.set_ylabel('Backlog (EUR m)', fontsize=8)
-    ax.set_xlabel('Month')
-    ax.set_ylabel('EUR m')
-    ax.set_title('Paid / Deferred / Backlog')
-    ax.legend(loc='upper left', fontsize=7)
-    ax2.legend(loc='upper right', fontsize=7)
 
-    # Panel 2: NAV Evolution
-    ax = axes[1]
+    ax.set_xticks(months)
+    ax.set_xticklabels(month_labels, fontsize=9)
+    ax.set_ylabel('EUR m', fontsize=9)
+    ax.legend(loc='upper right', fontsize=8)
+
+    # Grid on Y-axis only
+    ax.grid(True, axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
+
+    # Main title as figure suptitle
+    fig.suptitle(
+        'Paid / Deferred / Backlog',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+        y=0.98,
+    )
+
+    # Valuation date as figure text
+    if valuation_date:
+        fig.text(
+            0.03, 0.9,
+            f'Computation date {valuation_date}',
+            fontsize=9.5,
+            color=C['muted'],
+            va='top',
+        )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify, _get_project_root
+        title_slug = _slugify('LMT Paid Deferred Backlog')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = _get_project_root() / 'fig' / f'{fund_id}_liquidity'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+
+    plt.show()
+
+
+def plot_lmt_nav_evolution(
+    df_result: pd.DataFrame,
+    fund_id: str,
+    valuation_date: str,
+    export_id: str | None = None,
+):
+    """Plot NAV evolution: liquid vs illiquid assets.
+
+    Parameters
+    ----------
+    df_result : pd.DataFrame
+        Result from lmt_trigger_analysis().
+    fund_id : str
+        Fund identifier.
+    valuation_date : str
+        Valuation date.
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    from pandas.tseries.offsets import DateOffset
+
+    months = df_result['month'].values
+    fig, ax = plt.subplots(figsize=(8, 4))
+    fig.subplots_adjust(top=0.88)
+
+    # Generate month labels (e.g., "Jun/26", "Jul/26", ...)
+    computation_date = pd.Timestamp(valuation_date)
+    month_labels = [
+        (computation_date + DateOffset(months=i)).strftime("%b/%y")
+        for i in range(1, 13)
+    ]
+
     ax.stackplot(
         months,
-        df_result['liquid_nav_eur'] / 1e6,
         df_result['illiquid_nav_eur'] / 1e6,
-        labels=['Liquid NAV', 'Illiquid NAV'],
-        colors=[ACCENT, ACCENT2],
+        df_result['liquid_nav_eur'] / 1e6,
+        labels=['Illiquid NAV', 'Liquid NAV'],
+        colors=[ACCENT2, ACCENT],
         alpha=0.8,
     )
-    ax.set_xlabel('Month')
-    ax.set_ylabel('EUR m')
-    ax.set_title('NAV Evolution')
-    ax.legend(loc='upper right', fontsize=7)
+    ax.set_xticks(months)
+    ax.set_xticklabels(month_labels, fontsize=9)
+    ax.set_ylabel('EUR m', fontsize=9)
+    ax.legend(loc='upper right', fontsize=8)
 
-    # Panel 3: LMT Flags
-    ax = axes[2]
-    for i, (col, color, lbl) in enumerate([
-        ('gate_active', ACCENT, 'Gate'),
-        ('swing_active', ACCENT2, 'Swing'),
-        ('suspension_active', ACCENT3, 'Suspension'),
-    ]):
-        ax.step(months, df_result[col].astype(int) + i * 1.2, where='post', color=color, linewidth=2, label=lbl)
-    ax.set_yticks([0, 1.2, 2.4])
-    ax.set_yticklabels(['Gate', 'Swing', 'Suspension'], fontsize=8)
-    ax.set_xlabel('Month')
-    ax.set_title('LMT Flags Active')
-    ax.set_ylim(-0.3, 3.5)
+    # Main title as figure suptitle
+    fig.suptitle(
+        'NAV Evolution',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+        y=0.98,
+    )
 
-    fig.suptitle(f'LMT Trigger Analysis — {fund_id}', fontsize=12, fontweight='bold')
-    plt.tight_layout()
+    # Valuation date as figure text
+    if valuation_date:
+        fig.text(
+            0.03, 0.9,
+            f'Computation date {valuation_date}',
+            fontsize=9.5,
+            color=C['muted'],
+            va='top',
+        )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify, _get_project_root
+        title_slug = _slugify('LMT NAV Evolution')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = _get_project_root() / 'fig' / f'{fund_id}_liquidity'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+
+    plt.show()
+
+
+def plot_lmt_flags(
+    df_result: pd.DataFrame,
+    fund_id: str,
+    valuation_date: str,
+    export_id: str | None = None,
+):
+    """Plot LMT trigger status matrix: Gate, Swing, Suspension by month.
+
+    Binary status grid showing which months each LMT tool is triggered.
+    Filled circles = triggered, X markers = not triggered.
+
+    Parameters
+    ----------
+    df_result : pd.DataFrame
+        Result from lmt_trigger_analysis().
+    fund_id : str
+        Fund identifier.
+    valuation_date : str
+        Valuation date.
+    export_id : str, optional
+        If provided, save rendered output as PNG.
+    """
+    from pandas.tseries.offsets import DateOffset
+
+    months = df_result['month'].values
+    trigger_color = '#D68632'  # Dimmed orange for triggered status
+    inactive_color = '#AAB0BD'  # Muted grey for inactive
+
+    # Tool order and positions with vertical spacing
+    # Order from top to bottom: Gate, Swing, Suspension
+    tool_order = ['Gate', 'Swing', 'Suspension']
+    trigger_cols = ['gate_active', 'swing_active', 'suspension_active']
+    y_positions = {
+        'Gate': 2.8,
+        'Swing': 1.4,
+        'Suspension': 0.0,
+    }
+
+    # Generate month labels (e.g., "Jun/26", "Jul/26", ...)
+    computation_date = pd.Timestamp(valuation_date)
+    month_labels = [
+        (computation_date + DateOffset(months=i)).strftime("%b/%y")
+        for i in range(1, 13)
+    ]
+
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    fig.subplots_adjust(top=0.88)
+
+    # Faint row bands behind each tool (row bands provide all separation)
+    for tool in tool_order:
+        y = y_positions[tool]
+        ax.axhspan(y - 0.45, y + 0.45, color='white', alpha=0.035, zorder=0)
+
+    # Plot status markers for each tool
+    for tool, col_name in zip(tool_order, trigger_cols):
+        y = y_positions[tool]
+        trigger_status = df_result[col_name].astype(int).values
+
+        for month, is_active in zip(months, trigger_status):
+            if is_active:
+                # Filled circle for triggered
+                ax.scatter(
+                    month, y,
+                    marker='o', s=90,
+                    color=trigger_color,
+                    edgecolor='white', linewidth=0.4,
+                    zorder=3,
+                )
+            else:
+                # X marker for not triggered
+                ax.scatter(
+                    month, y,
+                    marker='x', s=35,
+                    color=inactive_color,
+                    alpha=0.75, linewidth=1.2,
+                    zorder=2,
+                )
+
+    # Set up axes
+    ax.set_yticks([y_positions[tool] for tool in tool_order])
+    ax.set_yticklabels(tool_order, fontsize=12)
+    ax.set_xticks(months)
+    ax.set_xticklabels(month_labels, fontsize=9)
+    ax.set_xlim(0.5, 12.5)
+    ax.set_ylim(-0.7, 3.5)
+
+    # Clean design: remove all spines and plot background
+    ax.grid(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.patch.set_alpha(0)  # Transparent plot background
+    ax.set_axisbelow(True)
+
+    # Main title
+    fig.suptitle(
+        'LMT Trigger Status Matrix',
+        fontsize=14,
+        fontweight='bold',
+        color=C['cyan'],
+        ha='left',
+        x=0.03,
+        y=0.98,
+    )
+
+    # Computation date
+    if valuation_date:
+        fig.text(
+            0.03, 0.9,
+            f'Computation date {valuation_date}',
+            fontsize=9.5,
+            color=C['muted'],
+            va='top',
+        )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if export_id is not None:
+        from pathlib import Path
+        from src.ui.nb_utils import _slugify, _get_project_root
+        title_slug = _slugify('LMT Trigger Status')
+        filename = f'{export_id}_{title_slug}'
+        out_dir = _get_project_root() / 'fig' / f'{fund_id}_liquidity'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{filename}.png'
+        fig.savefig(path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+
     plt.show()
 
 
@@ -301,12 +826,21 @@ def suggest_liquidity_policy_block(
     """
     scenarios = scenarios_data.get('redemption_scenarios', [])
 
+    # Round redemption percentages to 4 decimals
+    scenarios_rounded = [
+        {
+            'name': s.get('name', 'Unknown'),
+            'redemption_pct': round(s.get('redemption_pct', 0), 4) if isinstance(s.get('redemption_pct'), (int, float)) else s.get('redemption_pct')
+        }
+        for s in scenarios
+    ]
+
     policy_block = {
         'pct_adv': 0.25,
         'stress_window_days': stress_window_days,
         'notice_period_days': notice_period_days,
-        'redemption_scenarios': scenarios,
-        '_note': f'Calibrated {len(scenarios)} redemption scenarios from investor base on {fund_id}. '
+        'redemption_scenarios': scenarios_rounded,
+        '_note': f'Calibrated {len(scenarios_rounded)} redemption scenarios from investor base on {fund_id}. '
                  'Scenarios reflect historical investor behaviour and stress assumptions. '
                  'Update if investor mix or market conditions change materially.',
     }
@@ -431,7 +965,7 @@ def display_redemption_stress_table(
 
     html = display_dark_table(
         df,
-        caption='Redemption Stress — Single-Period Snapshot (25% NAV, 5-day notice)',
+        caption='Redemption Stress | Single-Period Snapshot (25% NAV, 5-day notice)',
         col_align_override={'Coverage Ratio': 'right'},
         col_widths={'Fund': '150px', 'NAV (€m)': '120px', 'Coverage Ratio': '120px'},
         return_html=True,
@@ -465,9 +999,9 @@ def display_lmt_cross_fund_summary(
         susp_m = df[df['suspension_active']]['month'].tolist()
         summary_rows.append({
             'Fund': fname,
-            'Gate first (month)': gate_m[0] if gate_m else '—',
-            'Swing first (month)': swing_m[0] if swing_m else '—',
-            'Suspension (month)': susp_m[0] if susp_m else '—',
+            'Gate first (month)': gate_m[0] if gate_m else '|',
+            'Swing first (month)': swing_m[0] if swing_m else '|',
+            'Suspension (month)': susp_m[0] if susp_m else '|',
             'Peak backlog (€m)': f"{df['backlog_eur'].max() / 1e6:.1f}",
             'Total paid (€m)': f"{df['paid_eur'].sum() / 1e6:.1f}",
         })
@@ -476,7 +1010,7 @@ def display_lmt_cross_fund_summary(
 
     html = display_dark_table(
         df_summary,
-        caption='LMT Trigger Summary — Cross-Fund Analysis',
+        caption='LMT Trigger Summary | Cross-Fund Analysis',
         col_align_override={col: 'right' for col in df_summary.columns},
         return_html=True,
     )
