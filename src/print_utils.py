@@ -207,7 +207,7 @@ def print_buckets(bucket_full, risk_df_liq, NAV):
     print(f"{'Total':<15} {total_abs:>20,.0f} {total_abs/NAV*100:>7.1f}%")
 
 def print_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
-    print(f'Investor Concentration — AIFM Hedge Fund  |  NAV: EUR {NAV:,.0f}')
+    print(f'Investor Concentration | AIFM Hedge Fund  |  NAV: EUR {NAV:,.0f}')
     print('ESMA threshold: 20% single / 50% top-3\n')
     print(f"{'':4} {'Investor':<30} {'Type':<18} {'AUM (EUR)':>14} {'% NAV':>8}")
     print('\u2500' * 80)
@@ -252,7 +252,7 @@ def print_redemption_stress(fund_id, notice, redstress, NAV):
 
 
 def print_counterparty_stress(NAV,_cp_hf,_worst_cp,_cp_loss_eur, _cp_loss_pct):
-    print(f"Counterparty Stress — AIFM Hedge Fund  |  NAV: EUR {NAV:,.0f}")
+    print(f"Counterparty Stress | AIFM Hedge Fund  |  NAV: EUR {NAV:,.0f}")
     print(f"Simulated prime brokerage and OTC derivatives counterparty register\n")
     print(f"{'Counterparty':<18} {'Type':<16} {'Exposure':>12} {'Collateral':>12} {'Net Exp.':>12} {'% NAV':>8}")
     print('─' * 82)
@@ -268,7 +268,7 @@ def print_counterparty_stress(NAV,_cp_hf,_worst_cp,_cp_loss_eur, _cp_loss_pct):
 
 def print_combined_stress_mkt_plus_liq(NAV, _comb_mkt_eur, _comb_nav_st, 
                                        _comb_redeem_eur, _comb_liquid_st, _comb_gap_st, _comb_action, _comb_cov_st):
-    print(f"Combined Stress — AIFM Hedge Fund  |  Equity −20% + 25% Redemption")
+    print(f"Combined Stress | AIFM Hedge Fund  |  Equity −20% + 25% Redemption")
     print(f"Baseline NAV: EUR {NAV/1e6:,.1f}M\n")
     print(f"  Market shock (equity −20%):")
     print(f"    Portfolio P&L  : EUR {_comb_mkt_eur/1e6:,.1f}M  ({_comb_mkt_eur/NAV*100:.1f}% NAV)")

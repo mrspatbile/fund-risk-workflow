@@ -426,11 +426,11 @@ def _check_ucits(
     if 'sector' in pro_forma.columns:
         conc_universe = pro_forma[
             ((pro_forma['sector'].isna()) | (pro_forma['sector'] != 'Government')) &
-            (~pro_forma.get('sub_asset_class', '').isin(['ETF', 'Fund']))
+            (~pro_forma['sub_asset_class'].isin(['ETF', 'Fund']))
         ]
     else:
         conc_universe = pro_forma[
-            ~pro_forma.get('sub_asset_class', '').isin(['ETF', 'Fund'])
+            ~pro_forma['sub_asset_class'].isin(['ETF', 'Fund'])
         ]
 
     issuer_exp = _ptc_issuer_exposure(conc_universe, nav)
@@ -812,11 +812,11 @@ def pre_trade_check(
         if 'sector' in positions.columns:
             pre_conc_universe = positions[
                 ((positions['sector'].isna()) | (positions['sector'] != 'Government')) &
-                (~positions.get('sub_asset_class', '').isin(['ETF', 'Fund']))
+                (~positions['sub_asset_class'].isin(['ETF', 'Fund']))
             ]
         else:
             pre_conc_universe = positions[
-                ~positions.get('sub_asset_class', '').isin(['ETF', 'Fund'])
+                ~positions['sub_asset_class'].isin(['ETF', 'Fund'])
             ]
         _pre_iss = _ptc_issuer_exposure(pre_conc_universe, nav)
         _pre_above_5 = _ptc_issuer_exposure(pre_conc_universe, nav)

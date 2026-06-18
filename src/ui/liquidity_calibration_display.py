@@ -477,9 +477,9 @@ def display_lmt_summary(
     suspension_months = df_result[df_result['suspension_active']]['month'].tolist()
 
     summary_rows = [
-        ('Gate first fires (month)', gate_months[0] if gate_months else '|'),
-        ('Swing first fires (month)', swing_months[0] if swing_months else '|'),
-        ('Suspension triggers (month)', suspension_months[0] if suspension_months else '|'),
+        ('Gate first fires (month)', gate_months[0] if gate_months else '—'),
+        ('Swing first fires (month)', swing_months[0] if swing_months else '—'),
+        ('Suspension triggers (month)', suspension_months[0] if suspension_months else '—'),
         ('Peak backlog (€m)', f"{df_result['backlog_eur'].max() / 1e6:.1f}"),
         ('Total paid over period (€m)', f"{df_result['paid_eur'].sum() / 1e6:.1f}"),
         ('Terminal liquid NAV (€m)', f"{df_result['liquid_nav_eur'].iloc[-1] / 1e6:.1f}"),
@@ -1022,9 +1022,9 @@ def display_lmt_cross_fund_summary(
         susp_m = df[df['suspension_active']]['month'].tolist()
         summary_rows.append({
             'Fund': fname,
-            'Gate first (month)': gate_m[0] if gate_m else '|',
-            'Swing first (month)': swing_m[0] if swing_m else '|',
-            'Suspension (month)': susp_m[0] if susp_m else '|',
+            'Gate first (month)': gate_m[0] if gate_m else '—',
+            'Swing first (month)': swing_m[0] if swing_m else '—',
+            'Suspension (month)': susp_m[0] if susp_m else '—',
             'Peak backlog (€m)': f"{df['backlog_eur'].max() / 1e6:.1f}",
             'Total paid (€m)': f"{df['paid_eur'].sum() / 1e6:.1f}",
         })

@@ -94,7 +94,7 @@ _AUDITOR        = 'PricewaterhouseCoopers Luxembourg'
 
 _STRATEGY = {
     'AIFM_HedgeFund'  : 'Long/Short Equity',
-    'AIFM_PrivateDebt': 'Private Debt — Direct Lending',
+    'AIFM_PrivateDebt': 'Private Debt | Direct Lending',
     'AIFM_RealEstate' : 'Core Real Estate',
     'AIFM_PE_Buyout'  : 'Leveraged Buyout / Growth Equity',
     'AIFM_Infra_Core' : 'Core / Core-Plus Infrastructure',
@@ -109,7 +109,7 @@ _GEO = {
 }
 
 _SUBTYPE = {
-    'AIFM_HedgeFund'  : 'Hedge Fund — Long/Short Equity',
+    'AIFM_HedgeFund'  : 'Hedge Fund | Long/Short Equity',
     'AIFM_PrivateDebt': 'Private Debt (Closed-ended)',
     'AIFM_RealEstate' : 'Real Estate (Closed-ended)',
     'AIFM_PE_Buyout'  : 'Private Equity (Closed-ended)',
@@ -128,8 +128,8 @@ _REDEMPTION = {
     'AIFM_HedgeFund'  : {'frequency': 'Monthly',    'notice_days': 60,  'gate_pct': 10,  'lockup_months': 12},
     'AIFM_PrivateDebt': {'frequency': 'Quarterly',   'notice_days': 90,  'gate_pct': 20,  'lockup_months': 24},
     'AIFM_RealEstate' : {'frequency': 'Quarterly',   'notice_days': 90,  'gate_pct': 25,  'lockup_months': 36},
-    'AIFM_PE_Buyout'  : {'frequency': 'Closed-ended — no periodic redemption', 'notice_days': None, 'gate_pct': None, 'lockup_months': None},
-    'AIFM_Infra_Core' : {'frequency': 'Closed-ended — no periodic redemption', 'notice_days': None, 'gate_pct': None, 'lockup_months': None},
+    'AIFM_PE_Buyout'  : {'frequency': 'Closed-ended | no periodic redemption', 'notice_days': None, 'gate_pct': None, 'lockup_months': None},
+    'AIFM_Infra_Core' : {'frequency': 'Closed-ended | no periodic redemption', 'notice_days': None, 'gate_pct': None, 'lockup_months': None},
 }
 
 _FUND_TYPE = {
@@ -475,18 +475,18 @@ def _build_aifmd_ii(sub_limit: float, sub_drawn: float,
         ('AIFMD II — EXPANDED DISCLOSURES (Directive 2024/927/EU)', ''),
         ('', ''),
         ('LIQUIDITY MANAGEMENT TOOLS (LMTs)', ''),
-        ('Suspension of redemptions', 'Available — LP approval + board resolution required'),
-        ('Side pockets',              'Available for impaired/illiquid positions — board decision'),
+        ('Suspension of redemptions', 'Available | LP approval + board resolution required'),
+        ('Side pockets',              'Available for impaired/illiquid positions | board decision'),
         ('Capital call facility',     f"{_eur(sub_limit)} limit / {_eur(sub_drawn)} drawn"),
         ('', ''),
         ('DELEGATION ARRANGEMENTS', ''),
-        ('Portfolio management delegation', 'None — managed in-house by AIFM'),
-        ('Risk management delegation',      'None — risk function internal to AIFM'),
-        ('Valuation', 'Independent appraiser — KPMG / Duff & Phelps (AIFMD Art. 19)'),
+        ('Portfolio management delegation', 'None | managed in-house by AIFM'),
+        ('Risk management delegation',      'None | risk function internal to AIFM'),
+        ('Valuation', 'Independent appraiser | KPMG / Duff & Phelps (AIFMD Art. 19)'),
         ('', ''),
         ('PRINCIPAL MARKETS', ''),
         ('Primary market',    'Direct (bilateral) investments'),
-        ('Listed instruments', 'None — fully unlisted'),
+        ('Listed instruments', 'None | fully unlisted'),
         ('FX hedging',         'None at fund level'),
         ('', ''),
         ('UNFUNDED COMMITMENTS', ''),

@@ -853,7 +853,7 @@ def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valua
         ('NAV (EUR)',      f'{NAV:,.0f}'),
         ('Asset Classes',  ', '.join(sorted(positions['asset_class'].unique()))),
         ('Long Exposure',  f'{long_exp:,.0f}'),
-        ('Short Exposure', f'{short_exp:,.0f}' if short_exp != 0 else '|'),
+        ('Short Exposure', f'{short_exp:,.0f}' if short_exp != 0 else '—'),
     ], columns=['Metric', 'Value'])
 
     html = display_dark_table(
@@ -1692,16 +1692,16 @@ def display_counterparty_stress(NAV, valuation_date: str | None = None, fund_id:
 
     # Pre-format all numeric columns as strings so summary rows stay blank.
     cp = _cp_hf[['counterparty', 'type', 'exposure_eur',
-                  'collateral_eur', 'net_exposure_eur', 'loss_pct_nav']].copy()
+                  'collateral_eur', 'net_exposure_eur', 'net_pct_nav']].copy()
     cp['exposure_eur']     = cp['exposure_eur'].map('{:,.0f}'.format)
     cp['collateral_eur']   = cp['collateral_eur'].map('{:,.0f}'.format)
     cp['net_exposure_eur'] = cp['net_exposure_eur'].map('{:,.0f}'.format)
-    cp['loss_pct_nav_raw'] = cp['loss_pct_nav']          # keep raw for color fn
-    cp['loss_pct_nav']     = cp['loss_pct_nav'].map('{:.1%}'.format)
+    cp['net_pct_nav_raw'] = cp['net_pct_nav']          # keep raw for color fn
+    cp['net_pct_nav']     = cp['net_pct_nav'].map('{:.1%}'.format)
 
     def _srow(**kw):
         base = {c: '' for c in cp.columns}
-        base['loss_pct_nav_raw'] = float('nan')
+        base['net_pct_nav_raw'] = float('nan')
         base.update(kw)
         return base
 
@@ -1726,11 +1726,11 @@ def display_counterparty_stress(NAV, valuation_date: str | None = None, fund_id:
     metadata_str = ' | '.join(metadata_parts)
 
     html = display_dark_table(
-        cp.drop(columns=['loss_pct_nav_raw']),
+        cp.drop(columns=['net_pct_nav_raw']),
         caption='Counterparty Register',
         highlight_rows=[sep_idx],
         col_styles={
-            'loss_pct_nav': lambda v: (
+            'net_pct_nav': lambda v: (
                 C['red']   if isinstance(v, str) and '⚠' in v else
                 C['green'] if isinstance(v, str) and '✓' in v else None
             ),
@@ -3008,7 +3008,7 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
     rows.append({'Metric': 'SRRI', 'Value': '', 'Status': ''})
     rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '|'})
     rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '|'})
-    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '|'})
+    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '—'})
 
     rows.append({'Metric': 'BACKTESTS', 'Value': '', 'Status': ''})
     rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '|'})
