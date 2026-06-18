@@ -287,7 +287,7 @@ def display_dark_table(
             caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999; margin-top: 4px; display: block;">{date_label} {date_str}</span>'
         styled = styled.set_caption(caption)
     if fmt_remapped:
-        styled = styled.format(fmt_remapped, na_rep='|')
+        styled = styled.format(fmt_remapped, na_rep='—')
 
     styled = styled.hide(axis='index')
 
