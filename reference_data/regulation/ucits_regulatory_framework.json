@@ -1,0 +1,46 @@
+{
+  "framework": "UCITS",
+  "directive": "2009/65/EC",
+  "implementation_level": "CSSF implementation measures",
+  "references": [
+    "UCITSD Article 50 — Eligible assets",
+    "UCITSD Article 52 — Concentration rules (5/10/40)",
+    "UCITSD Article 70-71 — OTC counterparty exposure",
+    "UCITSD Article 83 — Borrowing limits",
+    "Commission Delegated Regulation (EU) 2010/43 — Risk management"
+  ],
+
+  "var_framework": {
+    "confidence_level": 0.99,
+    "holding_period_days": 20,
+    "lookback_window_days": 250,
+    "absolute_limit_pct": 20.0,
+    "relative_limit_multiplier": 2.0,
+    "relative_limit_reference_portfolio": "60/40_equities_bonds",
+    "regulatory_basis": "UCITSD Article 50, Commission Delegated Regulation (EU) 2010/43"
+  },
+
+  "concentration_5_10_40_rule": {
+    "article": "UCITSD Article 52",
+    "single_issuer_hard_limit_pct": 10.0,
+    "aggregate_above_5pct_limit_pct": 40.0,
+    "scope_notes": "Excludes government securities and ETFs/funds (constituent look-through applies)"
+  },
+
+  "otc_counterparty_limits": {
+    "article": "UCITSD Articles 70-71",
+    "credit_institution_pct": 10.0,
+    "non_credit_institution_pct": 5.0
+  },
+
+  "borrowing_limits": {
+    "article": "UCITSD Article 83",
+    "temporary_borrowing_limit_pct": 10.0,
+    "notes": "Temporary borrowing only (not structural leverage)"
+  },
+
+  "eligible_assets": {
+    "article": "UCITSD Article 50",
+    "notes": "UCITS may invest in transferable securities, money market instruments, regulated collective investment schemes, derivatives, and related instruments"
+  }
+}
