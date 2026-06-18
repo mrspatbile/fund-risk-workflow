@@ -21,7 +21,7 @@
 ## Example outputs
 
 <div style="text-align: center;">
-    <img src="fig/readme_figs/09_var_backtest.png" width="80%">
+    <img src="fig/AIFM_HedgeFund/09_var_backtest.png" width="80%">
 </div>
 
 <br>
@@ -29,7 +29,7 @@
 ---
 <br>
 <div style="text-align: center;">
-    <img src="fig/readme_figs/09_redemption_path_after_lmt.png" width="80%">
+    <img src="fig/UCITS_Balanced_liquidity/09_redemption_path_after_lmt.png" width="80%">
 </div>
 <br>
 
@@ -46,7 +46,7 @@
 
 <br>
 <div style="text-align: center;">
-    <img src="fig/readme_figs/21_pre_trade_check.png" width="60%">
+    <img src="fig/AIFM_HedgeFund/21_pre_trade_check.png" width="60%">
 </div>
 <br>
 
