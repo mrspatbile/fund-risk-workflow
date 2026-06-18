@@ -156,9 +156,15 @@ def display_top_investors(
     display_df = df_top[['investor_name', 'investor_type', 'nav_pct_display', 'aum_display']].copy()
     display_df.columns = ['Investor', 'Type', '% NAV', 'AUM (EUR)']
 
+
+    # Build metadata with valuation date (like display_redemption_stress)
+    metadata_str = f'{valuation_date}' if valuation_date else ''
+
+    # Display table
     html = display_dark_table(
         display_df,
-        caption=f'Top {top_n} Investors | {fund_id} | As of {valuation_date}',
+        caption=f'Top {top_n} Investors | {fund_id}',
+        date_str=metadata_str,
         col_align_override={'Investor': 'left', 'Type': 'left', '% NAV': 'right', 'AUM (EUR)': 'right'},
         col_widths={'Investor': '150px', 'Type': '100px', '% NAV': '100px', 'AUM (EUR)': '100px'},
         return_html=True,
@@ -178,6 +184,7 @@ def display_investor_base(
     fund_id: str,
     valuation_date: str,
     export_id: str | None = None,
+    folder_suffix: str | None = None,
 ):
     """Display investor base summary table.
 
@@ -212,15 +219,25 @@ def display_investor_base(
     display_df['aum_pct'] = display_df['aum_pct'].apply(lambda x: f'{x*100:.1f}%')
     display_df['aum_eur'] = display_df['aum_eur'].apply(lambda x: f'€{x/1e6:.1f}m')
 
+    metadata_str = f'{valuation_date}' if valuation_date else ''
+    
     html = display_dark_table(
         display_df,
-        caption=f'Investor Base Summary | {fund_id} | As of {valuation_date}',
+        caption=f'Investor Base Summary | {fund_id}',
+        date_str=metadata_str,
         col_align_override={'count': 'right', 'aum_pct': 'right', 'aum_eur': 'right'},
-        col_widths={'investor_type': '150px', 'count': '100px', 'aum_pct': '100px', 'aum_eur': '100px'},
+        col_widths={'investor_type': '100px', 'count': '100px', 'aum_pct': '100px', 'aum_eur': '100px'},
         return_html=True,
     )
 
     display(HTML(html))
+
+    if export_id is not None:
+        from src.ui.nb_utils import _slugify, save_html_as_png
+        title_slug = _slugify(f'Investor Type Breakdown')
+        filename = f'{export_id}_{title_slug}'
+        save_html_as_png(html, fund_id, filename, folder_suffix=folder_suffix)
+
 
 
 def display_redemption_scenarios(
@@ -1073,9 +1090,16 @@ def plot_lmt_analysis(
         for i in range(1, 13)
     ]
 
-    # Create figure with 3 subplots (height ratios 2:2:1)
-    fig, axes = plt.subplots(3, 1, figsize=(10, 7), sharex=True, gridspec_kw={'height_ratios': [2, 2, 1]})
-    fig.subplots_adjust(hspace=0.15, top=0.93)
+    # Determine if LMT parameters are present
+    has_lmt_params = (gate_threshold is not None or swing_threshold is not None or consecutive_gate_for_suspension is not None)
+
+    # Create figure: 2-panel if no LMT, 3-panel if LMT present
+    if has_lmt_params:
+        fig, axes = plt.subplots(3, 1, figsize=(10, 7), sharex=True, gridspec_kw={'height_ratios': [2, 2, 1]})
+        fig.subplots_adjust(hspace=0.15, top=0.93)
+    else:
+        fig, axes = plt.subplots(2, 1, figsize=(10, 5.6), sharex=True, gridspec_kw={'height_ratios': [2, 2]})
+        fig.subplots_adjust(hspace=0.15, top=0.93)
 
     # Panel 1: Redemption Path
     ax = axes[0]
@@ -1094,7 +1118,8 @@ def plot_lmt_analysis(
     )
     ax.plot(months, df_result['backlog_eur'] / 1e6, color='#D97706', marker='o', linewidth=2.5, label='Backlog')
     ax.set_ylabel('EUR m', fontsize=9)
-    legend = ax.legend(loc='upper right', fontsize=8, title='Redemptions', title_fontsize=8)
+    handles, labels = ax.get_legend_handles_labels()
+    legend = ax.legend(handles, labels, loc='upper right', fontsize=8, title='Redemptions', title_fontsize=8)
     legend.get_title().set_color('#9CA3AF')
     ax.grid(True, axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
     # ax.set_title('Redemption Path', fontsize=10, fontweight='normal', loc='left', color='#9CA3AF')
@@ -1109,31 +1134,32 @@ def plot_lmt_analysis(
     ax.grid(True, axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
     # ax.set_title('NAV Evolution', fontsize=10, fontweight='normal', loc='left', color='#9CA3AF')
 
-    # Panel 3: LMT Trigger Matrix (compact, half height)
-    ax = axes[2]
-    tool_order = ['Gate', 'Swing', 'Suspension']
-    trigger_cols = ['gate_active', 'swing_active', 'suspension_active']
-    y_positions = {'Gate': 2.8, 'Swing': 1.4, 'Suspension': 0.0}
-    trigger_color = '#D68632'
-    inactive_color = '#AAB0BD'
+    # Panel 3: LMT Trigger Matrix (compact, half height) — only if LMT parameters present
+    if has_lmt_params:
+        ax = axes[2]
+        tool_order = ['Gate', 'Swing', 'Suspension']
+        trigger_cols = ['gate_active', 'swing_active', 'suspension_active']
+        y_positions = {'Gate': 2.8, 'Swing': 1.4, 'Suspension': 0.0}
+        trigger_color = '#D68632'
+        inactive_color = '#AAB0BD'
 
-    for tool in tool_order:
-        y = y_positions[tool]
-        ax.axhspan(y - 0.45, y + 0.45, color='white', alpha=0.035, zorder=0)
+        for tool in tool_order:
+            y = y_positions[tool]
+            ax.axhspan(y - 0.45, y + 0.45, color='white', alpha=0.035, zorder=0)
 
-    for tool, col_name in zip(tool_order, trigger_cols):
-        y = y_positions[tool]
-        trigger_status = df_result[col_name].astype(int).values
-        for month, is_active in zip(months, trigger_status):
-            color = trigger_color if is_active else inactive_color
-            marker = 'o' if is_active else 'x'
-            ax.plot(month, y, marker=marker, markersize=7, color=color, markeredgewidth=1.2)
-        ax.text(0.05, y, tool, ha='right', va='center', fontsize=6, fontweight='normal', family='sans-serif', color='#9CA3AF')
+        for tool, col_name in zip(tool_order, trigger_cols):
+            y = y_positions[tool]
+            trigger_status = df_result[col_name].astype(int).values
+            for month, is_active in zip(months, trigger_status):
+                color = trigger_color if is_active else inactive_color
+                marker = 'o' if is_active else 'x'
+                ax.plot(month, y, marker=marker, markersize=7, color=color, markeredgewidth=1.2)
+            ax.text(0.05, y, tool, ha='right', va='center', fontsize=6, fontweight='normal', family='sans-serif', color='#9CA3AF')
 
-    ax.set_ylim(-1, 3.5)
-    ax.set_yticks([])
-    ax.set_ylabel('')
-    ax.grid(True, axis='x', alpha=0.2, linestyle='--', linewidth=0.5)
+        ax.set_ylim(-1, 3.5)
+        ax.set_yticks([])
+        ax.set_ylabel('')
+        ax.grid(True, axis='x', alpha=0.2, linestyle='--', linewidth=0.5)
 
     # Main title (cyan, left-aligned, not bold)
     title = 'Redemption Path and NAV Evolution'
@@ -1141,12 +1167,26 @@ def plot_lmt_analysis(
         title = f'{title} | {scenario_label}'
     fig.suptitle(title, fontsize=12, fontweight='normal', color='#0891b2', ha='left', x=0.12, y=0.995)
 
+    # Computation date
+    if valuation_date:
+        fig.text(
+            0.12, 0.96,
+            f'Computation date {valuation_date}',
+            fontsize=9.5,
+            color=C['muted'],
+            va='top',
+        )
+
     # Set x-axis labels only on bottom panel
-    axes[2].set_xticks(months)
-    axes[2].set_xticklabels(month_labels, fontsize=9)
+    if has_lmt_params:
+        axes[2].set_xticks(months)
+        axes[2].set_xticklabels(month_labels, fontsize=9)
+    else:
+        axes[1].set_xticks(months)
+        axes[1].set_xticklabels(month_labels, fontsize=9)
 
     # Add compact LMT inset if requested and LMT parameters provided
-    if show_inset and (gate_threshold is not None or swing_threshold is not None or consecutive_gate_for_suspension is not None):
+    if show_inset and has_lmt_params:
         # Extract LMT trigger months from df_result
         gate_months = df_result[df_result['gate_active']]['month'].tolist()
         swing_months = df_result[df_result['swing_active']]['month'].tolist()
@@ -1201,12 +1241,18 @@ def plot_lmt_analysis(
     if export_id is not None:
         from src.ui.nb_utils import _slugify
         from pathlib import Path
-        title_slug = _slugify('LMT Analysis')
-        filename = f'{export_id}_{title_slug}.png'
+        fig.canvas.draw()
+        if scenario_label:
+            title_slug = _slugify(scenario_label)
+        else:
+            title_slug = _slugify('LMT Analysis')
+        filename = f'{export_id}_redemption_path_{title_slug}.png'
         export_dir = Path(__file__).parent.parent.parent / 'fig' / f'{fund_id}_liquidity'
         export_dir.mkdir(parents=True, exist_ok=True)
         filepath = export_dir / filename
+        print(f"Saving plot to: {filepath}")
         fig.savefig(filepath, dpi=150, bbox_inches='tight')
+        print(f"✓ Plot saved successfully")
 
     plt.show()
 
