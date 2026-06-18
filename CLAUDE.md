@@ -4,7 +4,7 @@
 
 `fund-risk-workflow` is a structured finance and risk research project.
 
-It simulates the workflow of a risk analyst working with UCITS and AIFs under Luxembourg / CSSF-style oversight. The project is intentionally built to look and feel like a small risk platform, while remaining honest about its limits:
+It simulates the workflow of a risk analyst working with UCITS and AIFs under Luxembourg / CSSF-style oversight. The project is structured as a fund risk workflow environment, with clear scope limits:
 
 - it is not a production system
 - the valuation date is static
@@ -13,8 +13,7 @@ It simulates the workflow of a risk analyst working with UCITS and AIFs under Lu
 - valuation engines are simplified
 - notebooks remain part of the research workflow
 
-The goal is to show practical understanding of:
-
+The project focuses on:
 - fund data workflows
 - risk analytics
 - regulatory interpretation
@@ -23,7 +22,7 @@ The goal is to show practical understanding of:
 - Python package organisation
 - notebook-to-code refactoring
 
-This repository should be understandable for technical reviewers, ManCo stakeholders, and consulting or risk technology hiring managers.
+The repository should be understandable from both a finance and technical perspective, with clear links between fund risk concepts, data workflows, calculations and generated outputs.
 
 ## Core design principle
 
@@ -38,7 +37,7 @@ Keep a clear separation between:
 - governance reporting
 - notebook rendering
 
-Do not create unnecessary abstraction. This is a structured research project, not a production platform.
+Prefer clear workflow separation over unnecessary abstraction. This is not a production platform.
 
 ## Current architecture direction
 
@@ -566,27 +565,16 @@ Minimize arguments by grouping related computed values into dicts. The function 
 ```text
 MRS-178  Add Claude refactor playbook - done
 MRS-179  Reorganize reference data and document the data workflow - done
-MRS-194  Add fund-level reference data and risk policy configuration
-MRS-180  Create risk snapshot pipeline for position-based AIFs
-MRS-181  Refactor board report to use risk snapshot pipeline
-MRS-182  Reorganize notebooks into purpose-based folders
-MRS-183  Align hedge fund risk monitoring notebook with canonical modules
-MRS-184  Align private debt risk monitoring notebook with canonical flow
-MRS-185  Align real estate risk monitoring notebook with canonical flow
-MRS-186  Review UCITS notebook for UCITS-specific risk logic
-MRS-187  Review private equity notebook for alternative asset workflow
-MRS-188  Review infrastructure notebook for alternative asset workflow
-MRS-189  Create AIFMD Annex IV reporting notebook for all AIFs
-MRS-190  Create UCITS global exposure monitoring notebook
-MRS-191  Create SFDR disclosure monitoring notebook
-MRS-192  Create PRIIPs KID generation notebook for retail-distributed funds
-MRS-193  Add project architecture README for reviewers
+MRS-194  Add fund-level reference data and risk policy configuration - done
+MRS-180  Create risk snapshot pipeline for position-based AIFs - done
+MRS-181  Extend standard/cleaning to UCITS notebook - done
+MRS-182  Complete liquidity management nb - done
+
 ```
 
 ## Scope boundary
 
-This project is a structured learning and research environment.
-
+This project is a structured finance and risk workflow environment.
 There is a separate project, `quant-risk-engine`, focused on production-grade OOP design, QuantLib integration, and regulatory capital calculations.
 
 Do not import architectural patterns from that project unless explicitly requested.
