@@ -4,17 +4,12 @@ __pycache__/
 .env
 .venv/
 .DS_Store
-.venv/
 data/
 docs/_old
 docs/refactor_plans
 reports/
 notebooks/reports
-notebooks/data/
-notebooks/old - liquidity_fund_risk.ipynb
 *.egg-info/
-src/cache_old/
-
 
 # major refactoring
 notebooks/funds/aifm_infra_fund.ipynb   
@@ -42,9 +37,6 @@ reference_data/funds/AIFM_PE_Buyout
 reference_data/funds/AIFM_PrivateDebt
 reference_data/funds/AIFM_RealEstate
 
-reference_data/portfolios/position_specs/
-!reference_data/portfolios/position_specs/AIFM_HedgeFund.json
-!reference_data/portfolios/position_specs/UCITS_Balanced.json
 reference_data/portfolios/infra_assets.json
 reference_data/portfolios/pe_companies.json
 reference_data/regulation/
