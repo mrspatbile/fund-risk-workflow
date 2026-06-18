@@ -1,9 +1,7 @@
 {
   "fund_id": "UCITS_Balanced",
-
-  "redemption_terms": null,
-  "notice_period_days": null,
-  "lockup_days": null,
+  "notice_period_days": 1,
+  "lockup_days": 0,
   "liquidity_profile": "daily_redemption",
   "valuation_frequency": "daily",
 
@@ -88,16 +86,27 @@
   },
 
   "liquidity_monitoring": {
-    "pct_adv": 25,
-    "notice_period_days": 5,
-    "stress_scenarios": [
-      "normal",
-      "large",
-      "stress",
-      "largest_investor"
-    ]
+  "pct_adv": 0.25,
+  "stress_window_days": 5,
+  "redemption_scenarios": [
+    {
+      "name": "Base",
+      "redemption_pct": 0.05
+    },
+    {
+      "name": "Large",
+      "redemption_pct": 0.15
+    },
+    {
+      "name": "Stress",
+      "redemption_pct": 0.25
+    },
+    {
+      "name": "Largest investor",
+      "redemption_pct": "largest_investor"
+    }
+  ]
   },
-
   "internal_monitoring": {
     "largest_position_warning_pct": 8,
     "liquidity_coverage_threshold_days": 5

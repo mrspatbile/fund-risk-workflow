@@ -51,7 +51,7 @@ from src.risk.risk_utils import (
     stress_equity, stress_rates, stress_credit, stress_fx,
     stress_combined, stress_historical,
     stress_property, stress_rental,
-    days_to_liquidate, liquidity_buckets, redemption_stress,
+    compute_liquidity_profile, redemption_stress,
 )
 
 # ── colour palette (dark theme consistent with plot_style) ────────────────
@@ -148,10 +148,9 @@ def _run_scenarios_hf(risk_df: pd.DataFrame, nav: float) -> List[dict]:
     _add('Counterparty (GS default, 80% coll.)', -cp_loss, 'Counterparty')
 
     # combined stress: equity −20% + 25% redemption
-    risk_liq = days_to_liquidate(risk_df, pct_adv=0.25)
-    risk_liq = liquidity_buckets(risk_liq)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     r_eq     = stress_equity(risk_df, delta_equity=-0.20)
-    r_red    = redemption_stress(risk_liq, nav, redemption_pct=0.25)
+    r_red    = redemption_stress(liq['risk_df_liq'], nav, redemption_pct=0.25)
     liq_st   = r_red['liquid_assets_eur'] * 0.80   # liquid assets −20%
     shortfall = max(0.0, nav * 0.25 - liq_st)
     combined_pnl = r_eq['stressed_pnl_eur'] - shortfall
@@ -191,10 +190,9 @@ def _run_scenarios_pd(risk_df: pd.DataFrame, nav: float) -> List[dict]:
         _add('Counterparty (largest borrower, 40% recovery)', 0.0, 'Counterparty')
 
     # combined: credit +150bps + 25% redemption
-    risk_liq = days_to_liquidate(risk_df, pct_adv=0.25)
-    risk_liq = liquidity_buckets(risk_liq)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     cr        = stress_credit(risk_df, delta_spread=0.015)
-    r_red     = redemption_stress(risk_liq, nav, redemption_pct=0.25)
+    r_red     = redemption_stress(liq['risk_df_liq'], nav, redemption_pct=0.25)
     liq_st    = r_red['liquid_assets_eur'] * 0.90   # 10% haircut
     shortfall = max(0.0, nav * 0.25 - liq_st)
     combined_pnl = cr['stressed_pnl_eur'] - shortfall
@@ -233,12 +231,11 @@ def _run_scenarios_re(risk_df: pd.DataFrame, nav: float) -> List[dict]:
          tenant_nav_impact, 'Counterparty')
 
     # combined: property −20% + 25% redemption
-    risk_liq = days_to_liquidate(risk_df, pct_adv=0.25)
-    risk_liq = liquidity_buckets(risk_liq)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
     prop_loss = stress_property(risk_df, delta_value_by_type={
         'Office': -0.20, 'Logistics': -0.20, 'Retail': -0.25, 'Residential': -0.15
     })['stressed_pnl_eur']
-    r_red     = redemption_stress(risk_liq, nav, redemption_pct=0.25)
+    r_red     = redemption_stress(liq['risk_df_liq'], nav, redemption_pct=0.25)
     liq_st    = r_red['liquid_assets_eur']    # cash unaffected by property shock
     shortfall = max(0.0, nav * 0.25 - liq_st)
     combined_pnl = prop_loss - shortfall

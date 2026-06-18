@@ -32,6 +32,8 @@ Functions
 import numpy as np
 import pandas as pd
 
+from src.config import LIQUIDITY_BUCKET_ORDER
+
 
 def days_to_liquidate(
     positions: pd.DataFrame,
@@ -144,20 +146,18 @@ def liquidity_buckets(
 
 def compute_liquidity_profile(
     risk_df: pd.DataFrame,
-    nav: float,
     pct_adv: float = 0.25,
 ) -> dict:
     """
     Compute liquidity profile — ESMA buckets with summary statistics.
 
     Combines days_to_liquidate() and liquidity_buckets() with aggregation.
+    NAV is computed internally from risk_df.
 
     Parameters
     ----------
     risk_df : pd.DataFrame
         Risk-ready positions with market_value_eur, adv_eur, asset_class columns
-    nav : float
-        Fund NAV in EUR
     pct_adv : float, optional
         Max % of ADV tradeable per day without market impact. Default 0.25 (25%).
 
@@ -168,11 +168,13 @@ def compute_liquidity_profile(
             Positions with added columns: days_to_liquidate, liquidity_bucket
         bucket_full : pd.DataFrame
             Liquidity summary by bucket (ESMA standard order)
+        nav : float
+            Fund NAV computed from risk_df
     """
+    nav = risk_df['market_value_eur'].sum()
+
     risk_df_liq = days_to_liquidate(risk_df, pct_adv=pct_adv)
     risk_df_liq = liquidity_buckets(risk_df_liq)
-
-    bucket_order = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
 
     bucket_summary = risk_df_liq.groupby('liquidity_bucket').agg(
         market_value_eur=('market_value_eur', 'sum'),
@@ -183,11 +185,12 @@ def compute_liquidity_profile(
     bucket_summary['pct_nav_net'] = bucket_summary['market_value_eur'] / nav * 100
     bucket_summary['pct_nav_abs'] = bucket_summary['abs_exposure'] / nav * 100
 
-    bucket_full = bucket_summary.set_index('liquidity_bucket').reindex(bucket_order).fillna(0).reset_index()
+    bucket_full = bucket_summary.set_index('liquidity_bucket').reindex(LIQUIDITY_BUCKET_ORDER).fillna(0).reset_index()
 
     return {
         'risk_df_liq': risk_df_liq,
         'bucket_full': bucket_full,
+        'nav': nav,
     }
 
 
@@ -269,14 +272,15 @@ def redemption_stress(
 def lmt_trigger_analysis(
     nav: float,
     liquid_pct: float,
-    gate_threshold: float,
-    swing_threshold: float,
+    gate_threshold: float | None,
+    swing_threshold: float | None,
     redemption_schedule: list,
-    consecutive_gate_for_suspension: int   = 3,
+    consecutive_gate_for_suspension: int | None = 3,
     backlog_pct_for_suspension: float      = 0.25,
     swing_factor: float                    = 0.005,
     contagion_multiplier: float            = 1.0,
-) -> pd.DataFrame:
+    apply_contagion: bool                  = True,
+) -> dict:
     """
     MRS-84: AIFMD II LMT time-series simulation.
 
@@ -290,20 +294,23 @@ def lmt_trigger_analysis(
         Total fund NAV in EUR at month 0.
     liquid_pct : float
         Fraction of NAV in the liquid sleeve (0–1).
-    gate_threshold : float
+    gate_threshold : float or None
         Gate triggers when gross redemption demand exceeds this fraction of
         *total NAV*. Paid redemptions are capped at min(gate_threshold *
         total_nav, liquid_nav); excess is deferred into the backlog.
-    swing_threshold : float
+        If None, gate is disabled and all redemptions are paid immediately.
+    swing_threshold : float or None
         Swing pricing activates when the gross (contagion-adjusted) redemption
         rate exceeds this fraction of total NAV.
+        If None, swing pricing is disabled.
     redemption_schedule : list of float
         12 base gross redemption requests, each as a fraction of *that
         month's* total NAV before contagion scaling. len >= 12; only first
         12 elements are used.
-    consecutive_gate_for_suspension : int
+    consecutive_gate_for_suspension : int or None, default 3
         Number of consecutive months the gate must be active before the
-        suspension condition can be evaluated. Default 3.
+        suspension condition can be evaluated.
+        If None, suspension is disabled and suspension_active is always False.
     backlog_pct_for_suspension : float
         Outstanding backlog as a fraction of liquid NAV that must also be
         breached simultaneously for suspension to trigger. Default 0.25 (25%).
@@ -314,24 +321,32 @@ def lmt_trigger_analysis(
         Scaling factor applied to the base redemption schedule in any month
         immediately following a month in which the gate was active.
         Default 1.0 (no contagion). Set to 1.3–1.5 for realistic stress.
+    apply_contagion : bool, default True
+        If True, apply contagion feedback when conditions are met (gate active in
+        previous month and contagion_multiplier != 1.0).
+        If False, use base redemption schedule with no feedback amplification.
 
     Returns
     -------
-    pd.DataFrame with 12 rows and columns:
-        month                    : period number (1–12)
-        base_gross_pct           : raw schedule value before contagion (%)
-        effective_gross_pct      : contagion-adjusted gross rate actually used (%)
-        effective_gross_eur      : contagion-adjusted gross request in EUR
-        paid_eur                 : amount paid to redeeming investors this month
-        deferred_eur             : newly deferred from this month's gross request
-        backlog_eur              : cumulative unpaid balance carried forward
-        gate_active              : bool — gate in force this month
-        swing_active             : bool — swing pricing applied this month
-        suspension_active        : bool — suspension in force
-        consecutive_gate_months  : running count of consecutive gate months
-        liquid_nav_eur           : liquid sleeve at end of month
-        illiquid_nav_eur         : illiquid sleeve (static)
-        total_nav_eur            : liquid + illiquid at end of month
+    dict with keys:
+        'df' : pd.DataFrame with 12 rows and columns:
+            month                    : period number (1–12)
+            base_gross_pct           : raw schedule value before contagion (%)
+            effective_gross_pct      : contagion-adjusted gross rate actually used (%)
+            effective_gross_eur      : contagion-adjusted gross request in EUR
+            paid_eur                 : amount paid to redeeming investors this month
+            deferred_eur             : newly deferred from this month's gross request
+            backlog_eur              : cumulative unpaid balance carried forward
+            gate_active              : bool — gate in force this month
+            swing_active             : bool — swing pricing applied this month
+            suspension_active        : bool — suspension in force
+            consecutive_gate_months  : running count of consecutive gate months
+            liquid_nav_eur           : liquid sleeve at end of month
+            illiquid_nav_eur         : illiquid sleeve (static)
+            total_nav_eur            : liquid + illiquid at end of month
+        'gate_threshold' : float or None (from input)
+        'swing_threshold' : float or None (from input)
+        'consecutive_gate_for_suspension' : int or None (from input)
 
     Examples
     --------
@@ -354,22 +369,30 @@ def lmt_trigger_analysis(
         total_nav     = liquid_nav + illiquid_nav
         base_pct      = float(redemption_schedule[month - 1])
 
-        if prev_gate and contagion_multiplier != 1.0:
+        # Contagion: apply only if enabled, previous gate active, and multiplier != 1.0
+        if apply_contagion and prev_gate and contagion_multiplier != 1.0:
             eff_pct = min(base_pct * contagion_multiplier, 1.0)
         else:
             eff_pct = base_pct
 
         eff_eur = eff_pct * total_nav
 
-        swing_active = eff_pct > swing_threshold
+        # Swing pricing: disabled if swing_threshold is None
+        swing_active = swing_threshold is not None and eff_pct > swing_threshold
 
-        contractual_cap = gate_threshold * total_nav
-        gate_cap_eur    = min(contractual_cap, liquid_nav)
+        # Gate cap: if gate_threshold is None, no cap (allow all payments)
+        if gate_threshold is not None:
+            contractual_cap = gate_threshold * total_nav
+            gate_cap_eur = min(contractual_cap, liquid_nav)
+        else:
+            gate_cap_eur = liquid_nav  # No gate; pay from available liquid
 
         total_demand = eff_eur + backlog
 
+        # Suspension: disabled if consecutive_gate_for_suspension is None
         suspension_active = (
-            consec_gate >= consecutive_gate_for_suspension
+            consecutive_gate_for_suspension is not None
+            and consec_gate >= consecutive_gate_for_suspension
             and (backlog / liquid_nav if liquid_nav > 0 else 0.0)
                  >= backlog_pct_for_suspension
         )
@@ -380,7 +403,8 @@ def lmt_trigger_analysis(
             gate_active  = True
             consec_gate += 1
         else:
-            if total_demand > gate_cap_eur:
+            # Gate only triggers if gate_threshold is defined and demand exceeds cap
+            if gate_threshold is not None and total_demand > gate_cap_eur:
                 gate_active  = True
                 paid_eur     = min(gate_cap_eur, total_demand)
                 deferred_eur = max(0.0, eff_eur - max(0.0, gate_cap_eur - backlog))
@@ -413,7 +437,12 @@ def lmt_trigger_analysis(
             'total_nav_eur'          : round(liquid_nav + illiquid_nav, 2),
         })
 
-    return pd.DataFrame(rows)
+    return {
+        'df': pd.DataFrame(rows),
+        'gate_threshold': gate_threshold,
+        'swing_threshold': swing_threshold,
+        'consecutive_gate_for_suspension': consecutive_gate_for_suspension,
+    }
 
 
 def investor_concentration(

@@ -15,6 +15,32 @@ def _xnav(prefix: str = '') -> str:
     return f'{prefix}\n(×NAV)' if prefix else '\n(×NAV)'
 
 
+def format_redemption_scenario(scenario: dict) -> str:
+    """Format a redemption scenario dict for display as Name (X%) or Name (fund-specific).
+
+    Parameters
+    ----------
+    scenario : dict
+        Dict with 'name' and 'redemption_pct' keys.
+        If 'redemption_pct' is numeric, formats as "Name (X%)".
+        If 'redemption_pct' is 'largest_investor', formats as "Name (fund-specific)".
+
+    Returns
+    -------
+    str
+        Formatted scenario string, e.g. "Normal (10%)" or "Largest investor (fund-specific)".
+    """
+    name = scenario.get('name', '')
+    pct = scenario.get('redemption_pct')
+
+    if isinstance(pct, str) and pct == 'largest_investor':
+        return f"{name} (fund-specific)"
+    elif isinstance(pct, (int, float)):
+        return f"{name} ({int(pct * 100)}%)"
+    else:
+        return name
+
+
 def display_dark_table(
     df,
     caption                   : str        = '',
@@ -24,8 +50,8 @@ def display_dark_table(
     highlight_rows            : list | None = None,
     col_header_align_override : dict | None = None,
     col_widths : dict | None = None,  # e.g. {'metric': '200px', 'value': '100px'}
-    spacer_width              : str | None = None,  # e.g. '100px' — adds invisible spacer column
-    date_str                  : str | None = None,  # e.g. '2026-05-13' — shown below caption
+    spacer_width              : str | None = None,  # e.g. '100px' | adds invisible spacer column
+    date_str                  : str | None = None,  # e.g. '2026-05-13' | shown below caption
     date_label                : str        = 'As of',  # label for the date line
     hide_header               : bool       = False,  # hide column headers by matching text to background
     return_html               : bool       = False,  # if True, return HTML string instead of displaying
@@ -41,7 +67,7 @@ def display_dark_table(
     ----------
     df : pd.DataFrame
         Data to display. Original column names are used for fmt and
-        col_styles keys — renaming happens internally for display only.
+        col_styles keys | renaming happens internally for display only.
 
     caption : str
         Table title. Rendered in cyan, left-aligned, above the table.
@@ -49,7 +75,7 @@ def display_dark_table(
     fmt : dict, optional
         Format strings keyed by original column name.
         e.g. {'market_value_eur': '{:,.0f}', 'weight_pct': '{:.2f}%'}
-        Missing values rendered as '—'.
+        Missing values rendered as '|'.
 
     col_styles : dict, optional
         Per-column color functions keyed by original column name.
@@ -64,7 +90,7 @@ def display_dark_table(
         e.g. {'esg_score': 'center'}
 
     highlight_rows : list, optional
-        List of integer index values to render as section headers —
+        List of integer index values to render as section headers |
         uppercase, distinct background, letter-spacing.
         e.g. [0, 5] highlights the first and sixth rows.
 
@@ -102,7 +128,7 @@ def display_dark_table(
         col = re.sub(r'\bn\b', 'qtd', col)
         if 'eur' in col.lower() and '(eur)' not in col.lower():
             # case-insensitive strip; if nothing is left (col was just 'EUR')
-            # keep it as-is — no parentheses, no repetition
+            # keep it as-is | no parentheses, no repetition
             col_stripped = col.lower().replace('eur', '').strip()
             if col_stripped:
                 col = f'{col_stripped}\n(EUR)'
@@ -166,7 +192,7 @@ def display_dark_table(
         aligns[df.columns[0]] = 'left'
         return aligns
 
-    # Build header styles — optionally hidden
+    # Build header styles | optionally hidden
     thead_props = [
         ('background-color', '#2F3245'),
         ('font-family',      'Arial, sans-serif'),
@@ -209,11 +235,11 @@ def display_dark_table(
         spacer_col_idx = df_display.columns.get_loc('__spacer__') + 1
         table_styles.append({
             'selector': f'thead th:nth-child({spacer_col_idx})',
-            'props'   : [('color', '#2F3245')]  # Header bg color — text invisible
+            'props'   : [('color', '#2F3245')]  # Header bg color | text invisible
         })
         table_styles.append({
             'selector': f'td:nth-child({spacer_col_idx})',
-            'props'   : [('color', '#1a1f2e')]  # Row bg color — text invisible, keeps width
+            'props'   : [('color', '#1a1f2e')]  # Row bg color | text invisible, keeps width
         })
 
     aligns = _col_align(df_display)
@@ -261,7 +287,7 @@ def display_dark_table(
             caption = f'{caption}<br><span style="font-size: 10px; font-weight: normal; color: #999; margin-top: 4px; display: block;">{date_label} {date_str}</span>'
         styled = styled.set_caption(caption)
     if fmt_remapped:
-        styled = styled.format(fmt_remapped, na_rep='—')
+        styled = styled.format(fmt_remapped, na_rep='|')
 
     styled = styled.hide(axis='index')
 
@@ -578,11 +604,11 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                     notes.append((param_key.lstrip('_'), param_value if isinstance(param_value, str) else str(param_value)))
                     continue
 
-                # Skip internal flags — they're implicit in the section structure
+                # Skip internal flags | they're implicit in the section structure
                 if param_key in ('use_stress_testing',):
                     continue
 
-                # Handle nested dicts — each field on separate line, scenarios with readable names
+                # Handle nested dicts | each field on separate line, scenarios with readable names
                 if isinstance(param_value, dict):
                     label = readable_label(param_key)
                     # Make subsection labels bold with marker for stress_testing subsections
@@ -594,7 +620,7 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                         if sub_key.startswith('_'):
                             continue
 
-                        # Skip internal flags — they're implicit in the section structure
+                        # Skip internal flags | they're implicit in the section structure
                         if sub_key in ('requires_holding_period_days', 'use_stress_testing'):
                             continue
 
@@ -640,9 +666,19 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                 # Handle lists of dicts (like scenarios)
                 elif isinstance(param_value, list) and param_value and isinstance(param_value[0], dict):
                     label = readable_label(param_key)
-                    formatted = format_value(param_value, param_key)
-                    if formatted is not None:
-                        rows.append((f'  {label}', formatted))
+
+                    # Special handling for redemption scenarios
+                    if param_key == 'redemption_scenarios' and all(isinstance(s.get('redemption_pct'), (int, float, str)) for s in param_value):
+                        scenario_html = '<ul style="margin: 0; padding-left: 20px;">\n'
+                        for scenario in param_value:
+                            formatted_scenario = format_redemption_scenario(scenario)
+                            scenario_html += f'  <li>{formatted_scenario}</li>\n'
+                        scenario_html += '</ul>'
+                        rows.append((f'  {label}', scenario_html))
+                    else:
+                        formatted = format_value(param_value, param_key)
+                        if formatted is not None:
+                            rows.append((f'  {label}', formatted))
                 else:
                     formatted = format_value(param_value, param_key)
                     if formatted is not None:
@@ -767,7 +803,7 @@ def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = N
 
     # Redemption terms
     redemption_terms = profile.get('redemption_terms', {})
-    redemption_display = redemption_terms.get('display', '—')
+    redemption_display = redemption_terms.get('display', '|')
 
     rows = [
         ('Fund Name', long_name),
@@ -778,7 +814,7 @@ def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = N
     ]
 
     # Add redemption terms if available
-    if redemption_display != '—':
+    if redemption_display != '|':
         rows.append(('Redemption terms', redemption_display))
 
     df = pd.DataFrame(rows, columns=['label', 'value'])
@@ -817,7 +853,7 @@ def display_fund_summary(FUND_ID, VALUATION_DATE, positions, risk_df, NAV, valua
         ('NAV (EUR)',      f'{NAV:,.0f}'),
         ('Asset Classes',  ', '.join(sorted(positions['asset_class'].unique()))),
         ('Long Exposure',  f'{long_exp:,.0f}'),
-        ('Short Exposure', f'{short_exp:,.0f}' if short_exp != 0 else '—'),
+        ('Short Exposure', f'{short_exp:,.0f}' if short_exp != 0 else '|'),
     ], columns=['Metric', 'Value'])
 
     html = display_dark_table(
@@ -919,7 +955,7 @@ def display_leverage(risk_df, deriv_notional_commitment, commitment_exposure,
     total_idx = len(df) - 1
 
     status = 'OK' if gross_leverage <= gross_limit else 'BREACH'
-    caption = (f'Leverage  —  Gross limit: {gross_limit:.0f}×  |  '
+    caption = (f'Leverage  |  Gross limit: {gross_limit:.0f}×  |  '
                f'Current: {gross_leverage:.2f}×  |  Status: {status}')
 
     display_dark_table(
@@ -1226,7 +1262,7 @@ def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = 
     df = pd.concat([bucket_full, totals], ignore_index=True)
     html = display_dark_table(
         df,
-        caption='Liquidity Profile — AIFMD Annex IV Buckets',
+        caption='Liquidity Profile | AIFMD Annex IV Buckets',
         fmt={
             'market_value_eur': '{:,.0f}',
             'abs_exposure'    : '{:,.0f}',
@@ -1243,7 +1279,7 @@ def display_buckets(bucket_full, risk_df_liq, NAV, valuation_date: str | None = 
 
     if export_id is not None:
         from src.ui.nb_utils import _slugify, save_html_as_png
-        title_slug = _slugify('Liquidity Profile — AIFMD Annex IV Buckets')
+        title_slug = _slugify('Liquidity Profile | AIFMD Annex IV Buckets')
         filename = f'{export_id}_{title_slug}'
         fid = fund_id or 'unknown'
         save_html_as_png(html, fid, filename)
@@ -1260,7 +1296,7 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
             if _r4['liquidity_gap_eur'] >= 0
             else f"{_r4['liquidity_gap_eur']/1e6:.1f}M")
 
-    # — shared styles ——————————————————————————————————————————————
+    # | shared styles ||||||||||||||||||||||||||||||||||||||||||||||
     _BG_E   = '#1a1f2e'   # even row
     _BG_O   = '#141929'   # odd row
     _BG_SEP = '#36394F'   # section separator
@@ -1290,7 +1326,7 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
         return (f'<tr style="background:{bg};">'
                 f'<td colspan="5" style="padding:3px;border-bottom:{_BORDER};"></td></tr>')
 
-    # — build HTML ————————————————————————————————————————————————
+    # | build HTML ||||||||||||||||||||||||||||||||||||||||||||||||
     rows_html = []
 
     # thead
@@ -1321,7 +1357,7 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
 
     n = len(_top)
 
-    # — concentration flags —
+    # | concentration flags |
     rows_html.append(_spacer(n)); n += 1
     rows_html.append(_sep_row('ESMA THRESHOLDS: 20% SINGLE / 50% TOP-3'))
 
@@ -1341,7 +1377,7 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
             + '</tr>'
         )
 
-    # — 5-day notice stress —
+    # | 5-day notice stress |
     rows_html.append(_spacer(n)); n += 1
     rows_html.append(_sep_row(f"5-DAY NOTICE STRESS  ({_conc['largest_investor_pct']*100:.1f}% NAV)"))
 
@@ -1360,18 +1396,18 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
             + '</tr>'
         )
 
-    # — monitoring recommendation —
+    # | monitoring recommendation |
     rows_html.append(_spacer(n)); n += 1
     rows_html.append(_sep_row('MONITORING RECOMMENDATION'))
 
     notes = []
     if _conc['high_concentration']:
-        notes.append('— Enhanced monitoring: top-3 investors represent significant co-ordinated exit risk')
-        notes.append('— Maintain liquidity buffer ≥ largest investor AUM')
+        notes.append('| Enhanced monitoring: top-3 investors represent significant co-ordinated exit risk')
+        notes.append('| Maintain liquidity buffer ≥ largest investor AUM')
     if _conc['concentration_flag']:
-        notes.append(f"— Gate-trigger review: largest investor at {_conc['largest_investor_pct']*100:.1f}% NAV")
+        notes.append(f"| Gate-trigger review: largest investor at {_conc['largest_investor_pct']*100:.1f}% NAV")
     if not notes:
-        notes.append('— No immediate action. Continue quarterly investor concentration monitoring.')
+        notes.append('| No immediate action. Continue quarterly investor concentration monitoring.')
 
     for note in notes:
         bg = _BG_E if n % 2 == 0 else _BG_O; n += 1
@@ -1385,7 +1421,7 @@ def display_inv_concentration(NAV, risk_df_liq, _investors, _conc, _top, _type):
     caption_html = (
         f'<caption style="color:{C["cyan"]};font-size:14px;font-weight:bold;'
         f'text-align:left;font-family:Helvetica Neue,Arial,sans-serif;'
-        f'padding-bottom:8px;background:#1a2540;">Investor Concentration — NAV: EUR {NAV:,.0f}</caption>'
+        f'padding-bottom:8px;background:#1a2540;">Investor Concentration | NAV: EUR {NAV:,.0f}</caption>'
     )
     table = (
         f'<table style="border-collapse:collapse;width:100%;background:{_BG_E};">'
@@ -1422,26 +1458,89 @@ def display_redemption_stress(
         If provided, save rendered HTML as PNG
     """
     from src.risk.risk_utils import redemption_stress
+    from src.data.reference_data import load_investor_base_dict
+    from src.computation.liquidity_calibration import compute_redemption_scenarios, compute_weighted_reference_rates
+
+    # Convert list to work with
+    scenarios_list = list(redemption_scenarios) if redemption_scenarios else []
+
+    # Add "Largest investor" scenario if not already present
+    if not any(label == 'Largest investor' for _, label in scenarios_list):
+        try:
+            investor_base = load_investor_base_dict(fund_id)
+            investors_list = investor_base.get('investors', [])
+            # Filter out aggregates
+            actual_investors = [
+                inv for inv in investors_list
+                if not ('REM' in inv.get('investor_id', '') or
+                        'remaining' in inv.get('investor_name', '').lower())
+            ]
+            if actual_investors:
+                largest = max(actual_investors, key=lambda x: x.get('nav_pct', 0))
+                largest_pct = largest.get('nav_pct', 0)
+                if largest_pct > 0:
+                    scenarios_list.append((largest_pct, 'Largest investor'))
+        except:
+            pass
 
     # Compute redemption stress for each scenario
     redstress = {}
-    for _pct, _label in redemption_scenarios:
+    for _pct, _label in scenarios_list:
         _r = redemption_stress(risk_df_liq, nav, redemption_pct=_pct, notice_days=notice_days)
-        _r['label'] = f'{_label} ({int(_pct*100)}%)'
+        _r['label'] = f'{_label} ({int(_pct*100)}%)' if isinstance(_pct, (int, float)) else _label
         _r['gap'] = f"+{_r['liquidity_gap_eur']/1e6:.1f}M" if _r['liquidity_gap_eur'] >= 0 else f"{_r['liquidity_gap_eur']/1e6:.1f}M"
         redstress[_pct] = _r
 
     # Display
     rows = []
     for _, v in redstress.items():
+        # Extract percentage from label (e.g., "Normal (10%)" → "Normal", "10%")
+        label = v['label']
+        if '(' in label and '%' in label:
+            scenario_name = label.split('(')[0].strip()
+            redemption_pct = label.split('(')[1].rstrip(')')
+        else:
+            scenario_name = label
+            redemption_pct = '—'
+
         rows.append({
-            'Scenario':       v['label'],
+            'Scenario':       scenario_name,
+            'Redemption %':   redemption_pct,
             'redemption_eur': v['redemption_amount_eur'],
             'liquid_eur':     v['liquid_assets_eur'],
             'gap':            v['gap'],
             'coverage':       v['coverage_ratio'],
             'Action':         v['recommendation'],
         })
+
+    # Add largest 3 investors scenario as last row
+    try:
+        investor_base = load_investor_base_dict(fund_id)
+        investors_list = investor_base.get('investors', [])
+        # Filter out aggregates
+        actual_investors = [
+            inv for inv in investors_list
+            if not ('REM' in inv.get('investor_id', '') or
+                    'remaining' in inv.get('investor_name', '').lower())
+        ]
+        if actual_investors:
+            # Get top 3 investors
+            top_3 = sorted(actual_investors, key=lambda x: x.get('nav_pct', 0), reverse=True)[:3]
+            top_3_pct = sum(inv.get('nav_pct', 0) for inv in top_3)
+            if top_3_pct > 0:
+                _r = redemption_stress(risk_df_liq, nav, redemption_pct=top_3_pct, notice_days=notice_days)
+                rows.append({
+                    'Scenario':       'Top 3 investors',
+                    'Redemption %':   f'{int(top_3_pct*100)}%',
+                    'redemption_eur': _r['redemption_amount_eur'],
+                    'liquid_eur':     _r['liquid_assets_eur'],
+                    'gap':            f"+{_r['liquidity_gap_eur']/1e6:.1f}M" if _r['liquidity_gap_eur'] >= 0 else f"{_r['liquidity_gap_eur']/1e6:.1f}M",
+                    'coverage':       _r['coverage_ratio'],
+                    'Action':         _r['recommendation'],
+                })
+    except:
+        pass
+
     df = pd.DataFrame(rows)
 
     # Build metadata with NAV and notice
@@ -1454,9 +1553,10 @@ def display_redemption_stress(
 
     html = display_dark_table(
         df,
-        caption=f'Redemption Stress — {fund_id}',
+        caption=f'Redemption Stress | {fund_id}',
         fmt={'redemption_eur': '{:,.0f}', 'liquid_eur': '{:,.0f}', 'coverage': '{:.2f}x'},
         col_styles={'coverage': lambda v: C['green'] if isinstance(v, float) and v >= 1.0 else C['red']},
+        col_widths={'Scenario': '120px', 'Redemption %': '60px', 'coverage': '100px', 'Action': '100px'},
         date_str=metadata_str,
         date_label='',
         return_html=True,
@@ -1468,7 +1568,7 @@ def display_redemption_stress(
         from src.ui.nb_utils import _slugify, save_html_as_png
         title_slug = _slugify('Redemption Stress')
         filename = f'{export_id}_{title_slug}'
-        save_html_as_png(html, fund_id, filename)
+        save_html_as_png(html, fund_id, filename, folder_suffix='_liquidity')
 
 
 def display_combined_stress_mkt_plus_liq(
@@ -1544,7 +1644,7 @@ def display_combined_stress_mkt_plus_liq(
 
     html = display_dark_table(
         df,
-        caption='Combined Stress Test — Market + Liquidity',
+        caption='Combined Stress Test | Market + Liquidity',
         col_styles={
             'Status': lambda v: (
                 C['green'] if isinstance(v, str) and ('✓' in v or 'Can meet' in v) else
@@ -1560,7 +1660,7 @@ def display_combined_stress_mkt_plus_liq(
 
     if export_id is not None:
         from src.ui.nb_utils import _slugify, save_html_as_png
-        title_slug = _slugify('Combined Stress Test — Market + Liquidity')
+        title_slug = _slugify('Combined Stress Test | Market + Liquidity')
         filename = f'{export_id}_{title_slug}'
         fid = fund_id or 'unknown'
         save_html_as_png(html, fid, filename)
@@ -1688,7 +1788,7 @@ def display_historical_scenarios(historical_scenarios: dict, fund_id: str | None
     df = pd.DataFrame(rows)
     html = display_dark_table(
         df,
-        caption='Historical Stress Scenarios — Shock Parameters',
+        caption='Historical Stress Scenarios | Shock Parameters',
         col_styles={
             'Equity'      : lambda v: C['red']   if isinstance(v, str) and v.startswith('-') else C['green'],
             'Rates (bps)' : lambda v: C['amber'] if isinstance(v, str) and v not in ('0', '+0') else None,
@@ -1704,7 +1804,7 @@ def display_historical_scenarios(historical_scenarios: dict, fund_id: str | None
 
     if export_id is not None:
         from src.ui.nb_utils import _slugify, save_html_as_png
-        title_slug = _slugify('Historical Stress Scenarios — Shock Parameters')
+        title_slug = _slugify('Historical Stress Scenarios | Shock Parameters')
         filename = f'{export_id}_{title_slug}'
         fid = fund_id or 'unknown'
         save_html_as_png(html, fid, filename)
@@ -1763,7 +1863,7 @@ def display_ucits_scenarios(risk_df, scenarios_result: dict, valuation_date: str
 
 
 def display_scenarios(risk_df, custom: dict | None = None, add_historical: bool = False, valuation_date: str | None = None, fund_id: str | None = None, export_id: str | None = None):
-    """Render stress scenario P&L results — custom and/or historical."""
+    """Render stress scenario P&L results | custom and/or historical."""
     from src.risk.risk_utils import HISTORICAL_SCENARIOS, stress_historical
     TNA  = risk_df['market_value_eur'].sum()
 
@@ -1894,7 +1994,7 @@ def display_ptc(result: dict, test_number: int | None = None,
 
     def _fmt(k: str, v) -> str:
         if not isinstance(v, float): return str(v)
-        if v == 0.0: return '—'
+        if v == 0.0: return '|'
         k = k.lower()
         if any(x in k for x in ('leverage', 'multiplier')): return f'{v:.2f}×'
         if any(x in k for x in ('exposure', 'bonds', 'net_eq', 'borrowing',
@@ -1923,8 +2023,8 @@ def display_ptc(result: dict, test_number: int | None = None,
     # Compute settlement date
     val_date = pd.to_datetime(VALUATION_DATE)
     settlement_date = (val_date + timedelta(days=2)).strftime('%Y-%m-%d')
-    counterparty = t.get('counterparty', '—')
-    underlying_risk = t.get('underlying_risk', '—')
+    counterparty = t.get('counterparty', '|')
+    underlying_risk = t.get('underlying_risk', '|')
 
     trade_rows = []
     trade_data = [
@@ -2042,27 +2142,27 @@ def display_ptc(result: dict, test_number: int | None = None,
             except (ValueError, TypeError, KeyError):
                 worsened = False
 
-        # Apply styling based on breach status — bold only if value changed
+        # Apply styling based on breach status | bold only if value changed
         if pre_breached and post_breached:
             if worsened:
-                # Breach worsened — red + bold
+                # Breach worsened | red + bold
                 post_color = C['red']
                 post_weight = 'font-weight:bold;' if changed else ''
             else:
-                # Breach continued but not worse — yellow, no bold, with ⚠
+                # Breach continued but not worse | yellow, no bold, with ⚠
                 post_fmt = f'⚠ {post_fmt}'
                 post_color = '#fbbf24'
                 post_weight = ''
         elif not pre_breached and post_breached:
-            # New breach — red + bold
+            # New breach | red + bold
             post_color = C['red']
             post_weight = 'font-weight:bold;'
         elif changed:
-            # Changed (improved or just changed, no breach) — white + bold
+            # Changed (improved or just changed, no breach) | white + bold
             post_color = '#ffffff'
             post_weight = 'font-weight:bold;'
         else:
-            # Unchanged — normal
+            # Unchanged | normal
             post_color = _TXT
             post_weight = ''
 
@@ -2120,7 +2220,7 @@ def display_ptc(result: dict, test_number: int | None = None,
     breaches_rows = []
 
     if result['breaches']:
-        # Trade caused new breaches — show in red
+        # Trade caused new breaches | show in red
         for b in result['breaches']:
             breaches_rows.append(
                 f'<tr style="background:{_BG_SEP};"><td colspan="2" style="{_FONT}{_PAD}color:{C["red"]};'
@@ -2139,15 +2239,15 @@ def display_ptc(result: dict, test_number: int | None = None,
                     '</tr>'
                 )
     else:
-        # Trade approved — check if there are pre-existing breaches
+        # Trade approved | check if there are pre-existing breaches
         if pre_existing_sector_breaches or pre_existing_issuer_breaches:
-            # Yellow — approved but pre-existing breaches
+            # Yellow | approved but pre-existing breaches
             status_color = '#fbbf24'  # yellow
-            status_text = 'TRADE APPROVED — verify no related breaches below'
+            status_text = 'TRADE APPROVED | verify no related breaches below'
         else:
-            # Green — no breaches at all
+            # Green | no breaches at all
             status_color = C['green']
-            status_text = 'NO LIMIT BREACHES — TRADE APPROVED'
+            status_text = 'NO LIMIT BREACHES | TRADE APPROVED'
 
         breaches_rows.append(
             f'<tr style="background:{_BG_SEP};"><td colspan="2" style="{_FONT}{_PAD}color:{status_color};'
@@ -2329,7 +2429,26 @@ def display_top_positions(df: pd.DataFrame, n_top: int = 100, valuation_date: st
         save_html_as_png(html, fid, filename)
 
 
-def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp_loss_pct):
+def display_counterparty_risk_ucits(NAV, cp_result: dict, fund_id: str | None = None, valuation_date: str | None = None):
+    """Display UCITS counterparty risk exposure.
+
+    Parameters
+    ----------
+    NAV : float
+        Fund NAV in EUR
+    cp_result : dict
+        Result from compute_counterparty_stress() with keys:
+        'cp_df', 'worst_cp', 'loss_eur', 'loss_pct'
+    fund_id : str, optional
+        Fund identifier for display
+    valuation_date : str, optional
+        Valuation date for display
+    """
+    _cp_ucits = cp_result['cp_df']
+    _worst_cp = cp_result['worst_cp']
+    _cp_loss_eur = cp_result['loss_eur']
+    _cp_loss_pct = cp_result['loss_pct']
+
     status = '⚠ BREACH' if _cp_loss_pct > 0.10 else '✓ Within limit'
 
     cp = _cp_ucits[['counterparty', 'type', 'exposure_eur',
@@ -2358,9 +2477,18 @@ def display_counterparty_risk_ucits(NAV, _cp_ucits, _worst_cp, _cp_loss_eur, _cp
 
     sep_idx = len(_cp_ucits) + 1
 
+    # Format caption and date string
+    caption = f'Counterparty Exposure | {fund_id}' if fund_id else 'Counterparty Exposure'
+    date_str = ''
+    if valuation_date:
+        date_str = f'As of {valuation_date} | NAV: EUR {NAV:,.0f}'
+    else:
+        date_str = f'NAV: EUR {NAV:,.0f}'
+
     display_dark_table(
         cp.drop(columns=['net_pct_nav_raw']),
-        caption=f'Counterparty Exposure — NAV: EUR {NAV:,.0f}',
+        caption=caption,
+        date_str=date_str,
         highlight_rows=[sep_idx],
         col_styles={
             'net_pct_nav': lambda v: (
@@ -2521,7 +2649,7 @@ def display_ucits_srri(srri_result: dict, export_id: str | None = None, fund_id:
         print(f"⚠ SRRI based on {srri_result['observation_count']} weeks (insufficient for standard 260-week window)")
 
     df = pd.DataFrame([
-        ['SRRI Category', f'{srri_bucket} — {srri_desc}'],
+        ['SRRI Category', f'{srri_bucket} | {srri_desc}'],
         ['Annualised Volatility', f"{srri_result['volatility_annual_pct']:.2f}%"],
         ['Weekly Volatility', f"{srri_result['volatility_weekly_pct']:.2f}%"],
         ['Observation Count', str(srri_result['observation_count'])],
@@ -2587,7 +2715,7 @@ def display_ucits_srri_point_in_time(result: dict, valuation_date: str | None = 
     from src.risk.ucits_srri import srri_as_string
 
     df = pd.DataFrame([
-        ['SRRI Category', f"{result['sri_bucket']} — {srri_as_string(result['sri_bucket'])}"],
+        ['SRRI Category', f"{result['sri_bucket']} | {srri_as_string(result['sri_bucket'])}"],
         ['Annualised Volatility', f"{result['volatility_annual_pct']:.2f}%"],
         ['Weekly Observations', str(result['observation_count'])],
     ], columns=['Metric', 'Value'])
@@ -2868,33 +2996,33 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
     # Build table rows
     rows = []
     rows.append({'Metric': 'IDENTIFICATION', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '—'})
-    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '—'})
-    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '—'})
+    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '|'})
+    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '|'})
+    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '|'})
 
     rows.append({'Metric': 'VAR SUMMARY', 'Value': '', 'Status': ''})
     rows.append({'Metric': 'Absolute VaR (20d 99%)', 'Value': f'{abs_var_20d_pct:.2f}%', 'Status': f'Limit {absolute_var_limit_pct:.1f}% | Util {abs_util:.1f}%'})
     rows.append({'Metric': 'Relative VaR (ratio)', 'Value': f'{rel_var_ratio:.2f}x', 'Status': f'Limit {relative_var_limit:.1f}x | Util {rel_util:.1f}%'})
-    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '—'})
+    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '|'})
 
     rows.append({'Metric': 'SRRI', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '—'})
-    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '—'})
-    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '—'})
+    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '|'})
+    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '|'})
 
     rows.append({'Metric': 'BACKTESTS', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '—'})
+    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '|'})
     rows.append({'Metric': 'Breaches', 'Value': str(n_breaches), 'Status': 'Expected: 2.5'})
-    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '|'})
     rows.append({'Metric': 'Kupiec POF', 'Value': f'{kupiec_p:.4f}', 'Status': 'PASS' if kupiec_p > 0.05 else 'FAIL'})
     rows.append({'Metric': 'Christoffersen', 'Value': f'{chris_p:.4f}', 'Status': 'PASS' if chris_p > 0.05 else 'FAIL'})
 
     rows.append({'Metric': 'STRESS TESTING', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '—'})
-    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '—'})
-    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '—'})
-    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '—'})
-    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '|'})
     rows.append({'Metric': '2008 GFC', 'Value': f'{hist_scenario_pcts["2008"]:.2f}%', 'Status': 'Reference'})
     rows.append({'Metric': '2020 COVID', 'Value': f'{hist_scenario_pcts["2020"]:.2f}%', 'Status': 'Reference'})
     rows.append({'Metric': '2022 Rate Shock', 'Value': f'{hist_scenario_pcts["2022"]:.2f}%', 'Status': 'Reference'})
@@ -2902,10 +3030,10 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
     abs_status = 'COMPLIANT' if abs_var_20d_pct < absolute_var_limit_pct else 'BREACH'
     rel_status = 'COMPLIANT' if rel_var_ratio < relative_var_limit else 'BREACH'
     rows.append({'Metric': 'COMPLIANCE', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '—'})
-    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '—'})
-    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '—'})
-    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '—'})
+    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '|'})
+    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '|'})
+    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '|'})
+    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '|'})
 
     df = pd.DataFrame(rows)
 
@@ -2918,7 +3046,7 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
 
     display_dark_table(
         df,
-        caption='UCITS Balanced Fund — Monthly Risk Report',
+        caption='UCITS Balanced Fund | Monthly Risk Report',
         col_widths=col_widths,
         col_align_override=col_align_override,
         highlight_rows=section_headers,

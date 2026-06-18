@@ -1,0 +1,17 @@
+{
+  "source": "simulated",
+  "label": "Investor type mapping",
+  "description": "Maps investor registry categories to liquidity calibration investor types.",
+  "investor_type_mapping": {
+    "Retail": "Retail",
+    "Platform": "Institutional",
+    "Insurance": "Institutional",
+    "Pension Plan": "Institutional",
+    "Family Office": "Family Office",
+    "Corporate": "Institutional",
+    "Sovereign": "Institutional",
+    "Fund of Funds": "Institutional",
+    "Private Bank": "Institutional"
+  },
+  "default_type": "Retail"
+}

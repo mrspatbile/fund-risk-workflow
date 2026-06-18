@@ -97,8 +97,8 @@ class TestBuildAnnexIvHf:
         assert (rpt['liquidity_buckets']['nav_pct'] >= 0).all()
 
     def test_liquidity_bucket_labels(self, rpt):
-        from src.reporting.annex_iv import _BUCKET_ORDER
-        assert rpt['liquidity_buckets']['bucket'].tolist() == _BUCKET_ORDER
+        from src.config import LIQUIDITY_BUCKET_ORDER
+        assert rpt['liquidity_buckets']['bucket'].tolist() == LIQUIDITY_BUCKET_ORDER
 
     def test_hf_highly_liquid(self, rpt):
         # HF holds liquid equities — expect >80% in ≤7 days

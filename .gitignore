@@ -22,5 +22,5 @@ src/cache_old/
 
 # do not track generated figs except for the HF documentation figures
 fig/*
-!fig/AIFM_HedgeFund/
-!fig/AIFM_HedgeFund/**
+# !fig/AIFM_HedgeFund/
+# !fig/AIFM_HedgeFund/**

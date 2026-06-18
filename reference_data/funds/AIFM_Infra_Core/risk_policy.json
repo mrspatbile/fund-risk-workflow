@@ -24,6 +24,11 @@
     "ltv_threshold_by_asset": null
   },
 
+  "dscr_monitoring": {
+    "dscr_minimum": 1.25,
+    "dscr_warning": 1.50
+  },
+
   "valuation_framework": {
     "method": "yield_capitalisation",
     "discount_rate_by_asset": "asset_specific",

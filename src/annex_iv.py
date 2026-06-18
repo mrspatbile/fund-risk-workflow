@@ -44,6 +44,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
+from src.config import LIQUIDITY_BUCKET_ORDER
 from src.data.database import (
     FUND_METADATA,
     InfraAsset,
@@ -72,10 +73,9 @@ from src.risk.infra_utils import (
 from src.risk.leverage_config import INSTRUMENT_SOURCE
 from src.risk.pe_utils import fund_irr, pe_multiples
 from src.risk.risk_utils import (
-    days_to_liquidate,
+    compute_liquidity_profile,
     es_historical,
     investor_concentration,
-    liquidity_buckets,
     var_historical,
     var_scale,
 )
@@ -430,13 +430,10 @@ def _build_leverage_detail(gross_lev: float, commit_lev: float, nav: float,
     return pd.DataFrame(rows, columns=['item', 'gross_eur', 'pct_nav'])
 
 
-_BUCKET_ORDER = ['1 day', '2-7 days', '8-30 days', '31-90 days', '91-365 days', '> 1 year']
-
-
 def _aggregate_liquidity_buckets(liq_pos: pd.DataFrame, nav: float) -> pd.DataFrame:
     df = (liq_pos.groupby('liquidity_bucket', observed=True)['market_value_eur']
           .sum()
-          .reindex(_BUCKET_ORDER, fill_value=0.0)
+          .reindex(LIQUIDITY_BUCKET_ORDER, fill_value=0.0)
           .reset_index()
           .rename(columns={'liquidity_bucket': 'bucket', 'market_value_eur': 'nav_eur'}))
     df['nav_pct']        = (df['nav_eur'] / nav * 100).round(2) if nav else 0.0
@@ -524,8 +521,8 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
     gross_lev, breakdown = _compute_gross_leverage(risk_df, nav)
     commit_lev           = _compute_commitment_leverage(risk_df, nav)
 
-    liq_pos = liquidity_buckets(days_to_liquidate(risk_df, pct_adv=0.25))
-    liq_df  = _aggregate_liquidity_buckets(liq_pos, nav)
+    liq = compute_liquidity_profile(risk_df, pct_adv=0.25)
+    liq_df  = _aggregate_liquidity_buckets(liq['risk_df_liq'], nav)
 
     exposures = _build_exposures(risk_df, nav)
 

@@ -1004,12 +1004,12 @@ def compute_counterparty_stress(fund_id: str, engine, nav: float) -> dict:
     cp_df['exposure_eur'] = cp_df['exposure_pct'] * nav
     cp_df['collateral_eur'] = cp_df['exposure_eur'] * cp_df['collateral_cover']
     cp_df['net_exposure_eur'] = cp_df['exposure_eur'] * (1 - cp_df['collateral_cover'])
-    cp_df['loss_pct_nav'] = cp_df['net_exposure_eur'] / nav
+    cp_df['net_pct_nav'] = cp_df['net_exposure_eur'] / nav
 
     # Find worst counterparty
     worst_cp = cp_df.loc[cp_df['net_exposure_eur'].idxmax()]
     loss_eur = worst_cp['net_exposure_eur']
-    loss_pct = worst_cp['loss_pct_nav']
+    loss_pct = worst_cp['net_pct_nav']
 
     return {
         'cp_df': cp_df,

@@ -112,8 +112,10 @@ class TestDailyExportFiles:
             if full_path.exists() and export_path.exists():
                 full   = pd.read_excel(full_path)
                 full   = full[
-                    full['date'].astype(str) == '2026-05-13'
+                    full['position_date'].astype(str) == '2026-05-13'
                 ].reset_index(drop=True)
+                # Drop position_date and rename to match export format
+                full = full.drop(columns=['position_date'])
                 export = pd.read_excel(
                     export_path).reset_index(drop=True)
                 assert len(full) == len(export), \

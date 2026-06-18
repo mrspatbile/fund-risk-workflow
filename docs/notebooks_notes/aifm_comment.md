@@ -42,6 +42,28 @@ Note: ESMA Guidelines (GL) are subject to a comply-or-explain framework at the l
 
 </small>
 
+### Exposure Measures
+
+<small>
+
+| Measure | Numerator | Cash | Shorts | Derivatives |
+|---|---|---|---|---|
+| NAV | signed market value | included | netted | market value |
+| Liquidity buckets | absolute market value | included | absolute value | market value |
+| Gross exposure | absolute exposure or notional | excluded | included | full notional |
+| Commitment exposure | net exposure | excluded | netted where eligible | delta-adjusted notional |
+
+</small>
+
+These measures answer different questions:
+
+- **NAV** measures portfolio value using signed market values.
+- **Liquidity buckets** measure liquidation exposure using absolute market values.
+- **Gross exposure** measures total economic exposure before netting.
+- **Commitment exposure** recognises eligible netting and hedging.
+
+Gross and commitment exposure are exposure measures, not NAV reconciliation tools.
+
 
 
 
