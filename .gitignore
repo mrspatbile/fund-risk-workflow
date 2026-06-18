@@ -8,19 +8,24 @@ __pycache__/
 data/
 docs/_old
 docs/refactor_plans
-notebooks/data/
 reports/
-notebooks/portfolio_management/
+notebooks/reports
+notebooks/data/
 notebooks/old - liquidity_fund_risk.ipynb
 *.egg-info/
 src/cache_old/
 
-# notebooks/funds/aifm_infra_fund.ipynb   
-# notebooks/funds/aifm_pe_buyout.ipynb    
-# notebooks/funds/aifm_private_debt.ipynb 
-# notebooks/funds/aifm_real_estate.ipynb  
 
-# do not track generated figs except for the HF documentation figures
-fig/*
-# !fig/AIFM_HedgeFund/
-# !fig/AIFM_HedgeFund/**
+# major refactoring
+notebooks/funds/aifm_infra_fund.ipynb   
+notebooks/funds/aifm_pe_buyout.ipynb    
+notebooks/funds/aifm_private_debt.ipynb 
+notebooks/funds/aifm_real_estate.ipynb  
+notebooks/portfolio_management/
+
+
+fig/AIFM_HedgeFund_liquidity
+fig/AIFM_Infra_Core
+fig/AIFM_PE_Buyout
+fig/AIFM_PrivateDebt
+fig/AIFM_RealEstate
