@@ -41,3 +41,10 @@ reference_data/funds/AIFM_Infra_Core
 reference_data/funds/AIFM_PE_Buyout
 reference_data/funds/AIFM_PrivateDebt
 reference_data/funds/AIFM_RealEstate
+
+reference_data/portfolios/position_specs/
+!reference_data/portfolios/position_specs/AIFM_HedgeFund.json
+!reference_data/portfolios/position_specs/UCITS_Balanced.json
+reference_data/portfolios/infra_assets.json
+reference_data/portfolios/pe_companies.json
+reference_data/regulation/
