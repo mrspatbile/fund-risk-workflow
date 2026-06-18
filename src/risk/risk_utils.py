@@ -967,8 +967,8 @@ def load_counterparty(fund_id: str) -> pd.DataFrame:
     import json
     from pathlib import Path
 
-    ref_data_path = Path(__file__).parent.parent.parent / 'reference_data' / 'counterparties' / 'counterparty'
-    cp_file = ref_data_path / f'{fund_id}_counterparty.json'
+    ref_data_path = Path(__file__).parent.parent.parent / 'reference_data' / 'funds' / fund_id
+    cp_file = ref_data_path / 'counterparties.json'
 
     with open(cp_file, 'r') as f:
         cp_list = json.load(f)
