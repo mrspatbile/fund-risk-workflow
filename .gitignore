@@ -26,7 +26,6 @@ fig/AIFM_PrivateDebt
 fig/AIFM_RealEstate
 
 docs/notebooks_notes/infra.md
-docs/notebooks_notes/liquidity_references.md
 docs/notebooks_notes/pe_buyout.md
 docs/notebooks_notes/private_debt.md
 docs/notebooks_notes/real_estate.md
@@ -40,3 +39,4 @@ reference_data/funds/AIFM_RealEstate
 reference_data/portfolios/infra_assets.json
 reference_data/portfolios/pe_companies.json
 reference_data/regulation/
+

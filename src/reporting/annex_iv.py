@@ -60,7 +60,7 @@ from src.data.database import (
     get_engine,
     query_nav_history,
 )
-from src.config import LIQUIDITY_BUCKET_ORDER
+from src.config import LIQUIDITY_BUCKET_ORDER, VALUATION_DATE
 from src.data.enrichment import get_risk_ready_df
 from src.risk.infra_utils import (
     asset_nav_breakdown,
@@ -306,8 +306,8 @@ def _build_identification(fund_id: str, quarter: str) -> pd.DataFrame:
         ('',                   ''),
         ('REPORTING',          ''),
         ('Reporting period',   f'Q1 2026 (ended {quarter})'),
-        ('Reporting date',     quarter),
-        ('Submission date',    datetime.today().strftime('%Y-%m-%d')),
+        ('Reference date',     quarter),
+        ('Filing date',        (pd.Timestamp(quarter) + pd.Timedelta(days=15)).strftime('%Y-%m-%d')),
         ('Regulatory basis',   'AIFMD Art. 110 / EU231/2013 Annex IV / ESMA v1.7 (Jul 2024)'),
         ('',                   ''),
         ('REDEMPTION TERMS',   ''),
@@ -879,7 +879,7 @@ def _write_fund_sheet(wb: Workbook, fund_id: str,
     _write_header(ws, 2, 1,
                   f"Fund: {fund_id}   |   NAV: EUR {nav/1e6:,.1f}M   "
                   f"|   Reporting period: Q1 2026 ({quarter})   "
-                  f"|   Generated: {datetime.today().strftime('%Y-%m-%d')}",
+                  f"|   Generated: {VALUATION_DATE}",
                   width=5, bg=_BG_SECTION, bold=False, fg=_FG_MUTED)
     _write_header(ws, 3, 1,
                   'Regulatory basis: AIFMD Art. 110 / EU231/2013 Annex IV / '
@@ -945,7 +945,7 @@ def _write_summary_sheet(wb: Workbook,
                   width=1 + nf, bg=_BG_HEADER)
     _write_header(ws, 2, 1,
                   f'Reporting period: Q1 2026 ({quarter})   |   '
-                  f'Generated: {datetime.today().strftime("%Y-%m-%d")}   |   '
+                  f'Generated: {VALUATION_DATE}   |   '
                   'Regulatory basis: AIFMD Art. 110 / EU231/2013 Annex IV',
                   width=1 + nf, bg=_BG_SECTION, bold=False, fg=_FG_MUTED)
 
@@ -1030,22 +1030,52 @@ def export_annex_iv_excel(
     if fund_ids is None:
         fund_ids = _EXPORT_FUNDS
 
-    # If output_dir is relative, resolve it from project root
+    # Resolve output directory and compute paths
     from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent
     out_path_obj = Path(output_dir)
+
+    # If output_dir is relative, resolve it from the current file location
     if not out_path_obj.is_absolute():
-        output_dir = str(Path(__file__).parent.parent.parent / output_dir)
+        resolved_path = (Path(__file__).parent / output_dir).resolve()
+    else:
+        resolved_path = out_path_obj.resolve()
 
-    os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, f'annex_iv_report_{quarter}.xlsx')
+    os.makedirs(resolved_path, exist_ok=True)
 
-    print(f'Annex IV export — reporting period {quarter}')
+    # Convert quarter from YYYY-MM-DD to YYYYQN format (e.g., 2026-03-31 -> 2026Q1)
+    from datetime import datetime
+    quarter_date = datetime.strptime(quarter, '%Y-%m-%d')
+    quarter_num = (quarter_date.month - 1) // 3 + 1
+    quarter_formatted = f'{quarter_date.year}Q{quarter_num}'
+
+    # Build filename with fund identifier
+    if len(fund_ids) == len(_EXPORT_FUNDS):
+        # All funds case
+        fund_label = 'all_funds'
+    elif len(fund_ids) == 1:
+        # Single fund case
+        fund_label = fund_ids[0]
+    else:
+        # Multiple specific funds case
+        fund_label = 'all_funds'
+
+    out_path = os.path.join(resolved_path, f'annex_iv_report_{fund_label}_{quarter_formatted}.xlsx')
+
+    # Only print progress for all-funds export
+    is_all_funds = len(fund_ids) == len(_EXPORT_FUNDS)
+    if is_all_funds:
+        print(f'Annex IV export')
+        print(f'Reporting period: {quarter_formatted}')
+
     reports: dict[str, dict] = {}
     for fid in fund_ids:
-        print(f'  Building {fid}...', end=' ', flush=True)
+        if is_all_funds:
+            print(f'  Building {fid}...', end=' ', flush=True)
         rpt = build_annex_iv(engine, fid, quarter)
         reports[fid] = rpt
-        print(f'NAV EUR {rpt.get("_nav", 0)/1e6:,.1f}M')
+        if is_all_funds:
+            print(f'NAV EUR {rpt.get("_nav", 0)/1e6:,.1f}M')
 
     wb = Workbook()
     _write_summary_sheet(wb, reports, quarter)
@@ -1053,8 +1083,10 @@ def export_annex_iv_excel(
         _write_fund_sheet(wb, fid, reports[fid], quarter)
 
     wb.save(out_path)
-    print(f'\nWritten: {out_path}')
-    return out_path
+    # Return and display relative path from project root
+    relative_path = Path(out_path).relative_to(project_root)
+    print(f'\nReport saved: {relative_path}')
+    return str(relative_path)
 
 
 if __name__ == '__main__':
