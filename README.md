@@ -37,9 +37,20 @@
 
 <br>
 <div style="text-align: center;">
+    <img src="fig/UCITS_Balanced/10_srri_monitoring.png" width="80%">
+</div>
+<br>
+
+
+---
+
+<br>
+<div style="text-align: center;">
     <img src="fig/readme_figs/21_pre_trade_check.png" width="60%">
 </div>
 <br>
+
+
 
 ## Where to start
 
