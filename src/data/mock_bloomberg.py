@@ -56,7 +56,6 @@ class MockBloomberg:
     # If yfinance fails, bdp returns None for those fields.
     # To override manually, replace None with a hardcoded value.
     # ----------------------------------------------------------------
-    VALUATION_DATE = pd.Timestamp('2026-05-13')
 
     YF_MAP = json.loads((_REF_DIR / 'instruments' / 'ticker_map.json').read_text())
 
@@ -475,6 +474,8 @@ class MockBloomberg:
     }
 
     def __init__(self, seed: int = 42):
+        from src.config import REFERENCE_DATE
+        self.VALUATION_DATE = pd.Timestamp(REFERENCE_DATE)
         np.random.seed(seed)
         print('MockBloomberg: connected (simulation mode)')
         print('Swap import to RealBloomberg for production use.')
@@ -876,7 +877,7 @@ class MockBloomberg:
             return df['rate']
         except Exception:
             # Fallback: flat 3% series
-            idx = pd.bdate_range('2018-01-01', '2026-05-13')
+            idx = pd.bdate_range('2018-01-01', self.VALUATION_DATE)
             return pd.Series(3.0, index=idx, name='rate')
 
     def _fetch_yf_rate(self, series_name: str) -> pd.Series:
@@ -907,7 +908,7 @@ class MockBloomberg:
             df.to_csv(cache_path)
             return df['rate']
         except Exception:
-            idx = pd.bdate_range('2018-01-01', '2026-05-13')
+            idx = pd.bdate_range('2018-01-01', self.VALUATION_DATE)
             return pd.Series(4.0, index=idx, name='rate')
 
     # ----------------------------------------------------------------
@@ -1019,10 +1020,12 @@ if __name__ == '__main__':
     hist = bbg.bdh('SPY US Equity', 'PX_LAST', '20240101', '20260513')
     print(hist.tail())
 
+    from src.config import REFERENCE_DATE
+
     print('\n--- Rate series: ESTR ---')
-    estr = bbg.get_rate_series('ESTR', '2024-01-01', '2026-05-13')
+    estr = bbg.get_rate_series('ESTR', '2024-01-01', REFERENCE_DATE)
     print(estr.tail())
 
     print('\n--- Rate series: USD_10Y ---')
-    usd10y = bbg.get_rate_series('USD_10Y', '2024-01-01', '2026-05-13')
+    usd10y = bbg.get_rate_series('USD_10Y', '2024-01-01', REFERENCE_DATE)
     print(usd10y.tail())

@@ -331,4 +331,9 @@ class TestExportAnnexIvExcel:
 
     def test_quarter_in_filename(self):
         path = export_annex_iv_excel(ENGINE, quarter=QUARTER, output_dir='data')
-        assert QUARTER in os.path.basename(path)
+        # Filename uses quarterly format (e.g., 2026Q1) not date format
+        from datetime import datetime
+        quarter_date = datetime.strptime(QUARTER, '%Y-%m-%d')
+        quarter_num = (quarter_date.month - 1) // 3 + 1
+        quarter_formatted = f'{quarter_date.year}Q{quarter_num}'
+        assert quarter_formatted in os.path.basename(path)

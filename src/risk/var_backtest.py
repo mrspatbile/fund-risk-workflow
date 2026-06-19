@@ -37,8 +37,9 @@ def get_yield_tenor_for_bond(maturity_str: str, currency: str) -> str:
         Tenor series name (e.g., 'EUR_2Y', 'USD_5Y')
     """
     try:
+        from src.config import REFERENCE_DATE
         maturity = pd.Timestamp(maturity_str)
-        years_to_maturity = (maturity - pd.Timestamp('2026-05-13')).days / 365.25
+        years_to_maturity = (maturity - pd.Timestamp(REFERENCE_DATE)).days / 365.25
     except:
         years_to_maturity = 5
 

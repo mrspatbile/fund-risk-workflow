@@ -1,24 +1,59 @@
 """
-Project-level configuration for notebook runs and analytics.
+Project-level configuration for fund risk analysis.
 
-Valuation Period Parameters
-============================
-These are specific to the current analysis run. Update to change valuation
-or reporting dates.
+Date Semantics
+==============
+- REFERENCE_DATE: "As of" date for all computations (fund snapshot date)
+                  Input parameter that drives all risk calculations
+                  Example: 2026-03-31 (Q1 reporting period)
+                  Intentionally static. Do not make dynamic.
 
-VALUATION_DATE is intentionally static. Do not make it dynamic.
-All analytics are point-in-time by design.
+- COMPUTATION_DATE: Audit trail - when analysis was actually performed
+                    Metadata only, does not affect calculations
+                    Set to None to use today's date at runtime
+
+- QUARTER: Reporting quarter in YYYY-MM-DD format (quarter end date)
+           Usually same as REFERENCE_DATE for quarterly reporting
+
+All computations (VaR, attribution, liquidity, etc.) use REFERENCE_DATE.
+All plots and reports show REFERENCE_DATE, not COMPUTATION_DATE.
 """
 
 # ================================================================
-# Valuation Period Parameters
+# REFERENCE_DATE: Primary date for all computations (STATIC)
 # ================================================================
+# This is the "as of" date. All risk calculations use this date.
+# It is intentionally static and point-in-time by design.
+#
+# Examples:
+# - 2026-03-31 for Q1 Annex IV reporting
+# - 2026-06-30 for Q2 reporting
+#
+# Do NOT make this dynamic. Each reporting period has a fixed reference date.
 
-# Valuation date (static, intentional)
-VALUATION_DATE = '2026-05-13'
+REFERENCE_DATE = '2026-03-31'
 
-# Reporting period (quarterly)
-QUARTER = '2026-03-31'
+# For backward compatibility (deprecated)
+VALUATION_DATE = REFERENCE_DATE
+
+# ================================================================
+# COMPUTATION_DATE: Audit trail (metadata, optional)
+# ================================================================
+# When this analysis was actually performed.
+# Does not affect calculations, only used for audit/logging.
+#
+# Set to None to use today's date at runtime.
+# Set to specific date for reproducible runs.
+
+COMPUTATION_DATE = None
+
+# ================================================================
+# QUARTER: Reporting period
+# ================================================================
+# Reporting quarter in YYYY-MM-DD format (quarter end date).
+# Usually same as REFERENCE_DATE for quarterly reporting.
+
+QUARTER = REFERENCE_DATE
 
 
 # ================================================================
