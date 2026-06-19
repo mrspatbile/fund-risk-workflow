@@ -10,7 +10,7 @@ suitable for direct CSSF submission.
 Usage
 -----
     from src.reporting.annex_iv_export import generate_annex_iv_report
-    generate_annex_iv_report(engine, valuation_date='2026-05-13')
+    generate_annex_iv_report(engine, valuation_date='2026-03-31')
 
     # or from the command line:
     python -m src.annex_iv_export
@@ -463,7 +463,7 @@ _FUND_LABELS = {
 
 def generate_annex_iv_report(
     engine=None,
-    valuation_date: str = '2026-05-13',
+    valuation_date: str = '2026-03-31',
     output_dir: str = 'data',
 ) -> str:
     """

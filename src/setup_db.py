@@ -37,7 +37,7 @@ with open(_REF_DIR / 'funds' / 'fund_registry.json') as _f:
     _REGISTRY = json.load(_f)
 FUNDS    = _REGISTRY['funds']
 
-DATE     = '2026-05-13'
+DATE     = '2026-03-31'
 DATA_DIR = str(ROOT_DIR / 'data')
 DB_PATH  = str(ROOT_DIR / 'data' / 'risk_management.db')
 

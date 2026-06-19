@@ -85,7 +85,7 @@ from src.risk.risk_utils import (
 # Static configuration
 # ══════════════════════════════════════════════════════════════════════════
 
-_VALUATION_DATE = '2026-05-13'
+_VALUATION_DATE = '2026-03-31'
 _AIFM_NAME      = 'ManCo SA'
 _AIFM_LEI       = '213800SIMULATED0001'
 _DEPOSITARY     = 'BNP Paribas Securities Services Luxembourg'

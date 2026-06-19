@@ -122,7 +122,7 @@ def display_top_investors(
     fund_id : str
         Fund identifier.
     valuation_date : str
-        Valuation date (e.g., '2026-05-13').
+        Valuation date (e.g., '2026-03-31').
     top_n : int, default 5
         Number of top investors to display.
     export_id : str, optional
@@ -197,7 +197,7 @@ def display_investor_base(
         Fund identifier.
 
     valuation_date : str
-        Valuation date (e.g., '2026-05-13').
+        Valuation date (e.g., '2026-03-31').
 
     export_id : str, optional
         If provided, save rendered output as PNG.
@@ -1066,7 +1066,7 @@ def plot_lmt_analysis(
     fund_id : str
         Fund identifier.
     valuation_date : str
-        Valuation date (e.g., '2026-05-13').
+        Valuation date (e.g., '2026-03-31').
     export_id : str, optional
         If provided, save rendered output as PNG to fig/{fund_id}_liquidity/.
     scenario_label : str, optional
@@ -1272,7 +1272,7 @@ def display_investor_redemption_inputs(
     fund_id : str
         Fund identifier.
     valuation_date : str, optional
-        Valuation date for metadata (e.g., '2026-05-13').
+        Valuation date for metadata (e.g., '2026-03-31').
     export_id : str, optional
         If provided, save rendered output as PNG.
     """

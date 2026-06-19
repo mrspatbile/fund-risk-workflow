@@ -68,7 +68,7 @@ def build_fund_liquidity_policy(
         - 'redemption_scenarios': list of scenario dicts
         - 'largest_investor_name', 'largest_investor_pct'
     valuation_date : str
-        Valuation date for position query (e.g., '2026-05-13')
+        Valuation date for position query (e.g., '2026-03-31')
 
     Returns
     -------

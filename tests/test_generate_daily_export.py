@@ -19,7 +19,7 @@ FUNDS = [
     'AIFM_RealEstate',
     'UCITS_Balanced',
 ]
-DATES = ['2026-05-13', '2026-05-12']
+DATES = ['2026-03-31', '2026-05-12']
 
 STANDARD_COLS = [
     'fund_id', 'fund_name', 'date', 'isin', 'bloomberg_ticker',
@@ -51,7 +51,7 @@ class TestDailyExportFiles:
 
     def test_all_standard_columns_present(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-05-13.xlsx'
+            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
             if path.exists():
                 df = pd.read_excel(path)
                 for col in STANDARD_COLS:
@@ -69,7 +69,7 @@ class TestDailyExportFiles:
 
     def test_single_fund_per_file(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-05-13.xlsx'
+            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
             if path.exists():
                 df = pd.read_excel(path)
                 assert df['fund_id'].nunique() == 1
@@ -77,7 +77,7 @@ class TestDailyExportFiles:
 
     def test_weights_sum_to_100(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-05-13.xlsx'
+            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
             if path.exists():
                 df    = pd.read_excel(path)
                 total = df['weight_pct'].sum()
@@ -85,7 +85,7 @@ class TestDailyExportFiles:
                     f'{fund}: weights sum to {total:.2f}'
 
     def test_real_estate_has_extra_columns(self):
-        path = EXPORT_DIR / 'AIFM_RealEstate_2026-05-13.xlsx'
+        path = EXPORT_DIR / 'AIFM_RealEstate_2026-03-31.xlsx'
         if path.exists():
             df = pd.read_excel(path)
             for col in ['ltv_pct', 'rental_yield_pct',
@@ -93,13 +93,13 @@ class TestDailyExportFiles:
                 assert col in df.columns
 
     def test_hedge_fund_has_short_positions(self):
-        path = EXPORT_DIR / 'AIFM_HedgeFund_2026-05-13.xlsx'
+        path = EXPORT_DIR / 'AIFM_HedgeFund_2026-03-31.xlsx'
         if path.exists():
             df = pd.read_excel(path)
             assert (df['market_value_eur'] < 0).any()
 
     def test_ucits_all_long_only(self):
-        path = EXPORT_DIR / 'UCITS_Balanced_2026-05-13.xlsx'
+        path = EXPORT_DIR / 'UCITS_Balanced_2026-03-31.xlsx'
         if path.exists():
             df = pd.read_excel(path)
             assert (df['market_value_eur'] >= 0).all()
@@ -108,11 +108,11 @@ class TestDailyExportFiles:
         """Filtering full history to single date = daily export."""
         for fund in FUNDS:
             full_path   = DATA_DIR / f'fund_positions_{fund}.xlsx'
-            export_path = EXPORT_DIR / f'{fund}_2026-05-13.xlsx'
+            export_path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
             if full_path.exists() and export_path.exists():
                 full   = pd.read_excel(full_path)
                 full   = full[
-                    full['position_date'].astype(str) == '2026-05-13'
+                    full['position_date'].astype(str) == '2026-03-31'
                 ].reset_index(drop=True)
                 # Drop position_date and rename to match export format
                 full = full.drop(columns=['position_date'])

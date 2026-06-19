@@ -220,18 +220,18 @@ class TestQueryPositions:
 
     def test_returns_dataframe(self, engine):
         result = query_positions(
-            engine, 'AIFM_HedgeFund', '2026-05-13')
+            engine, 'AIFM_HedgeFund', '2026-03-31')
         assert isinstance(result, pd.DataFrame)
 
     def test_correct_fund_returned(self, engine):
         result = query_positions(
-            engine, 'AIFM_HedgeFund', '2026-05-13')
+            engine, 'AIFM_HedgeFund', '2026-03-31')
         assert (result['fund_id'] == 'AIFM_HedgeFund').all()
 
     def test_correct_date_returned(self, engine):
         result = query_positions(
-            engine, 'AIFM_HedgeFund', '2026-05-13')
-        assert (result['date'] == '2026-05-13').all()
+            engine, 'AIFM_HedgeFund', '2026-03-31')
+        assert (result['date'] == '2026-03-31').all()
 
     def test_no_date_returns_all_dates(self, engine):
         result = query_positions(engine, 'AIFM_HedgeFund')
@@ -239,7 +239,7 @@ class TestQueryPositions:
 
     def test_unknown_fund_returns_empty(self, engine):
         result = query_positions(
-            engine, 'UNKNOWN_FUND', '2026-05-13')
+            engine, 'UNKNOWN_FUND', '2026-03-31')
         assert len(result) == 0
 
 
@@ -278,24 +278,24 @@ class TestQueryAssetClassBreakdown:
 
     def test_returns_dataframe(self, engine):
         result = query_asset_class_breakdown(
-            engine, 'UCITS_Balanced', '2026-05-13')
+            engine, 'UCITS_Balanced', '2026-03-31')
         assert isinstance(result, pd.DataFrame)
 
     def test_has_correct_columns(self, engine):
         result = query_asset_class_breakdown(
-            engine, 'UCITS_Balanced', '2026-05-13')
+            engine, 'UCITS_Balanced', '2026-03-31')
         assert 'asset_class'       in result.columns
         assert 'market_value_eur'  in result.columns
         assert 'weight_pct'        in result.columns
 
     def test_weights_sum_to_100(self, engine):
         result = query_asset_class_breakdown(
-            engine, 'UCITS_Balanced', '2026-05-13')
+            engine, 'UCITS_Balanced', '2026-03-31')
         assert abs(result['weight_pct'].sum() - 100.0) < 1.0
 
     def test_hedge_fund_has_negative_weights(self, engine):
         result = query_asset_class_breakdown(
-            engine, 'AIFM_HedgeFund', '2026-05-13')
+            engine, 'AIFM_HedgeFund', '2026-03-31')
         assert (result['weight_pct'] < 0).any()
 
 
@@ -303,19 +303,19 @@ class TestQueryLargestPositions:
 
     def test_returns_correct_number(self, engine):
         result = query_largest_positions(
-            engine, 'AIFM_HedgeFund', '2026-05-13', n=5)
+            engine, 'AIFM_HedgeFund', '2026-03-31', n=5)
         assert len(result) == 5
 
     def test_ordered_by_absolute_value(self, engine):
         result = query_largest_positions(
-            engine, 'AIFM_HedgeFund', '2026-05-13', n=10)
+            engine, 'AIFM_HedgeFund', '2026-03-31', n=10)
         abs_vals = result['market_value_eur'].abs().values
         assert all(abs_vals[i] >= abs_vals[i+1]
                    for i in range(len(abs_vals)-1))
 
     def test_returns_dataframe(self, engine):
         result = query_largest_positions(
-            engine, 'UCITS_Balanced', '2026-05-13')
+            engine, 'UCITS_Balanced', '2026-03-31')
         assert isinstance(result, pd.DataFrame)
 
 

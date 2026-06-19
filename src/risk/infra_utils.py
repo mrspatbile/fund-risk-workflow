@@ -44,7 +44,7 @@ from src.data.database import (
 )
 from src.risk.pe_utils import xirr
 
-VALUATION_DATE = pd.Timestamp('2026-05-13')
+VALUATION_DATE = pd.Timestamp('2026-03-31')
 
 
 def fund_nav_timeseries(

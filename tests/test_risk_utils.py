@@ -1017,7 +1017,7 @@ class TestComputePnlAttribution:
 # ================================================================
 
 _ENGINE  = get_engine()
-_PTC_DATE = '2026-05-13'
+_PTC_DATE = '2026-03-31'
 
 
 def _make_ucits_positions(nav: float = 10_000_000) -> pd.DataFrame:

@@ -18,7 +18,7 @@ from src.data.enrichment import get_risk_ready_df
 
 ENGINE  = get_engine()
 BBG     = MockBloomberg()
-DATE    = '2026-05-13'
+DATE    = '2026-03-31'
 QUARTER = '2026-03-31'   # last quarter-end before VALUATION_DATE
 
 

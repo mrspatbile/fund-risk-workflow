@@ -273,10 +273,10 @@ class TestCacheFreshness:
             stale_data.index.name = 'Date'
             stale_data.to_csv(stale_cache)
 
-            # Request dates beyond cache end (2026-01-15 to 2026-05-13)
-            req_dates = pd.bdate_range('2026-01-15', '2026-05-13')
+            # Request dates beyond cache end (2026-01-15 to 2026-03-31)
+            req_dates = pd.bdate_range('2026-01-15', '2026-03-31')
 
-            # This should redownload because cache doesn't cover 2026-05-13
+            # This should redownload because cache doesn't cover 2026-03-31
             result = bbg._fetch_yf_prices('AAPL', req_dates, 500.0)
 
             # Verify result has real prices (not all 500)

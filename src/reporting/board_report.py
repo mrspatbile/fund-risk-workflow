@@ -13,7 +13,7 @@ Usage
 -----
     from src.reporting.board_report import generate_board_report
     from src.data.database import get_engine
-    path = generate_board_report(get_engine(), valuation_date='2026-05-13')
+    path = generate_board_report(get_engine(), valuation_date='2026-03-31')
 
     # or standalone:
     python -m src.board_report
@@ -778,7 +778,7 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
     # ── breach log data ───────────────────────────────────────────────────
     breaches = [
         {
-            'date'    : '2026-05-13',
+            'date'    : '2026-03-31',
             'fund'    : 'AIFM Private Debt',
             'type'    : 'Counterparty',
             'metric'  : 'Investor concentration > 20% (largest)',
@@ -791,7 +791,7 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
             'status'  : 'OPEN',
         },
         {
-            'date'    : '2026-05-13',
+            'date'    : '2026-03-31',
             'fund'    : 'AIFM Hedge Fund',
             'type'    : 'Counterparty',
             'metric'  : 'Investor concentration > 20% (largest)',
@@ -911,7 +911,7 @@ def _page_breach_log(metrics: Dict[str, dict], valuation_date: str) -> plt.Figur
 
 def generate_board_report(
     engine=None,
-    valuation_date: str = '2026-05-13',
+    valuation_date: str = '2026-03-31',
     output_dir: str = 'data',
     ) -> str:
     """

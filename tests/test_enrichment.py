@@ -32,7 +32,7 @@ from src.data.mock_bloomberg import MockBloomberg
 ROOT_DIR = Path(__file__).parent.parent
 TEST_DB  = str(ROOT_DIR / 'data' / 'test_enrichment.db')
 
-TEST_DATE = '2026-05-13'
+TEST_DATE = '2026-03-31'
 
 
 @pytest.fixture(scope='module')

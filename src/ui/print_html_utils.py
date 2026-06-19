@@ -51,7 +51,7 @@ def display_dark_table(
     col_header_align_override : dict | None = None,
     col_widths : dict | None = None,  # e.g. {'metric': '200px', 'value': '100px'}
     spacer_width              : str | None = None,  # e.g. '100px' | adds invisible spacer column
-    date_str                  : str | None = None,  # e.g. '2026-05-13' | shown below caption
+    date_str                  : str | None = None,  # e.g. '2026-03-31' | shown below caption
     date_label                : str        = 'As of',  # label for the date line
     hide_header               : bool       = False,  # hide column headers by matching text to background
     return_html               : bool       = False,  # if True, return HTML string instead of displaying
@@ -1824,7 +1824,7 @@ def display_ucits_scenarios(risk_df, scenarios_result: dict, valuation_date: str
     scenarios_result : dict
         UCITS loader output with 'results', 'metadata', 'all_warnings' keys
     valuation_date : str, optional
-        Display date (e.g., '2026-05-13')
+        Display date (e.g., '2026-03-31')
     fund_id : str, optional
         Fund identifier for export
     export_id : str, optional

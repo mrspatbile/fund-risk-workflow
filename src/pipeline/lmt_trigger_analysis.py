@@ -71,7 +71,7 @@ def run_lmt_trigger_analysis(
         Output from build_lmt_analysis_inputs().
         Requires: lmt_config, schedule
     valuation_date : str
-        Valuation date (e.g., '2026-05-13').
+        Valuation date (e.g., '2026-03-31').
 
     Returns
     -------

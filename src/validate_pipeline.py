@@ -49,7 +49,7 @@ FUNDS     = [
     'AIFM_RealEstate',
     'UCITS_Balanced',
 ]
-TEST_DATE = '2026-05-13'
+TEST_DATE = '2026-03-31'
 PASS      = '✓ PASS'
 FAIL      = '✗ FAIL'
 
