@@ -16,12 +16,11 @@ from src.data.database import (
     load_fund_metadata,
     load_positions,
     load_instruments,
-    # create_indexes,   
+    # create_indexes,
     query_positions,
     query_nav_history,
     query_asset_class_breakdown,
     query_largest_positions,
-    FUND_METADATA,
 )
 
 # ----------------------------------------------------------------

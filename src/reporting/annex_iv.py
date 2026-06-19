@@ -39,13 +39,14 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import sqlalchemy as sa
+from sqlalchemy import text
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 from src.data.database import (
-    FUND_METADATA,
     InfraAsset,
     InfraDebt,
     InfraFund,
@@ -273,12 +274,36 @@ def _project_debt_note() -> list[tuple]:
     ]
 
 
+def _get_fund_metadata(engine: sa.Engine, fund_id: str) -> dict:
+    """Get fund metadata from the funds table."""
+    query = text(
+        """
+        SELECT fund_name, domicile, currency, inception_date
+        FROM funds
+        WHERE fund_id = :fund_id
+        """
+    )
+
+    with engine.connect() as conn:
+        result = conn.execute(query, {"fund_id": fund_id}).mappings().first()
+
+    if not result:
+        return {}
+
+    return {
+        "fund_name": result["fund_name"],
+        "domicile": result["domicile"],
+        "currency": result["currency"],
+        "inception_date": result["inception_date"],
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Section builders shared across fund types
 # ══════════════════════════════════════════════════════════════════════════
 
-def _build_identification(fund_id: str, quarter: str) -> pd.DataFrame:
-    meta = FUND_METADATA.get(fund_id, {})
+def _build_identification(engine: sa.Engine, fund_id: str, quarter: str) -> pd.DataFrame:
+    meta = _get_fund_metadata(engine, fund_id)
     red  = _REDEMPTION[fund_id]
     lims = _LEV_LIMITS[fund_id]
     rows = [
@@ -555,7 +580,7 @@ def _build_liquid(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]
     breakdown_df = pd.concat(pieces, ignore_index=True)
 
     return {
-        'identification'       : _build_identification(fund_id, quarter),
+        'identification'       : _build_identification(engine, fund_id, quarter),
         'asset_class_breakdown': exposures['asset_class_breakdown'],
         'geography_breakdown'  : exposures['geography_breakdown'],
         'currency_breakdown'   : exposures['currency_breakdown'],
@@ -632,7 +657,7 @@ def _build_pe(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
     ] + _project_debt_note()
 
     return {
-        'identification'     : _build_identification(fund_id, quarter),
+        'identification'     : _build_identification(engine, fund_id, quarter),
         'sector_exposure'    : _pct_df(rows_sector,  'sector').rename(columns={'nav_pct': 'cost_pct'}),
         'country_exposure'   : _pct_df(rows_country, 'country').rename(columns={'nav_pct': 'cost_pct'}),
         'stage_exposure'     : _pct_df(rows_stage,   'stage').rename(columns={'nav_pct': 'cost_pct'}),        'top5_positions'     : _build_top5(rows_top5, nav),
@@ -734,7 +759,7 @@ def _build_infra(engine, fund_id: str, quarter: str) -> dict[str, pd.DataFrame]:
     sector_bkd['nav_eur'] = sector_bkd['nav_eur'].map('{:,.0f}'.format)
 
     return {
-        'identification'   : _build_identification(fund_id, quarter),
+        'identification'   : _build_identification(engine, fund_id, quarter),
         'asset_breakdown'  : asset_bkd,
         'sector_breakdown' : sector_bkd,
         'country_breakdown': _pct_df(rows_country, 'country'),
@@ -863,7 +888,7 @@ _SHEET_NAMES = {
 _EXPORT_FUNDS = list(_SHEET_NAMES.keys())
 
 
-def _write_fund_sheet(wb: Workbook, fund_id: str,
+def _write_fund_sheet(engine: sa.Engine, wb: Workbook, fund_id: str,
                       rpt: dict[str, pd.DataFrame], quarter: str) -> None:
     ws = wb.create_sheet(title=_SHEET_NAMES[fund_id])
     ws.sheet_view.showGridLines = False
@@ -871,7 +896,7 @@ def _write_fund_sheet(wb: Workbook, fund_id: str,
         ws.column_dimensions[col].width = width
 
     nav  = rpt.get('_nav', 0.0)
-    meta = FUND_METADATA.get(fund_id, {})
+    meta = _get_fund_metadata(engine, fund_id)
 
     _write_header(ws, 1, 1,
                   f"Annex IV Regulatory Report — {meta.get('fund_name', fund_id)}",
@@ -929,7 +954,7 @@ def _write_fund_sheet(wb: Workbook, fund_id: str,
     ws.freeze_panes = 'A5'
 
 
-def _write_summary_sheet(wb: Workbook,
+def _write_summary_sheet(engine: sa.Engine, wb: Workbook,
                          reports: dict[str, dict],
                          quarter: str) -> None:
     ws = wb.active
@@ -952,7 +977,7 @@ def _write_summary_sheet(wb: Workbook,
     _write_header(ws, 4, 1, 'Key metric', bg=_BG_HEADER)
     for i, fid in enumerate(funds, start=2):
         _write_header(ws, 4, i,
-                      FUND_METADATA.get(fid, {}).get('fund_name', fid),
+                      _get_fund_metadata(engine, fid).get('fund_name', fid),
                       bg=_BG_HEADER)
 
     summary_labels = [
@@ -1078,9 +1103,9 @@ def export_annex_iv_excel(
             print(f'NAV EUR {rpt.get("_nav", 0)/1e6:,.1f}M')
 
     wb = Workbook()
-    _write_summary_sheet(wb, reports, quarter)
+    _write_summary_sheet(engine, wb, reports, quarter)
     for fid in fund_ids:
-        _write_fund_sheet(wb, fid, reports[fid], quarter)
+        _write_fund_sheet(engine, wb, fid, reports[fid], quarter)
 
     wb.save(out_path)
     # Return and display relative path from project root
