@@ -35,37 +35,9 @@ Functions
 import numpy as np
 import pandas as pd
 
+from src.data.reference_data import load_historical_scenarios
 
-HISTORICAL_SCENARIOS = {
-    '2008': {
-        'name'         : 'GFC 2008 (Sep-Dec 2008)',
-        'delta_equity' : -0.40,
-        'delta_y'      : -0.01,
-        'delta_spread' : 0.03,
-        'fx_shocks'    : {'USD': -0.05, 'GBP': -0.15},
-    },
-    '2011': {
-        'name'         : 'EU Sovereign Debt Crisis 2011 (Jul-Nov 2011)',
-        'delta_equity' : -0.25,
-        'delta_y'      : -0.015,
-        'delta_spread' : 0.02,
-        'fx_shocks'    : {'USD': 0.15, 'GBP': 0.02},
-    },
-    '2020': {
-        'name'         : 'Covid 2020 (Feb-Mar 2020)',
-        'delta_equity' : -0.30,
-        'delta_y'      : -0.005,
-        'delta_spread' : 0.02,
-        'fx_shocks'    : {'USD': 0.05, 'GBP': -0.05},
-    },
-    '2022': {
-        'name'         : 'Rate shock 2022 (Jan-Dec 2022)',
-        'delta_equity' : -0.20,
-        'delta_y'      : 0.03,
-        'delta_spread' : 0.015,
-        'fx_shocks'    : {'USD': 0.10, 'GBP': -0.05},
-    },
-}
+HISTORICAL_SCENARIOS = load_historical_scenarios()
 
 
 def stress_equity(

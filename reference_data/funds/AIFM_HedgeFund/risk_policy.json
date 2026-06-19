@@ -35,16 +35,75 @@
 
   "liquidity_monitoring": {
     "liquidity_stress_multiplier": 5,
-    "pct_adv": 0.25
+    "pct_adv": 0.25,
+    "stress_window_days": 5,
+    "redemption_scenarios": [
+      {
+        "name": "Normal",
+        "redemption_pct": 0.10,
+        "description": "Routine investor exit"
+      },
+      {
+        "name": "Large",
+        "redemption_pct": 0.25,
+        "description": "Large single redemption"
+      },
+      {
+        "name": "Stress",
+        "redemption_pct": 0.50,
+        "description": "Coordinated stress exit"
+      }
+    ]
   },
 
   "concentration_limits_internal": {
     "single_issuer_max_pct": 25.0
   },
 
-  "stress_scenarios": {
+  "stress_testing": {
     "use_stress_testing": true,
-    "scenario_types": ["equity", "rates", "credit", "fx", "combined", "historical"]
+    "custom_scenarios": {
+      "description": "AIF-specific univariate stress scenarios for daily risk monitoring",
+      "scenarios": [
+        {
+          "name": "Equity Crash -30%",
+          "type": "equity",
+          "delta_equity": -0.30
+        },
+        {
+          "name": "Rate Shock +200bps",
+          "type": "rates",
+          "delta_y": 0.02
+        },
+        {
+          "name": "Credit Widening +150bps",
+          "type": "credit",
+          "delta_spread": 0.015
+        },
+        {
+          "name": "FX Stress USD/GBP -15%",
+          "type": "fx",
+          "fx_shocks": {
+            "USD": -0.15,
+            "GBP": -0.15
+          }
+        },
+        {
+          "name": "Combined",
+          "type": "combined",
+          "description": "Simultaneous equity, rates, credit, and FX shock"
+        }
+      ]
+    },
+    "most_relevant_historical_scenarios": {
+      "source": "historical_scenarios",
+      "selected_scenarios": [
+        "2008",
+        "2020",
+        "2022"
+      ],
+      "description": "Key historical market stress events: GFC, Covid, rate shock"
+    }
   },
 
   "investor_concentration_monitoring": {
