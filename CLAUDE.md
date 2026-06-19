@@ -166,7 +166,7 @@ Use `data_workflows/` for technical notebooks that explain:
 `VALUATION_DATE` is intentionally static:
 
 ```text
-2026-05-13
+2026-03-31
 ```
 
 Do not make it dynamic.

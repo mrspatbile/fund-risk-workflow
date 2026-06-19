@@ -16,7 +16,7 @@ from src.data.database import get_engine
 
 ENGINE   = get_engine()
 FUND_ID  = 'AIFM_PE_Buyout'
-DATE     = '2026-05-13'
+DATE     = '2026-03-31'
 
 
 class TestXirr:

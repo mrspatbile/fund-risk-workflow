@@ -82,7 +82,7 @@ Recommended entry points:
 All notebooks use the static valuation date:
 
 ```text
-2026-05-13
+2026-03-31
 ```
 
 Charts, HTML tables and notebook-generated images are saved under `fig/<fund_id>/` or a workflow-specific `fig/` subfolder. 
