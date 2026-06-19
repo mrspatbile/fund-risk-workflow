@@ -477,8 +477,6 @@ class MockBloomberg:
         from src.config import REFERENCE_DATE
         self.VALUATION_DATE = pd.Timestamp(REFERENCE_DATE)
         np.random.seed(seed)
-        print('MockBloomberg: connected (simulation mode)')
-        print('Swap import to RealBloomberg for production use.')
 
     # ----------------------------------------------------------------
     # BDP: Bloomberg Data Point
