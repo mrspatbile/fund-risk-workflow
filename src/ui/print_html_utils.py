@@ -75,7 +75,7 @@ def display_dark_table(
     fmt : dict, optional
         Format strings keyed by original column name.
         e.g. {'market_value_eur': '{:,.0f}', 'weight_pct': '{:.2f}%'}
-        Missing values rendered as '|'.
+        Missing values rendered as '—'.
 
     col_styles : dict, optional
         Per-column color functions keyed by original column name.
@@ -803,7 +803,7 @@ def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = N
 
     # Redemption terms
     redemption_terms = profile.get('redemption_terms', {})
-    redemption_display = redemption_terms.get('display', '|')
+    redemption_display = redemption_terms.get('display', '—')
 
     rows = [
         ('Fund Name', long_name),
@@ -814,7 +814,7 @@ def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = N
     ]
 
     # Add redemption terms if available
-    if redemption_display != '|':
+    if redemption_display != '—':
         rows.append(('Redemption terms', redemption_display))
 
     df = pd.DataFrame(rows, columns=['label', 'value'])
@@ -1994,7 +1994,7 @@ def display_ptc(result: dict, test_number: int | None = None,
 
     def _fmt(k: str, v) -> str:
         if not isinstance(v, float): return str(v)
-        if v == 0.0: return '|'
+        if v == 0.0: return '—'
         k = k.lower()
         if any(x in k for x in ('leverage', 'multiplier')): return f'{v:.2f}×'
         if any(x in k for x in ('exposure', 'bonds', 'net_eq', 'borrowing',
@@ -2023,8 +2023,8 @@ def display_ptc(result: dict, test_number: int | None = None,
     # Compute settlement date
     val_date = pd.to_datetime(VALUATION_DATE)
     settlement_date = (val_date + timedelta(days=2)).strftime('%Y-%m-%d')
-    counterparty = t.get('counterparty', '|')
-    underlying_risk = t.get('underlying_risk', '|')
+    counterparty = t.get('counterparty', '—')
+    underlying_risk = t.get('underlying_risk', '—')
 
     trade_rows = []
     trade_data = [
@@ -2996,33 +2996,33 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
     # Build table rows
     rows = []
     rows.append({'Metric': 'IDENTIFICATION', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '|'})
-    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '|'})
-    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '|'})
+    rows.append({'Metric': 'Fund Name', 'Value': 'UCITS Balanced', 'Status': '—'})
+    rows.append({'Metric': 'Valuation Date', 'Value': report_date, 'Status': '—'})
+    rows.append({'Metric': 'NAV (EUR)', 'Value': f'{nav_eur:,.0f}', 'Status': '—'})
 
     rows.append({'Metric': 'VAR SUMMARY', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Absolute VaR (20d 99%)', 'Value': f'{abs_var_20d_pct:.2f}%', 'Status': f'Limit {absolute_var_limit_pct:.1f}% | Util {abs_util:.1f}%'})
-    rows.append({'Metric': 'Relative VaR (ratio)', 'Value': f'{rel_var_ratio:.2f}x', 'Status': f'Limit {relative_var_limit:.1f}x | Util {rel_util:.1f}%'})
-    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '|'})
+    rows.append({'Metric': 'Absolute VaR (20d 99%)', 'Value': f'{abs_var_20d_pct:.2f}%', 'Status': f'Limit {absolute_var_limit_pct:.1f}% — Util {abs_util:.1f}%'})
+    rows.append({'Metric': 'Relative VaR (ratio)', 'Value': f'{rel_var_ratio:.2f}x', 'Status': f'Limit {relative_var_limit:.1f}x — Util {rel_util:.1f}%'})
+    rows.append({'Metric': 'VaR Model', 'Value': 'Historical (250d)', 'Status': '—'})
 
     rows.append({'Metric': 'SRRI', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '|'})
-    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'Current Category', 'Value': str(srri_category), 'Status': '—'})
+    rows.append({'Metric': 'Annualised Volatility', 'Value': f'{srri_volatility:.2f}%', 'Status': '—'})
     rows.append({'Metric': 'KIID Update', 'Value': 'YES' if kiid_update else 'NO', 'Status': 'Action required' if kiid_update else '—'})
 
     rows.append({'Metric': 'BACKTESTS', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '|'})
+    rows.append({'Metric': 'Observation Window', 'Value': '250 trading days', 'Status': '—'})
     rows.append({'Metric': 'Breaches', 'Value': str(n_breaches), 'Status': 'Expected: 2.5'})
-    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '|'})
+    rows.append({'Metric': 'Zone', 'Value': zone, 'Status': '—'})
     rows.append({'Metric': 'Kupiec POF', 'Value': f'{kupiec_p:.4f}', 'Status': 'PASS' if kupiec_p > 0.05 else 'FAIL'})
     rows.append({'Metric': 'Christoffersen', 'Value': f'{chris_p:.4f}', 'Status': 'PASS' if chris_p > 0.05 else 'FAIL'})
 
     rows.append({'Metric': 'STRESS TESTING', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '|'})
-    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '|'})
-    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '|'})
-    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '|'})
-    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '|'})
+    rows.append({'Metric': 'Equity crash -30%', 'Value': f'{scenario_pcts["Equity Crash -30%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Rate shock +200bps', 'Value': f'{scenario_pcts["Rate Shock +200bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Credit widening +150bps', 'Value': f'{scenario_pcts["Credit Widening +150bps"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'FX stress -15%', 'Value': f'{scenario_pcts["FX Stress USD/GBP -15%"]:.2f}%', 'Status': '—'})
+    rows.append({'Metric': 'Combined', 'Value': f'{scenario_pcts["Combined"]:.2f}%', 'Status': '—'})
     rows.append({'Metric': '2008 GFC', 'Value': f'{hist_scenario_pcts["2008"]:.2f}%', 'Status': 'Reference'})
     rows.append({'Metric': '2020 COVID', 'Value': f'{hist_scenario_pcts["2020"]:.2f}%', 'Status': 'Reference'})
     rows.append({'Metric': '2022 Rate Shock', 'Value': f'{hist_scenario_pcts["2022"]:.2f}%', 'Status': 'Reference'})
@@ -3030,10 +3030,10 @@ def display_ucits_monthly_report(results: dict, risk_df: pd.DataFrame, limits: d
     abs_status = 'COMPLIANT' if abs_var_20d_pct < absolute_var_limit_pct else 'BREACH'
     rel_status = 'COMPLIANT' if rel_var_ratio < relative_var_limit else 'BREACH'
     rows.append({'Metric': 'COMPLIANCE', 'Value': '', 'Status': ''})
-    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '|'})
-    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '|'})
-    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '|'})
-    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '|'})
+    rows.append({'Metric': 'Absolute VaR Limit', 'Value': abs_status, 'Status': '—'})
+    rows.append({'Metric': 'Relative VaR Limit', 'Value': rel_status, 'Status': '—'})
+    rows.append({'Metric': 'Backtest Zone', 'Value': zone, 'Status': '—'})
+    rows.append({'Metric': 'UCITS Eligible', 'Value': 'YES', 'Status': '—'})
 
     df = pd.DataFrame(rows)
 
