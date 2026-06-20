@@ -178,9 +178,8 @@ def build_private_esg_df(
             f"asset_type must be 'pe' or 'infra', got {asset_type!r}"
         )
 
-    _esg_path = Path(__file__).parent.parent.parent / 'reference_data' / 'instruments' / 'esg_scores.json'
-    with open(_esg_path) as _f:
-        _esg_ref = json.load(_f)
+    from src.data.reference_data import load_esg_scores
+    _esg_ref = load_esg_scores()
 
     rows = []
 

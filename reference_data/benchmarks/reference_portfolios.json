@@ -1,4 +1,5 @@
 {
+  "schema_version": "1.0",
   "ucits_balanced_60_40": {
     "name": "UCITS Balanced 60/40 Reference Portfolio",
     "description": "Reference portfolio for UCITS relative VaR monitoring. 60% MSCI World equity, 40% EUR government bonds.",
@@ -6,14 +7,14 @@
       {
         "identifier": "MSCI_WORLD",
         "asset_class": "equity",
-        "weight": 0.60,
+        "weight": 0.6,
         "proxy_ticker": "SPY US Equity",
         "currency": "USD"
       },
       {
         "identifier": "EUR_GOVERNMENT_BONDS",
         "asset_class": "fixed_income",
-        "weight": 0.40,
+        "weight": 0.4,
         "proxy_ticker": "IEAG LN Equity",
         "currency": "EUR"
       }

@@ -1,73 +1,74 @@
 {
+  "schema_version": "1.0",
   "fund_id": "AIFM_HedgeFund",
-  "description": "AIFM Hedge Fund investor base — representative institutional investor register",
+  "description": "AIFM Hedge Fund investor base \u2014 representative institutional investor register",
   "target_nav_eur": 250000000,
   "investors": [
     {
       "investor_id": "HF001",
       "investor_name": "Pension Fund A",
       "investor_type": "Pension Fund",
-      "nav_pct": 0.1800
+      "nav_pct": 0.18
     },
     {
       "investor_id": "HF002",
       "investor_name": "Fund of Funds B",
       "investor_type": "Fund of Funds",
-      "nav_pct": 0.1500
+      "nav_pct": 0.15
     },
     {
       "investor_id": "HF003",
       "investor_name": "Insurance Company C",
       "investor_type": "Insurance",
-      "nav_pct": 0.1200
+      "nav_pct": 0.12
     },
     {
       "investor_id": "HF004",
       "investor_name": "Family Office D",
       "investor_type": "Family Office",
-      "nav_pct": 0.1000
+      "nav_pct": 0.1
     },
     {
       "investor_id": "HF005",
       "investor_name": "Private Bank Platform E",
       "investor_type": "Platform",
-      "nav_pct": 0.0800
+      "nav_pct": 0.08
     },
     {
       "investor_id": "HF006",
       "investor_name": "Endowment F",
       "investor_type": "Endowment",
-      "nav_pct": 0.0700
+      "nav_pct": 0.07
     },
     {
       "investor_id": "HF007",
       "investor_name": "Sovereign Wealth Fund G",
       "investor_type": "Sovereign Wealth Fund",
-      "nav_pct": 0.0600
+      "nav_pct": 0.06
     },
     {
       "investor_id": "HF008",
       "investor_name": "Family Office H",
       "investor_type": "Family Office",
-      "nav_pct": 0.0500
+      "nav_pct": 0.05
     },
     {
       "investor_id": "HF009",
       "investor_name": "Fund of Funds I",
       "investor_type": "Fund of Funds",
-      "nav_pct": 0.0450
+      "nav_pct": 0.045
     },
     {
       "investor_id": "HF010",
       "investor_name": "Wealth Manager J",
       "investor_type": "Wealth Manager",
-      "nav_pct": 0.0350
+      "nav_pct": 0.035
     },
     {
       "investor_id": "HF_REM",
       "investor_name": "Remaining institutional investors",
       "investor_type": "Institutional",
-      "nav_pct": 0.1100
+      "nav_pct": 0.11
     }
   ]
 }

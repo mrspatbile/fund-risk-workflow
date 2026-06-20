@@ -1,16 +1,18 @@
 {
+  "schema_version": "1.0",
   "framework": "SFDR",
   "regulation": "Regulation (EU) 2019/2088 + Regulation (EU) 2022/1288",
   "references": [
-    "Regulation (EU) 2019/2088 — Sustainability-related disclosures",
-    "Delegated Regulation (EU) 2022/1288 — Implementing rules"
+    "Regulation (EU) 2019/2088 \u2014 Sustainability-related disclosures",
+    "Delegated Regulation (EU) 2022/1288 \u2014 Implementing rules"
   ],
-
   "fund_classification_articles": {
     "article_6": {
       "name": "Article 6 funds",
       "description": "Financial products not claiming sustainable characteristics",
-      "disclosure_requirements": ["pai_consideration"]
+      "disclosure_requirements": [
+        "pai_consideration"
+      ]
     },
     "article_8": {
       "name": "Article 8 funds",
@@ -32,7 +34,6 @@
       ]
     }
   },
-
   "pai_indicators": {
     "count": 18,
     "scope": "Principal Adverse Impacts on sustainability factors",
@@ -51,6 +52,5 @@
       "board_diversity"
     ]
   },
-
   "notes": "Do not reduce SFDR to ESG score. ESG scores may be raw inputs, but SFDR interpretation requires explicit mapping to Article 6/8/9 classification."
 }

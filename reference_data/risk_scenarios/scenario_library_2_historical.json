@@ -1,10 +1,10 @@
 {
+  "schema_version": "1.0",
   "framework": "UCITS",
   "source": "Historical stress scenario library for UCITS monitoring",
   "scenario_type": "historical",
   "basis": "CSSF UCITS requirement for most relevant historical scenarios with holding period",
   "notes": "This is a temporary separate library from the HF scenario setup. It may later be merged into or replace the current scenario library once both UCITS and AIF historical scenario definitions are aligned.",
-
   "scenarios": {
     "historical_2008_black_week": {
       "test_category": "Historical",
@@ -13,10 +13,9 @@
       "period": "September - December 2008",
       "holding_period_days": 20,
       "holding_period_basis": "CSSF UCITS reporting standard holding period for historical scenario calibration",
-
       "shocks": {
         "equity": {
-          "shock": -0.40,
+          "shock": -0.4,
           "unit": "pct",
           "description": "Equity market decline"
         },
@@ -39,10 +38,8 @@
           "description": "FX movements against EUR"
         }
       },
-
-      "regulatory_basis": "CSSF UCITS stress testing framework — most relevant historical scenario"
+      "regulatory_basis": "CSSF UCITS stress testing framework \u2014 most relevant historical scenario"
     },
-
     "historical_2020_covid": {
       "test_category": "Historical",
       "scenario_name": "2020 COVID-19 Crash, hp=20d",
@@ -50,10 +47,9 @@
       "period": "February - March 2020",
       "holding_period_days": 20,
       "holding_period_basis": "CSSF UCITS reporting standard holding period for historical scenario calibration",
-
       "shocks": {
         "equity": {
-          "shock": -0.30,
+          "shock": -0.3,
           "unit": "pct",
           "description": "Equity market decline"
         },
@@ -76,10 +72,8 @@
           "description": "FX movements against EUR (USD strength, GBP weakness)"
         }
       },
-
-      "regulatory_basis": "CSSF UCITS stress testing framework — most relevant historical scenario"
+      "regulatory_basis": "CSSF UCITS stress testing framework \u2014 most relevant historical scenario"
     },
-
     "historical_2022_rate_inflation": {
       "test_category": "Historical",
       "scenario_name": "2022 Rate and Inflation Shock, hp=20d",
@@ -87,10 +81,9 @@
       "period": "January - December 2022",
       "holding_period_days": 20,
       "holding_period_basis": "CSSF UCITS reporting standard holding period for historical scenario calibration",
-
       "shocks": {
         "equity": {
-          "shock": -0.20,
+          "shock": -0.2,
           "unit": "pct",
           "description": "Equity market decline due to rising rates and growth concerns"
         },
@@ -106,15 +99,14 @@
         },
         "fx": {
           "shock_by_currency": {
-            "USD": 0.10,
+            "USD": 0.1,
             "GBP": -0.05
           },
           "unit": "pct",
           "description": "FX movements against EUR (USD strength from higher rates, GBP weakness)"
         }
       },
-
-      "regulatory_basis": "CSSF UCITS stress testing framework — most relevant historical scenario"
+      "regulatory_basis": "CSSF UCITS stress testing framework \u2014 most relevant historical scenario"
     }
   }
 }

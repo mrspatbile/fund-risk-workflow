@@ -1,34 +1,42 @@
 {
+  "schema_version": "1.0",
   "framework": "PRIIPs KID",
   "regulation": "Regulation (EU) 1286/2014",
   "aifmd_ii_updates": "Directive 2024/927/EU (amending PRIIPs regulation)",
   "references": [
-    "Regulation (EU) 1286/2014 — Key Information Document (KID)",
-    "Delegated Regulation (EU) 2017/653 — Product governance",
-    "ESMA technical standards — KID templates and guidance"
+    "Regulation (EU) 1286/2014 \u2014 Key Information Document (KID)",
+    "Delegated Regulation (EU) 2017/653 \u2014 Product governance",
+    "ESMA technical standards \u2014 KID templates and guidance"
   ],
-
   "scope": "Applies to UCITS and certain AIFs distributed to retail investors",
-
   "risk_indicator": {
     "name": "Summary Risk Indicator (SRI)",
     "classes": "1-7",
     "calculation_basis": "Portfolio value-at-risk or equivalent",
     "notes": "SRI classification is specific to PRIIPs KID disclosure and differs from internal risk management VaR limits"
   },
-
   "performance_scenarios": {
     "required": true,
-    "scenarios": ["favorable", "moderate", "unfavorable", "stress"],
-    "time_horizons": ["1_year", "recommended_holding_period"]
+    "scenarios": [
+      "favorable",
+      "moderate",
+      "unfavorable",
+      "stress"
+    ],
+    "time_horizons": [
+      "1_year",
+      "recommended_holding_period"
+    ]
   },
-
   "costs": {
     "required": true,
-    "breakdown": ["entry_costs", "ongoing_costs", "exit_costs"],
+    "breakdown": [
+      "entry_costs",
+      "ongoing_costs",
+      "exit_costs"
+    ],
     "impact_tables": true
   },
-
   "fund_characteristics": {
     "summary_box": true,
     "objective": true,

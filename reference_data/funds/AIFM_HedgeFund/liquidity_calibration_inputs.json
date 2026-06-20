@@ -1,4 +1,5 @@
 {
+  "schema_version": "1.0",
   "fund_id": "AIFM_HedgeFund",
   "calibration_id": "aifm_hedge_fund_liquidity_calibration",
   "purpose": "Liquidity stress and LMT calibration input assumptions",
@@ -17,42 +18,50 @@
     "investors": [
       {
         "type": "Pension Fund",
-        "weight": 0.50,
-        "base_redemption_rate": 0.030,
-        "stress_redemption_rate": 0.200
+        "weight": 0.5,
+        "base_redemption_rate": 0.03,
+        "stress_redemption_rate": 0.2
       },
       {
         "type": "Fund of Funds",
-        "weight": 0.30,
-        "base_redemption_rate": 0.050,
-        "stress_redemption_rate": 0.250
+        "weight": 0.3,
+        "base_redemption_rate": 0.05,
+        "stress_redemption_rate": 0.25
       },
       {
         "type": "Family Office",
-        "weight": 0.20,
-        "base_redemption_rate": 0.040,
-        "stress_redemption_rate": 0.180
+        "weight": 0.2,
+        "base_redemption_rate": 0.04,
+        "stress_redemption_rate": 0.18
       }
     ],
-    "stress_months": [3, 4],
+    "stress_months": [
+      3,
+      4
+    ],
     "redemption_concentration": 4.5,
     "seed": 42
   },
   "redemption_scenario_policy": {
-    "scenario_names": ["Base", "Large", "Stress", "Largest investor"],
+    "scenario_names": [
+      "Base",
+      "Large",
+      "Stress",
+      "Largest investor"
+    ],
     "largest_investor_source": "investors.json",
     "fixed_scenarios_are_calibration_outputs": true
   },
   "lmt_calibration": {
     "liquid_pct": 0.75,
-    "gate_threshold_pct": 0.10,
+    "gate_threshold_pct": 0.1,
     "swing_threshold_pct": 0.05,
     "contagion_multiplier": 1.5,
     "consecutive_gate_months": 3,
     "backlog_pct": 0.25,
     "swing_pricing_threshold_pct": 0.05,
     "anti_dilution_levy_threshold_pct": 0.05,
-    "redemption_gate_threshold_pct": 0.20,
+    "redemption_gate_threshold_pct": 0.2,
     "suspension_threshold_pct": 0.35
   }
 }

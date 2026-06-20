@@ -1,94 +1,130 @@
 {
+  "schema_version": "1.0",
   "framework": "UCITS",
   "source": "CSSF UCITS risk reporting guidance",
   "scenario_type": "univariate",
   "basis": "Prescribed univariate stress tests for UCITS funds under VaR-method global exposure monitoring",
   "notes": "These scenarios reflect the CSSF UCITS regulatory framework for stress testing. Each scenario is applied independently to test the fund's sensitivity to single-factor market moves.",
-
   "scenarios": {
     "equity_markets_down_30": {
       "test_category": "Equity",
       "scenario_name": "Equity markets -30%",
       "description": "Simultaneous 30% decline across all equity positions",
-      "asset_classes": ["Equity"],
-      "shock": -0.30,
+      "asset_classes": [
+        "Equity"
+      ],
+      "shock": -0.3,
       "unit": "pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "equity_markets_up_30": {
       "test_category": "Equity",
       "scenario_name": "Equity markets +30%",
       "description": "Simultaneous 30% appreciation across all equity positions",
-      "asset_classes": ["Equity"],
-      "shock": 0.30,
+      "asset_classes": [
+        "Equity"
+      ],
+      "shock": 0.3,
       "unit": "pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "interest_rate_curves_up_200bps": {
       "test_category": "Interest Rate",
       "scenario_name": "Interest rate curves +200 bps",
       "description": "Parallel upward shift of 200 basis points across all interest rate curves",
-      "asset_classes": ["Bond", "Loan", "CLO"],
+      "asset_classes": [
+        "Bond",
+        "Loan",
+        "CLO"
+      ],
       "shock": 0.02,
       "unit": "bps",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "duration_approximation": "linear",
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "credit_spreads_down_50pct": {
       "test_category": "Credit",
       "scenario_name": "Credit spreads -50% proportional shift",
       "description": "50% proportional tightening of all credit spreads (not additive bps)",
-      "asset_classes": ["Bond", "Loan", "CLO"],
-      "shock": -0.50,
+      "asset_classes": [
+        "Bond",
+        "Loan",
+        "CLO"
+      ],
+      "shock": -0.5,
       "unit": "proportional_pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "notes": "This is a multiplicative adjustment, not additive bps. For example, a 200 bps spread becomes 100 bps (200 * 0.50).",
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "credit_spreads_up_100pct": {
       "test_category": "Credit",
       "scenario_name": "Credit spreads +100% proportional shift",
       "description": "100% proportional widening of all credit spreads (not additive bps)",
-      "asset_classes": ["Bond", "Loan", "CLO"],
-      "shock": 1.00,
+      "asset_classes": [
+        "Bond",
+        "Loan",
+        "CLO"
+      ],
+      "shock": 1.0,
       "unit": "proportional_pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "notes": "This is a multiplicative adjustment, not additive bps. For example, a 200 bps spread becomes 400 bps (200 * 2.00).",
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "base_currency_depreciation_30": {
       "test_category": "FX",
       "scenario_name": "Base currency depreciation -30%",
       "description": "30% depreciation of EUR against all other currencies",
-      "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
-      "shock": 0.30,
+      "asset_classes": [
+        "Equity",
+        "Bond",
+        "Loan",
+        "CLO",
+        "Cash"
+      ],
+      "shock": 0.3,
       "unit": "pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     },
-
     "base_currency_appreciation_30": {
       "test_category": "FX",
       "scenario_name": "Base currency appreciation +30%",
       "description": "30% appreciation of EUR against all other currencies",
-      "asset_classes": ["Equity", "Bond", "Loan", "CLO", "Cash"],
-      "shock": -0.30,
+      "asset_classes": [
+        "Equity",
+        "Bond",
+        "Loan",
+        "CLO",
+        "Cash"
+      ],
+      "shock": -0.3,
       "unit": "pct",
-      "applies_to_fields": ["market_value_eur"],
+      "applies_to_fields": [
+        "market_value_eur"
+      ],
       "holding_period_days": null,
       "regulatory_basis": "CSSF UCITS stress testing framework"
     }

@@ -971,8 +971,16 @@ def load_counterparty(fund_id: str) -> pd.DataFrame:
     cp_file = ref_data_path / 'counterparties.json'
 
     with open(cp_file, 'r') as f:
-        cp_list = json.load(f)
+        data = json.load(f)
 
+    # Validate fund_id matches
+    if data.get('fund_id') != fund_id:
+        raise ValueError(
+            f"counterparties.json fund_id mismatch: "
+            f"file contains '{data.get('fund_id')}' but requested '{fund_id}'"
+        )
+
+    cp_list = data.get('counterparties', [])
     return pd.DataFrame(cp_list)
 
 

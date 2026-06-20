@@ -318,14 +318,10 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
     export_id : str or None, default None
         If provided, save rendered HTML as PNG to reports/<fund_id>/<export_id>_*.png
     """
-    import json
-    from pathlib import Path
+    from src.data.reference_data import load_rmp, load_scenario_file
 
-    # Relative path from this module (src/ui/) to reference_data/
-    module_dir = Path(__file__).parent
-    risk_policy_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'risk_policy.json'
-    with open(risk_policy_path) as f:
-        rmp = json.load(f)
+    # Load risk policy
+    rmp = load_rmp(fund_id)
 
     rows = []
     notes = []
@@ -335,13 +331,11 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         """Load scenario definitions and create ID-to-name mapping."""
         mapping = {}
         try:
-            scenario_path = module_dir / f'../../reference_data/risk_scenarios/{source_file}.json'
-            with open(scenario_path) as f:
-                scenario_data = json.load(f)
-                for scenario_id, scenario_def in scenario_data.get('scenarios', {}).items():
-                    scenario_name = scenario_def.get('scenario_name', scenario_id)
-                    mapping[scenario_id] = scenario_name
-        except (FileNotFoundError, KeyError, json.JSONDecodeError):
+            scenario_data = load_scenario_file(source_file)
+            for scenario_id, scenario_def in scenario_data.get('scenarios', {}).items():
+                scenario_name = scenario_def.get('scenario_name', scenario_id)
+                mapping[scenario_id] = scenario_name
+        except (FileNotFoundError, KeyError, TypeError):
             pass
         return mapping
 
@@ -640,11 +634,9 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
                                 is_historical = True
                                 # Load full scenario data for holding period
                                 try:
-                                    hist_scenario_path = module_dir / f'../../reference_data/risk_scenarios/scenario_library_2_historical.json'
-                                    with open(hist_scenario_path) as f:
-                                        hist_data = json.load(f)
-                                        scenario_details = hist_data.get('scenarios', {})
-                                except (FileNotFoundError, KeyError, json.JSONDecodeError):
+                                    hist_data = load_scenario_file('scenario_library_2_historical')
+                                    scenario_details = hist_data.get('scenarios', {})
+                                except (FileNotFoundError, KeyError, TypeError):
                                     pass
 
                             # Display all scenarios in HTML list format
@@ -779,15 +771,12 @@ def display_fund_overview_banner(fund_id: str, engine, export_id: str | None = N
     -------
     None
     """
-    import json
     from pathlib import Path
     from src.ui.nb_utils import _slugify, save_html_as_png
+    from src.data.reference_data import load_fund_profile
 
-    # Relative path from this module (src/ui/) to reference_data/
-    module_dir = Path(__file__).parent
-    fund_profile_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'fund_profile.json'
-    with open(fund_profile_path, 'r') as f:
-        profile = json.load(f)
+    # Load fund profile from reference data
+    profile = load_fund_profile(fund_id)
 
     # Regulatory classification
     reg = profile['regulatory_classification']

@@ -1,17 +1,16 @@
 {
+  "schema_version": "1.0",
   "fund_id": "UCITS_Balanced",
   "notice_period_days": 1,
   "lockup_days": 0,
   "liquidity_profile": "daily_redemption",
   "valuation_frequency": "daily",
-
   "priips_kid": {
     "risk_indicator": "Summary Risk Indicator (SRI)",
     "sri_class": null,
     "performance_scenarios": true,
     "costs_disclosure": true
   },
-
   "global_exposure_policy": {
     "method": "absolute_var",
     "method_routing": {
@@ -23,7 +22,6 @@
     "uses_commitment_disclosure": false,
     "uses_derivative_notional_leverage_reporting": true
   },
-
   "stress_testing": {
     "use_stress_testing": true,
     "univariate_scenarios": {
@@ -48,12 +46,10 @@
       "requires_holding_period_days": true
     }
   },
-
   "backtesting": {
     "lookback_days": 250,
     "observation_window_months": 12
   },
-
   "var_framework": {
     "models": [
       "historical",
@@ -63,7 +59,6 @@
     "parametric_degrees_of_freedom": 5,
     "scaling_method": "sqrt_time"
   },
-
   "attribution_policy": {
     "enabled": true,
     "method": "risk_factor_pnl",
@@ -77,40 +72,37 @@
     "frequency": "daily",
     "reporting_use": "model_review"
   },
-
   "srri_monitoring": {
     "current_disclosed_srri": 5,
     "window_weeks": 260,
     "update_frequency_months": 1,
     "category_change_persistence_months": 4
   },
-
   "liquidity_monitoring": {
-  "pct_adv": 0.25,
-  "stress_window_days": 5,
-  "redemption_scenarios": [
-    {
-      "name": "Base",
-      "redemption_pct": 0.05
-    },
-    {
-      "name": "Large",
-      "redemption_pct": 0.15
-    },
-    {
-      "name": "Stress",
-      "redemption_pct": 0.25
-    },
-    {
-      "name": "Largest investor",
-      "redemption_pct": "largest_investor"
-    }
-  ]
+    "pct_adv": 0.25,
+    "stress_window_days": 5,
+    "redemption_scenarios": [
+      {
+        "name": "Base",
+        "redemption_pct": 0.05
+      },
+      {
+        "name": "Large",
+        "redemption_pct": 0.15
+      },
+      {
+        "name": "Stress",
+        "redemption_pct": 0.25
+      },
+      {
+        "name": "Largest investor",
+        "redemption_pct": "largest_investor"
+      }
+    ]
   },
   "internal_monitoring": {
     "largest_position_warning_pct": 8,
     "liquidity_coverage_threshold_days": 5
   },
-
   "_note": "UCITS regulatory limits are defined centrally in reference_data/regulation/ucits_regulatory_framework.json. This file contains only fund-level operational parameters, monitoring choices, and internal thresholds."
 }

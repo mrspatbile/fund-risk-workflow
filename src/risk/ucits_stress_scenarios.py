@@ -27,15 +27,7 @@ from src.computation.stress import (
     stress_rates,
     stress_fx,
 )
-from src.data.reference_data import load_rmp
-
-
-def _load_scenario_file(filename: str) -> dict:
-    """Load scenario definition from JSON file."""
-    module_dir = Path(__file__).parent
-    scenario_path = module_dir / f'../../reference_data/risk_scenarios/{filename}.json'
-    with open(scenario_path) as f:
-        return json.load(f)
+from src.data.reference_data import load_rmp, load_scenario_file
 
 
 def load_ucits_scenarios_metadata(fund_id: str, rmp: dict | None = None) -> pd.DataFrame:
@@ -67,11 +59,11 @@ def load_ucits_scenarios_metadata(fund_id: str, rmp: dict | None = None) -> pd.D
     rows = []
 
     # Load univariate scenario definitions
-    univariate_defs = _load_scenario_file('ucits_univariate_stress_scenarios')
+    univariate_defs = load_scenario_file('ucits_univariate_stress_scenarios')
     univariate_scenarios = univariate_defs['scenarios']
 
     # Load historical scenario definitions
-    historical_defs = _load_scenario_file('scenario_library_2_historical')
+    historical_defs = load_scenario_file('scenario_library_2_historical')
     historical_scenarios = historical_defs['scenarios']
 
     # Extract selected scenario IDs from risk_policy.json

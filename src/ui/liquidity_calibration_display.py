@@ -30,18 +30,11 @@ def display_fund_liquidity_overview(
     export_id : str, optional
         If provided, save rendered output as PNG.
     """
-    import json
-    from pathlib import Path
-    from src.data.reference_data import load_fund_profile
+    from src.data.reference_data import load_fund_profile, load_rmp, load_liquidity_calibration_inputs
 
-    # Load fund profile
+    # Load fund profile and risk policy
     fund_profile = load_fund_profile(fund_id)
-
-    # Load risk policy for liquidity monitoring
-    module_dir = Path(__file__).parent
-    risk_policy_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'risk_policy.json'
-    with open(risk_policy_path) as f:
-        rmp = json.load(f)
+    rmp = load_rmp(fund_id)
 
     rows = []
     highlight_indices = []
@@ -69,11 +62,9 @@ def display_fund_liquidity_overview(
     liq_monitoring = rmp.get("liquidity_monitoring", {})
     contractual = {}
     try:
-        calib_path = module_dir / '../../reference_data' / 'funds' / fund_id / 'liquidity_calibration_inputs.json'
-        with open(calib_path) as f:
-            calib = json.load(f)
-            contractual = calib.get("contractual_terms", {})
-    except:
+        calib = load_liquidity_calibration_inputs(fund_id)
+        contractual = calib.get("contractual_terms", {})
+    except Exception:
         pass
 
     liq_info = {

@@ -1,38 +1,40 @@
 {
+  "schema_version": "1.0",
   "fund_id": "AIFM_HedgeFund",
-
   "redemption_terms": null,
   "notice_period_days": 5,
   "lockup_days": null,
   "liquidity_profile": null,
   "valuation_frequency": "daily",
-
   "var_framework": {
     "use_var": true,
     "confidence_level": 0.99,
     "holding_period_days": 20,
     "lookback_period_days": 250,
-    "models": ["historical", "parametric"],
+    "models": [
+      "historical",
+      "parametric"
+    ],
     "parametric_distribution": "student_t",
     "parametric_degrees_of_freedom": 5,
     "scaling_method": "sqrt_time"
   },
-
   "backtesting": {
     "use_backtesting": true,
     "observation_window": 250,
-    "tests": ["kupiec_pof", "christoffersen"],
+    "tests": [
+      "kupiec_pof",
+      "christoffersen"
+    ],
     "breach_rate_thresholds": {
       "acceptable_pct": 1.0,
       "monitor_pct": 2.0
     }
   },
-
   "leverage_limits_internal": {
-    "gross_leverage_max": 3.00,
-    "commitment_leverage_max": 2.00
+    "gross_leverage_max": 3.0,
+    "commitment_leverage_max": 2.0
   },
-
   "liquidity_monitoring": {
     "liquidity_stress_multiplier": 5,
     "pct_adv": 0.25,
@@ -40,7 +42,7 @@
     "redemption_scenarios": [
       {
         "name": "Normal",
-        "redemption_pct": 0.10,
+        "redemption_pct": 0.1,
         "description": "Routine investor exit"
       },
       {
@@ -50,16 +52,14 @@
       },
       {
         "name": "Stress",
-        "redemption_pct": 0.50,
+        "redemption_pct": 0.5,
         "description": "Coordinated stress exit"
       }
     ]
   },
-
   "concentration_limits_internal": {
     "single_issuer_max_pct": 25.0
   },
-
   "stress_testing": {
     "use_stress_testing": true,
     "custom_scenarios": {
@@ -68,7 +68,7 @@
         {
           "name": "Equity Crash -30%",
           "type": "equity",
-          "delta_equity": -0.30
+          "delta_equity": -0.3
         },
         {
           "name": "Rate Shock +200bps",
@@ -105,12 +105,10 @@
       "description": "Key historical market stress events: GFC, Covid, rate shock"
     }
   },
-
   "investor_concentration_monitoring": {
     "single_investor_threshold_pct": 20.0,
     "top_3_investors_threshold_pct": 50.0,
     "_note": "Internal liquidity-risk monitoring thresholds. Not regulatory disclosure thresholds."
   },
-
   "_note_var_framework": "VaR parameters (99% confidence, 20-day holding period, 250-day lookback, student-t distribution) are internal fund-level risk management choices for monitoring daily market risk exposure. Fund strategy and liquidity profile justify these parameters for daily-traded portfolios of equities, credit, and derivatives."
 }
