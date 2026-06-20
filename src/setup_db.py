@@ -33,7 +33,7 @@ from sqlalchemy import text
 
 # Load fund IDs dynamically from fund_registry.json
 _REF_DIR = ROOT_DIR / 'reference_data'
-with open(_REF_DIR / 'funds' / 'fund_registry.json') as _f:
+with open(_REF_DIR / 'platform' / 'fund_registry.json') as _f:
     _REGISTRY = json.load(_f)
 FUNDS    = _REGISTRY['funds']
 
