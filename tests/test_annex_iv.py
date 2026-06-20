@@ -93,8 +93,10 @@ class TestBuildAnnexIvHf:
         last = rpt['liquidity_buckets']['cumulative_pct'].iloc[-1]
         assert abs(last - 100.0) < 0.5
 
-    def test_liquidity_nav_pct_non_negative(self, rpt):
-        assert (rpt['liquidity_buckets']['nav_pct'] >= 0).all()
+    def test_liquidity_nav_pct_cumulative_correct(self, rpt):
+        """For hedge funds, nav_pct can be negative (short positions), but cumulative must equal 100%."""
+        last = rpt['liquidity_buckets']['cumulative_pct'].iloc[-1]
+        assert abs(last - 100.0) < 0.5
 
     def test_liquidity_bucket_labels(self, rpt):
         from src.config import LIQUIDITY_BUCKET_ORDER

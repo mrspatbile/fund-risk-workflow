@@ -19,7 +19,7 @@ FUNDS = [
     'AIFM_RealEstate',
     'UCITS_Balanced',
 ]
-DATES = ['2026-03-31', '2026-05-12']
+DATES = ['2026-03-30', '2026-03-31']
 
 STANDARD_COLS = [
     'fund_id', 'fund_name', 'date', 'isin', 'bloomberg_ticker',

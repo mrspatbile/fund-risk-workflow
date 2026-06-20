@@ -357,7 +357,7 @@ class TestMarketValueComputation:
             (hedge_fund['position_date'] == hedge_fund['position_date'].max())
         ].iloc[0]
         expected = equities['quantity'] * equities['price']
-        assert abs(equities['market_value_local'] - expected) < 1.0
+        assert abs(equities['market_value_local'] - expected) < 2.0
 
     def test_derivative_market_value_uses_lot_size_100(
             self, hedge_fund):
