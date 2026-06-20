@@ -1060,9 +1060,9 @@ def export_annex_iv_excel(
     project_root = Path(__file__).parent.parent.parent
     out_path_obj = Path(output_dir)
 
-    # If output_dir is relative, resolve it from the current file location
+    # If output_dir is relative, resolve it from the project root
     if not out_path_obj.is_absolute():
-        resolved_path = (Path(__file__).parent / output_dir).resolve()
+        resolved_path = (project_root / output_dir).resolve()
     else:
         resolved_path = out_path_obj.resolve()
 
