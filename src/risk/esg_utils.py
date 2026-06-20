@@ -5,7 +5,7 @@ ESG risk indicator utilities for all fund notebooks.
 
 Functions
 ---------
-build_esg_df(risk_df, bbg, engine, fund_id, date)
+build_esg_df(risk_df, bbg, engine, fund_id, position_date)
     Builds position-level ESG DataFrame with look-through for derivatives.
 
 build_private_esg_df(fund_id, quarter, asset_type, engine)
@@ -51,7 +51,7 @@ def build_esg_df(
     bbg,
     engine,
     fund_id: str,
-    date: str,
+    position_date: str,
     ) -> pd.DataFrame:
     """
     Build position-level ESG DataFrame with look-through for derivatives.
@@ -72,8 +72,8 @@ def build_esg_df(
         SQLAlchemy engine.
     fund_id : str
         Fund identifier.
-    date : str
-        Valuation date.
+    position_date : str
+        Position snapshot date used to retrieve holdings from the positions table.
 
     Returns
     -------
@@ -82,7 +82,7 @@ def build_esg_df(
         esg_score, env_score, soc_score, gov_score, controversy_flag,
         carbon_intensity, esg_exposure_eur
     """
-    raw_positions = query_positions(engine, fund_id, date)
+    raw_positions = query_positions(engine, fund_id, position_date=position_date)
     ticker_map    = dict(zip(raw_positions['isin'],
                              raw_positions['bloomberg_ticker']))
     esg_rows = []

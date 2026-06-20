@@ -44,7 +44,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
-from src.config import LIQUIDITY_BUCKET_ORDER
+from src.config import LIQUIDITY_BUCKET_ORDER, VALUATION_DATE
 from src.data.database import (
     FUND_METADATA,
     InfraAsset,
@@ -85,7 +85,7 @@ from src.risk.risk_utils import (
 # Static configuration
 # ══════════════════════════════════════════════════════════════════════════
 
-_VALUATION_DATE = '2026-03-31'
+_VALUATION_DATE = VALUATION_DATE
 _AIFM_NAME      = 'ManCo SA'
 _AIFM_LEI       = '213800SIMULATED0001'
 _DEPOSITARY     = 'BNP Paribas Securities Services Luxembourg'

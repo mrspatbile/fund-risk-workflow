@@ -82,7 +82,7 @@ def build_fund_liquidity_policy(
     from src.ui.liquidity_calibration_display import suggest_liquidity_policy_block
 
     # Query positions and compute NAV
-    pos = query_positions(engine, fund_id, valuation_date)
+    pos = query_positions(engine, fund_id, position_date=valuation_date)
     nav_eur = pos['market_value_eur'].sum()
 
     # Extract contractual terms (required)

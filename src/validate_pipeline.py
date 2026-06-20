@@ -39,6 +39,7 @@ from src.risk.risk_utils import (
     days_to_liquidate, liquidity_buckets,
     redemption_stress,
 )
+from src.config import VALUATION_DATE
 
 # ----------------------------------------------------------------
 # Configuration
@@ -49,7 +50,7 @@ FUNDS     = [
     'AIFM_RealEstate',
     'UCITS_Balanced',
 ]
-TEST_DATE = '2026-03-31'
+TEST_DATE = VALUATION_DATE
 PASS      = '✓ PASS'
 FAIL      = '✗ FAIL'
 

@@ -29,6 +29,7 @@ import sqlalchemy as sa
 from src.data.database import create_db, load_fund_metadata, load_positions, get_engine
 from src.data.enrichment import enrich_positions
 from src.data.mock_bloomberg import MockBloomberg as Bloomberg
+from src.config import VALUATION_DATE
 from sqlalchemy import text
 
 # Load fund IDs dynamically from fund_registry.json
@@ -37,7 +38,7 @@ with open(_REF_DIR / 'platform' / 'fund_registry.json') as _f:
     _REGISTRY = json.load(_f)
 FUNDS    = _REGISTRY['funds']
 
-DATE     = '2026-03-31'
+DATE     = VALUATION_DATE
 DATA_DIR = str(ROOT_DIR / 'data')
 DB_PATH  = str(ROOT_DIR / 'data' / 'risk_management.db')
 

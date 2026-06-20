@@ -42,9 +42,10 @@ from src.data.database import (
     InfraCashFlow, InfraNavHistory, InfraValuationReport,
     InfraDebt, InfraCovenant,
 )
+from src.config import VALUATION_DATE
 from src.risk.pe_utils import xirr
 
-VALUATION_DATE = pd.Timestamp('2026-03-31')
+PROJECT_VALUATION_DATE = pd.Timestamp(VALUATION_DATE)
 
 
 def fund_nav_timeseries(
@@ -505,7 +506,7 @@ def duration_profile(
         a = asset_map.get(row['asset_id'])
         if a and a.concession_end:
             end_date       = pd.Timestamp(a.concession_end)
-            remaining      = (end_date - VALUATION_DATE).days / 365.25
+            remaining      = (end_date - PROJECT_VALUATION_DATE).days / 365.25
             near_expiry    = remaining < 3.0
         else:
             remaining   = None

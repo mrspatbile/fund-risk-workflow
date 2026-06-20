@@ -50,12 +50,12 @@ def compute_fixed_position_pnl_series(
             SELECT fund_id, position_date, isin, bloomberg_ticker,
                    quantity, price, market_value_eur, asset_class
             FROM positions
-            WHERE fund_id = :fund_id AND position_date = :date
+            WHERE fund_id = :fund_id AND position_date = :position_date
         """)
         positions = pd.read_sql(
             positions_sql,
             conn,
-            params={'fund_id': fund_id, 'date': valuation_date}
+            params={'fund_id': fund_id, 'position_date': valuation_date}
         )
 
     if positions.empty:
@@ -85,12 +85,12 @@ def compute_fixed_position_pnl_series(
                 prices_sql = text("""
                     SELECT bloomberg_ticker, isin, price
                     FROM positions
-                    WHERE fund_id = :fund_id AND position_date = :date
+                    WHERE fund_id = :fund_id AND position_date = :position_date
                 """)
                 prev_pos = pd.read_sql(prices_sql, conn,
-                                      params={'fund_id': fund_id, 'date': prev_date})
+                                      params={'fund_id': fund_id, 'position_date': prev_date})
                 curr_pos = pd.read_sql(prices_sql, conn,
-                                      params={'fund_id': fund_id, 'date': curr_date})
+                                      params={'fund_id': fund_id, 'position_date': curr_date})
 
             daily_pnl = 0.0
             for ticker_key, qty in qty_by_ticker.items():

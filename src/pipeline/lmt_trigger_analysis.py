@@ -85,7 +85,7 @@ def run_lmt_trigger_analysis(
     from src.risk.risk_utils import lmt_trigger_analysis
 
     # Query positions and compute NAV
-    pos = query_positions(engine, fund_id, valuation_date)
+    pos = query_positions(engine, fund_id, position_date=valuation_date)
     nav = pos['market_value_eur'].sum()
 
     lmt_config = lmt_inputs['lmt_config']
