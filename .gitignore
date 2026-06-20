@@ -4,10 +4,10 @@ __pycache__/
 .env
 .venv/
 .DS_Store
-data/
 docs/_old
 docs/refactor_plans
 reports/
+data/
 notebooks/reports
 *.egg-info/
 
@@ -38,4 +38,7 @@ reference_data/funds/AIFM_RealEstate
 
 reference_data/portfolios/infra_assets.json
 reference_data/portfolios/pe_companies.json
+
+src/data/generate_infra_fund.py
+src/data/generate_pe_fund.py
 
