@@ -487,6 +487,7 @@ class MockBloomberg:
         self,
         securities: str | list,
         fields: str | list,
+        date: str | None = None,
     ) -> pd.DataFrame:
         """
         Pull static reference data for one or more securities.
@@ -495,6 +496,10 @@ class MockBloomberg:
         ----------
         securities : str or list of str
         fields : str or list of str
+        date : str, optional
+            YYYY-MM-DD format. If provided, returns data for that date
+            (using yfinance cache to interpolate/simulate). If None,
+            returns latest/current data (default Bloomberg behavior).
 
         Returns
         -------
@@ -516,10 +521,23 @@ class MockBloomberg:
 
             # MRS-47: overlay live fields from yfinance info cache
             if needs_live and sec in self.YF_MAP:
-                live = self._fetch_yf_info(self.YF_MAP[sec])
-                for f in live_fields:
-                    if f in fields and live.get(f) is not None:
-                        data[f] = live[f]
+                if date:
+                    # Get date-aligned price using bdh logic
+                    hist = self.bdh([sec], 'PX_LAST', date, date)
+                    if len(hist) > 0:
+                        px = hist.iloc[0]['PX_LAST']
+                        data['PX_LAST'] = px
+                    # For other fields, use latest (bdp behavior)
+                    live = self._fetch_yf_info(self.YF_MAP[sec])
+                    for f in ['BETA', 'EQY_DVD_YLD_IND', 'VOLUME_AVG_20D']:
+                        if f in fields and live.get(f) is not None:
+                            data[f] = live[f]
+                else:
+                    # No date specified: return latest data
+                    live = self._fetch_yf_info(self.YF_MAP[sec])
+                    for f in live_fields:
+                        if f in fields and live.get(f) is not None:
+                            data[f] = live[f]
 
             # Beta fixed by definition for benchmark instruments
             if 'BETA' in fields and sec in self.BETA_OVERRIDE:

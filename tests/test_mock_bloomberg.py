@@ -71,6 +71,26 @@ class TestBdp:
         assert result.index.name == 'security'
         assert 'SPY US Equity' in result.index
 
+    def test_bdp_with_date_parameter(self, bbg):
+        """Test bdp accepts optional date parameter for point-in-time data."""
+        result = bbg.bdp('SPY US Equity', 'PX_LAST', date='2026-03-31')
+        px = result.loc['SPY US Equity', 'PX_LAST']
+        assert px is not None
+        assert float(px) > 0
+
+    def test_bdp_date_returns_different_price_than_latest(self, bbg):
+        """Test that bdp with date returns different price than latest."""
+        latest = bbg.bdp('SPY US Equity', 'PX_LAST').loc['SPY US Equity', 'PX_LAST']
+        dated = bbg.bdp('SPY US Equity', 'PX_LAST', date='2026-03-31').loc['SPY US Equity', 'PX_LAST']
+        # For yfinance instruments, dated price should differ from latest
+        assert abs(latest - dated) > 1.0
+
+    def test_bdp_date_no_date_returns_latest(self, bbg):
+        """Test that bdp without date returns latest data."""
+        result_latest = bbg.bdp('SPY US Equity', 'PX_LAST')
+        result_no_date = bbg.bdp('SPY US Equity', 'PX_LAST', date=None)
+        assert result_latest.loc['SPY US Equity', 'PX_LAST'] == result_no_date.loc['SPY US Equity', 'PX_LAST']
+
 
 # ----------------------------------------------------------------
 # BDH tests

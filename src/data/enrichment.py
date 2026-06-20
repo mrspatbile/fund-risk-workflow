@@ -384,7 +384,7 @@ def query_enriched(
     sql = text('''
         SELECT
             p.fund_id, p.position_date as date, p.isin,
-            p.instrument_name, p.asset_class,
+            p.instrument_name, p.asset_class, p.bloomberg_ticker,
             p.currency, p.quantity, p.price,
             p.market_value_eur, p.weight_pct,
             p.adv_eur,

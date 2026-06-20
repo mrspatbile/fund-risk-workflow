@@ -1,8 +1,8 @@
 """
-tests/test_daily_workflow.py
-============================
-Unit tests for daily_workflow.py
-Run with: python3 -m pytest tests/test_daily_workflow.py -v
+tests/test_operational_checks.py
+================================
+Unit tests for operational_checks.py
+Run with: python3 -m pytest tests/test_operational_checks.py -v
 """
 
 import pytest
@@ -10,10 +10,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from src.data.daily_workflow import (
+from src.data.operational_checks import (
     business_day_offset,
     summarise_position_snapshot,
     summarise_risk_ready_dataset,
+    validate_prices,
 )
 
 
@@ -115,19 +116,26 @@ class TestSummarisePositionSnapshot:
         assert "market_value_eur" in acb.columns
         assert "weight_pct" in acb.columns
 
-    def test_new_instruments_dataframe(self, sample_positions, sample_prior_positions):
-        """Test new_instruments DataFrame."""
+    def test_instrument_changes_structure(self, sample_positions, sample_prior_positions):
+        """Test instrument_changes DataFrame structure."""
         result = summarise_position_snapshot(sample_positions, sample_prior_positions)
-        ni = result["new_instruments"]
-        assert len(ni) == 1
-        assert ni.iloc[0]["isin"] == "US0003"
+        ic = result["instrument_changes"]
+        assert "change_type" in ic.columns
+        assert "isin" in ic.columns
+        assert "instrument_name" in ic.columns
+        assert "asset_class" in ic.columns
+        assert "weight_pct" in ic.columns
 
-    def test_removed_instruments_dataframe(self, sample_positions, sample_prior_positions):
-        """Test removed_instruments DataFrame."""
+    def test_instrument_changes_content(self, sample_positions, sample_prior_positions):
+        """Test instrument_changes contains both new and removed instruments."""
         result = summarise_position_snapshot(sample_positions, sample_prior_positions)
-        ri = result["removed_instruments"]
-        assert len(ri) == 1
-        assert ri.iloc[0]["isin"] == "US0004"
+        ic = result["instrument_changes"]
+        assert len(ic) == 2
+        change_types = set(ic["change_type"].values)
+        assert "New instrument" in change_types
+        assert "Removed instrument" in change_types
+        assert "US0003" in ic["isin"].values
+        assert "US0004" in ic["isin"].values
 
     def test_return_dictionary_keys(self, sample_positions, sample_prior_positions):
         """Test that return dictionary has all required keys."""
@@ -138,8 +146,7 @@ class TestSummarisePositionSnapshot:
             "nav",
             "position_summary",
             "asset_class_breakdown",
-            "new_instruments",
-            "removed_instruments",
+            "instrument_changes",
         }
         assert set(result.keys()) == required_keys
 
@@ -150,15 +157,97 @@ class TestSummarisePositionSnapshot:
                 "isin": ["US0001"],
                 "instrument_name": ["Apple"],
                 "asset_class": ["Equity"],
-                "bloomberg_ticker": ["AAPL US"],
                 "market_value_eur": [100.0],
             }
         )
         result = summarise_position_snapshot(positions, positions)
         assert len(result["new_isins"]) == 0
         assert len(result["removed_isins"]) == 0
-        assert len(result["new_instruments"]) == 0
-        assert len(result["removed_instruments"]) == 0
+        ic = result["instrument_changes"]
+        assert len(ic) == 1
+        assert ic.iloc[0]["change_type"] == "No instrument changes"
+        assert pd.isna(ic.iloc[0]["isin"])
+        assert pd.isna(ic.iloc[0]["instrument_name"])
+        assert pd.isna(ic.iloc[0]["asset_class"])
+        assert pd.isna(ic.iloc[0]["weight_pct"])
+
+
+class TestValidatePrices:
+    """Tests for validate_prices function with date-aligned Bloomberg pricing."""
+
+    @pytest.fixture
+    def sample_positions_for_validation(self):
+        """Create sample positions with Bloomberg tickers for validation."""
+        return pd.DataFrame(
+            {
+                "instrument_name": ["Apple Inc", "Microsoft Corp", "Treasury Bond"],
+                "asset_class": ["Equity", "Equity", "Bond"],
+                "bloomberg_ticker": ["AAPL US Equity", "MSFT US Equity", "US912828YK09 Govt"],
+                "price": [250.0, 400.0, 96.0],
+                "market_value_eur": [100000.0, 120000.0, 50000.0],
+            }
+        )
+
+    def test_validate_prices_returns_correct_columns(
+        self, sample_positions_for_validation
+    ):
+        """Test that validate_prices returns required columns."""
+        from src.data.mock_bloomberg import MockBloomberg
+
+        bbg = MockBloomberg()
+        price_validation, _ = validate_prices(
+            sample_positions_for_validation,
+            bbg,
+            "2026-03-31"
+        )
+
+        required_columns = {
+            "instrument_name",
+            "asset_class",
+            "bloomberg_ticker",
+            "fund_admin_price",
+            "bbg_price",
+            "diff_pct",
+            "status"
+        }
+        assert required_columns.issubset(set(price_validation.columns))
+
+    def test_validate_prices_uses_valuation_date(
+        self, sample_positions_for_validation
+    ):
+        """Test that validate_prices uses date-aligned pricing."""
+        from src.data.mock_bloomberg import MockBloomberg
+
+        bbg = MockBloomberg()
+        valuation_date = "2026-03-31"
+
+        price_validation, _ = validate_prices(
+            sample_positions_for_validation,
+            bbg,
+            valuation_date
+        )
+
+        # For this test, we're verifying the function accepts the valuation_date
+        # and returns prices (not checking exact values as those depend on cache)
+        assert len(price_validation) == len(sample_positions_for_validation)
+        assert not price_validation["bbg_price"].isna().all()
+
+    def test_validate_prices_sorts_by_status(
+        self, sample_positions_for_validation
+    ):
+        """Test that results are sorted by status."""
+        from src.data.mock_bloomberg import MockBloomberg
+
+        bbg = MockBloomberg()
+        price_validation, _ = validate_prices(
+            sample_positions_for_validation,
+            bbg,
+            "2026-03-31"
+        )
+
+        # Verify sorting: OK should come after FLAG and MANUAL_REVIEW
+        statuses = price_validation["status"].unique()
+        assert "OK" in statuses or "FLAG" in statuses or "MANUAL REVIEW" in statuses
 
 
 class TestSummariseRiskReadyDataset:

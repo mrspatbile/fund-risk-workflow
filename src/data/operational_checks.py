@@ -271,7 +271,23 @@ def build_onboarding_review(
     onboarding_records = []
 
     for isin in sorted(new_isins):
-        row = positions.loc[positions["isin"] == isin].iloc[0]
+        # Check if ISIN exists in current fund's positions
+        pos_match = positions.loc[positions["isin"] == isin]
+        if len(pos_match) == 0:
+            onboarding_records.append(
+                {
+                    "isin": isin,
+                    "instrument_name": "NOT FOUND",
+                    "bloomberg_ticker": None,
+                    "fund_admin_asset_class": "UNKNOWN",
+                    "bloomberg_asset_class": None,
+                    "duration_check": "not in fund",
+                    "status": "NOT IN BBG",
+                }
+            )
+            continue
+
+        row = pos_match.iloc[0]
         ticker = row["bloomberg_ticker"]
 
         if pd.isna(ticker):
