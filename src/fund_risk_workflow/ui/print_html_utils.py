@@ -504,7 +504,8 @@ def display_fund_rmp_parameters(fund_id: str, engine, export_id: str | None = No
         'kupiec_pof': 'Kupiec POF',
         'christoffersen': 'Christoffersen',
         'daily_redemption': 'Daily Redemption',
-        'ucits_balanced_60_40': 'UCITS Balanced 60/40',
+        'global_equity_60_eur_gov_40': '60% Global Equity / 40% EUR Govt Bonds',
+        'sp500_reference': 'S&P 500 Reference',
     }
 
     def format_scenario(scenario):

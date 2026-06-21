@@ -40,7 +40,7 @@ def test_reference_data_loaders():
     # Load risk policy (operational parameters and monitoring choices)
     rmp = load_rmp('UCITS_Balanced')
     assert rmp['fund_id'] == 'UCITS_Balanced'
-    assert rmp['global_exposure_policy']['reference_portfolio_id'] == 'ucits_balanced_60_40'
+    assert rmp['global_exposure_policy']['reference_portfolio_id'] == 'global_equity_60_eur_gov_40'
     print(f"  ✓ load_rmp() works, reference_portfolio_id = {rmp['global_exposure_policy']['reference_portfolio_id']}")
 
     # Load regulatory framework
@@ -52,12 +52,12 @@ def test_reference_data_loaders():
 
     # Load reference portfolios
     portfolios = load_reference_portfolios()
-    assert 'ucits_balanced_60_40' in portfolios
+    assert 'global_equity_60_eur_gov_40' in portfolios
     print(f"  ✓ load_reference_portfolios() works, found {len(portfolios)} portfolio(s)")
 
     # Load specific portfolio
-    portfolio = load_reference_portfolio('ucits_balanced_60_40')
-    assert portfolio['name'] == 'UCITS Balanced 60/40 Reference Portfolio'
+    portfolio = load_reference_portfolio('global_equity_60_eur_gov_40')
+    assert portfolio['name'] == '60% Global Equity / 40% EUR Government Bonds'
     assert len(portfolio['components']) == 2
     print(f"  ✓ load_reference_portfolio() works, loaded {portfolio['name']}")
 
@@ -181,7 +181,7 @@ def test_reference_portfolio_weights():
 
     print("\n[TEST] Reference portfolio weight validation...")
 
-    portfolio = load_reference_portfolio('ucits_balanced_60_40')
+    portfolio = load_reference_portfolio('global_equity_60_eur_gov_40')
     total_weight = sum(c['weight'] for c in portfolio['components'])
 
     print(f"  Portfolio: {portfolio['name']}")

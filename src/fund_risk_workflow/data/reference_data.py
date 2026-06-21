@@ -150,43 +150,113 @@ def load_regulatory_framework(framework_name: str) -> dict:
         return data
 
 
+def _validate_benchmark(benchmark: dict, benchmark_id: str) -> None:
+    """
+    Validate benchmark structure and content.
+
+    Parameters
+    ----------
+    benchmark : dict
+        Benchmark configuration
+    benchmark_id : str
+        Expected benchmark ID (must match benchmark['benchmark_id'])
+
+    Raises
+    ------
+    ValueError
+        If validation fails
+    """
+    required_fields = {'schema_version', 'benchmark_id', 'name', 'description',
+                       'components', 'rebalance_frequency', 'use_cases'}
+    missing = required_fields - set(benchmark.keys())
+    if missing:
+        raise ValueError(
+            f"Benchmark {benchmark_id}: missing required fields: {missing}"
+        )
+
+    if benchmark['benchmark_id'] != benchmark_id:
+        raise ValueError(
+            f"Benchmark file {benchmark_id}.json has mismatched benchmark_id: "
+            f"{benchmark['benchmark_id']}"
+        )
+
+    components = benchmark.get('components', [])
+    if not components:
+        raise ValueError(f"Benchmark {benchmark_id}: components list is empty")
+
+    weights = []
+    identifiers = set()
+    for i, comp in enumerate(components):
+        required_comp_fields = {'identifier', 'asset_class', 'weight', 'proxy_ticker', 'currency'}
+        missing_comp = required_comp_fields - set(comp.keys())
+        if missing_comp:
+            raise ValueError(
+                f"Benchmark {benchmark_id}, component {i}: missing fields {missing_comp}"
+            )
+
+        if comp['identifier'] in identifiers:
+            raise ValueError(
+                f"Benchmark {benchmark_id}: duplicate component identifier '{comp['identifier']}'"
+            )
+        identifiers.add(comp['identifier'])
+        weights.append(comp['weight'])
+
+    weight_sum = sum(weights)
+    if abs(weight_sum - 1.0) > 0.0001:
+        raise ValueError(
+            f"Benchmark {benchmark_id}: component weights sum to {weight_sum}, not 1.0"
+        )
+
+
 def load_reference_portfolios() -> dict:
     """
-    Load all reference portfolios from central config.
+    Load all reference portfolios from directory.
+
+    Reads all *.json files from reference_data/benchmarks/reference_portfolios/
+    and validates each benchmark.
 
     Works from any working directory.
 
     Returns
     -------
     dict
-        All reference portfolios keyed by portfolio ID.
+        All reference portfolios keyed by benchmark_id.
 
     Examples
     --------
     >>> portfolios = load_reference_portfolios()
-    >>> portfolio = portfolios['ucits_balanced_60_40']
+    >>> portfolio = portfolios['global_equity_60_eur_gov_40']
     """
     module_dir = Path(__file__).parent
-    bench_path = module_dir / '../../../reference_data/benchmarks/reference_portfolios.json'
-    with open(bench_path) as f:
-        data = json.load(f)
-        # Extract data if wrapped with schema_version (validation happens at data layer)
-        if isinstance(data, dict) and 'schema_version' in data and len(data) > 1:
-            # Remove schema_version and return remaining content
-            return {k: v for k, v in data.items() if k != 'schema_version'}
-        return data
+    bench_dir = module_dir / '../../../reference_data/benchmarks/reference_portfolios'
+
+    if not bench_dir.exists():
+        raise FileNotFoundError(f"Benchmarks directory not found: {bench_dir}")
+
+    portfolios = {}
+    for bench_file in sorted(bench_dir.glob('*.json')):
+        benchmark_id = bench_file.stem
+        with open(bench_file) as f:
+            data = json.load(f)
+
+        _validate_benchmark(data, benchmark_id)
+        portfolios[benchmark_id] = data
+
+    return portfolios
 
 
 def load_reference_portfolio(reference_portfolio_id: str) -> dict:
     """
     Load a specific reference portfolio by ID.
 
+    Reads from reference_data/benchmarks/reference_portfolios/{benchmark_id}.json
+
     Works from any working directory.
 
     Parameters
     ----------
     reference_portfolio_id : str
-        Portfolio identifier (e.g., 'ucits_balanced_60_40')
+        Portfolio identifier (e.g., 'global_equity_60_eur_gov_40')
 
     Returns
     -------
@@ -195,21 +265,31 @@ def load_reference_portfolio(reference_portfolio_id: str) -> dict:
 
     Raises
     ------
-    KeyError
-        If portfolio ID not found in reference_portfolios.json
+    FileNotFoundError
+        If benchmark file does not exist
+    ValueError
+        If benchmark file is invalid
 
     Examples
     --------
-    >>> portfolio = load_reference_portfolio('ucits_balanced_60_40')
+    >>> portfolio = load_reference_portfolio('global_equity_60_eur_gov_40')
     >>> print(portfolio['components'])
     """
-    portfolios = load_reference_portfolios()
-    if reference_portfolio_id not in portfolios:
-        raise KeyError(
-            f"Reference portfolio '{reference_portfolio_id}' not found. "
-            f"Available portfolios: {list(portfolios.keys())}"
+    module_dir = Path(__file__).parent
+    bench_file = (
+        module_dir / f'../../../reference_data/benchmarks/reference_portfolios/{reference_portfolio_id}.json'
+    )
+
+    if not bench_file.exists():
+        raise FileNotFoundError(
+            f"Benchmark '{reference_portfolio_id}' not found at {bench_file}"
         )
-    return portfolios[reference_portfolio_id]
+
+    with open(bench_file) as f:
+        data = json.load(f)
+
+    _validate_benchmark(data, reference_portfolio_id)
+    return data
 
 
 def load_investor_base(fund_id: str, nav_eur: float = None) -> pd.DataFrame:
