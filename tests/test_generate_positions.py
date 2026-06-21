@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
-from src.data.generate_positions import (
+from fund_risk_workflow.data.generate_positions import (
     generate_hedge_fund,
     generate_private_debt,
     generate_real_estate,

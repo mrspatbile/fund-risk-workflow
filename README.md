@@ -144,6 +144,6 @@ cd fund-risk-workflow
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python3 src/setup_db.py
+python3 -m fund_risk_workflow.data.setup_db
 ```
 

@@ -21,7 +21,7 @@ import pandas as pd
 
 def test_reference_data_loaders():
     """Test reference data loaders."""
-    from src.data.reference_data import (
+    from fund_risk_workflow.data.reference_data import (
         load_rmp,
         load_fund_profile,
         load_regulatory_framework,
@@ -69,7 +69,7 @@ def test_reference_data_loaders():
 
 def test_srri_bucket_mapping():
     """Test SRRI bucket mapping."""
-    from src.risk.ucits_srri import map_volatility_to_srri_bucket, SRRI_BOUNDARIES
+    from fund_risk_workflow.risk.ucits_srri import map_volatility_to_srri_bucket, SRRI_BOUNDARIES
 
     print("\n[TEST] SRRI bucket mapping...")
 
@@ -97,7 +97,7 @@ def test_srri_bucket_mapping():
 
 def test_srri_from_returns():
     """Test SRRI computation from returns."""
-    from src.risk.ucits_srri import compute_srri_from_returns
+    from fund_risk_workflow.risk.ucits_srri import compute_srri_from_returns
 
     print("\n[TEST] SRRI computation from returns...")
 
@@ -120,7 +120,7 @@ def test_srri_from_returns():
 
 def test_srri_change_trigger():
     """Test SRRI change trigger logic."""
-    from src.risk.ucits_srri import check_srri_change_trigger
+    from fund_risk_workflow.risk.ucits_srri import check_srri_change_trigger
 
     print("\n[TEST] SRRI change trigger...")
 
@@ -146,7 +146,7 @@ def test_srri_change_trigger():
 
 def test_relative_var_evaluation():
     """Test relative VaR evaluation."""
-    from src.risk.ucits_relative_var import evaluate_relative_var_limit
+    from fund_risk_workflow.risk.ucits_relative_var import evaluate_relative_var_limit
 
     print("\n[TEST] Relative VaR evaluation...")
 
@@ -177,7 +177,7 @@ def test_relative_var_evaluation():
 
 def test_reference_portfolio_weights():
     """Test reference portfolio weight validation."""
-    from src.data.reference_data import load_reference_portfolio
+    from fund_risk_workflow.data.reference_data import load_reference_portfolio
 
     print("\n[TEST] Reference portfolio weight validation...")
 
@@ -197,7 +197,7 @@ def test_reference_portfolio_weights():
 def test_srri_kiid_trigger_with_disclosed_baseline():
     """Test SRRI KIID trigger logic with official disclosed baseline."""
     import pandas as pd
-    from src.risk.ucits_srri import check_srri_change_trigger
+    from fund_risk_workflow.risk.ucits_srri import check_srri_change_trigger
 
     print("\n[TEST] SRRI KIID trigger with disclosed baseline...")
 

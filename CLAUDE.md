@@ -538,7 +538,7 @@ def display_<report_name>(
 This pattern keeps computations separate from rendering. Notebooks import and call these functions with minimal code:
 
 ```python
-from src.ui.print_html_utils import display_ucits_monthly_report
+from fund_risk_workflow.ui.print_html_utils import display_ucits_monthly_report
 
 display_ucits_monthly_report(
     results={...},
