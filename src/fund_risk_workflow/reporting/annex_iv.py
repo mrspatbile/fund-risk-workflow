@@ -1057,6 +1057,9 @@ def export_annex_iv_excel(
 
     # Resolve output directory and compute paths
     from pathlib import Path
+    from datetime import datetime
+    from fund_risk_workflow.data.paths import annex_iv_file, annex_iv_dir
+
     project_root = Path(__file__).parent.parent.parent.parent
     out_path_obj = Path(output_dir)
 
@@ -1066,26 +1069,26 @@ def export_annex_iv_excel(
     else:
         resolved_path = out_path_obj.resolve()
 
-    os.makedirs(resolved_path, exist_ok=True)
-
     # Convert quarter from YYYY-MM-DD to YYYYQN format (e.g., 2026-03-31 -> 2026Q1)
-    from datetime import datetime
     quarter_date = datetime.strptime(quarter, '%Y-%m-%d')
     quarter_num = (quarter_date.month - 1) // 3 + 1
     quarter_formatted = f'{quarter_date.year}Q{quarter_num}'
 
-    # Build filename with fund identifier
+    # Determine fund label for filename
     if len(fund_ids) == len(_EXPORT_FUNDS):
         # All funds case
-        fund_label = 'all_funds'
+        fund_label = None  # Will use 'all_funds.xlsx'
     elif len(fund_ids) == 1:
         # Single fund case
         fund_label = fund_ids[0]
     else:
         # Multiple specific funds case
-        fund_label = 'all_funds'
+        fund_label = None  # Will use 'all_funds.xlsx'
 
-    out_path = os.path.join(resolved_path, f'annex_iv_report_{fund_label}_{quarter_formatted}.xlsx')
+    # Use path helper to construct file path
+    out_path = str(annex_iv_file(str(resolved_path), quarter_formatted, fund_label))
+    # Ensure directory exists
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
     # Only print progress for all-funds export
     is_all_funds = len(fund_ids) == len(_EXPORT_FUNDS)

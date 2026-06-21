@@ -934,10 +934,21 @@ def generate_board_report(
     if engine is None:
         engine = get_engine()
 
-    os.makedirs(output_dir, exist_ok=True)
-    vd  = pd.to_datetime(valuation_date)
-    month_label = vd.strftime('%Y-%m')
-    out_path = os.path.join(output_dir, f'board_risk_report_{month_label}.pdf')
+    from pathlib import Path
+    from fund_risk_workflow.data.paths import board_risk_file
+
+    # Resolve output directory if relative
+    project_root = Path(__file__).parent.parent.parent.parent
+    out_path_obj = Path(output_dir)
+    if not out_path_obj.is_absolute():
+        resolved_output_dir = str((project_root / output_dir).resolve())
+    else:
+        resolved_output_dir = output_dir
+
+    # Use path helper to construct file path
+    out_path = str(board_risk_file(resolved_output_dir, valuation_date))
+    # Ensure directory exists
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
     print(f'Board Risk Report — {valuation_date}')
     print(f'Loading metrics for {len(_LIQUID_FUNDS)} funds...')

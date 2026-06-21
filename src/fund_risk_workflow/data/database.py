@@ -575,10 +575,13 @@ def load_positions(
     data_dir : str
         Directory containing Excel files.
     """
+    from fund_risk_workflow.data.paths import position_file
+    from fund_risk_workflow.config import VALUATION_DATE
+
     all_positions = []
 
-    for fund_id, filename in FUND_FILES.items():
-        filepath = os.path.join(data_dir, filename)
+    for fund_id in FUND_FILES.keys():
+        filepath = str(position_file(data_dir, fund_id, VALUATION_DATE))
         if not os.path.exists(filepath):
             print(f'Warning: {filepath} not found, skipping.')
             continue
@@ -596,7 +599,7 @@ def load_positions(
                 df[col] = None
 
         all_positions.append(df)
-        print(f'  loaded {len(df):,} rows from {filename}')
+        print(f'  loaded {len(df):,} rows for {fund_id}')
 
     if all_positions:
         combined = pd.concat(all_positions, ignore_index=True)

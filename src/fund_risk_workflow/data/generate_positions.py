@@ -39,6 +39,7 @@ OUTPUT_DIR = str(ROOT_DIR / 'data')
 _REF_DIR   = ROOT_DIR / 'reference_data'
 
 from fund_risk_workflow.config import VALUATION_DATE
+from fund_risk_workflow.data.paths import position_file
 
 TRADING_DAYS  = 2000
 END_DATE      = pd.Timestamp(VALUATION_DATE)
@@ -272,15 +273,16 @@ if __name__ == '__main__':
     for fund_name, generator in funds.items():
         print(f'Generating {fund_name}...')
         df       = generator()
-        filename = f'{OUTPUT_DIR}/fund_positions_{fund_name}.xlsx'
-        df.to_excel(filename, index=False)
+        filepath = position_file(OUTPUT_DIR, fund_name, VALUATION_DATE)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        df.to_excel(filepath, index=False)
 
         latest = df[df['position_date'] == df['position_date'].max()]
         nav    = latest['market_value_eur'].sum()
         print(f'  positions : {len(latest)}')
         print(f'  NAV (EUR) : {nav:,.0f}')
         print(f'  date range: {df["position_date"].min()} to {df["position_date"].max()}')
-        print(f'  saved to  : {filename}')
+        print(f'  saved to  : {filepath}')
         print()
 
     print('All four fund position files generated successfully.')

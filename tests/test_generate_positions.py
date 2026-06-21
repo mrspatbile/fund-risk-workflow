@@ -17,6 +17,8 @@ from fund_risk_workflow.data.generate_positions import (
     DATES,
     OUTPUT_DIR,
 )
+from fund_risk_workflow.data.paths import position_file
+from fund_risk_workflow.config import VALUATION_DATE
 
 
 # ----------------------------------------------------------------
@@ -302,19 +304,19 @@ class TestExcelOutput:
         )
         for fund in ['AIFM_HedgeFund', 'AIFM_PrivateDebt',
                      'AIFM_RealEstate', 'UCITS_Balanced']:
-            path = f'{OUTPUT_DIR}/fund_positions_{fund}.xlsx'
+            path = str(position_file(OUTPUT_DIR, fund, VALUATION_DATE))
             assert os.path.exists(path), f'missing: {path}'
 
     def test_excel_readable_with_pandas(self):
         for fund in ['AIFM_HedgeFund', 'AIFM_PrivateDebt',
                      'AIFM_RealEstate', 'UCITS_Balanced']:
-            path = f'{OUTPUT_DIR}/fund_positions_{fund}.xlsx'
+            path = str(position_file(OUTPUT_DIR, fund, VALUATION_DATE))
             if os.path.exists(path):
                 df = pd.read_excel(path)
                 assert len(df) > 0
 
     def test_excel_has_correct_columns(self):
-        path = f'{OUTPUT_DIR}/fund_positions_UCITS_Balanced.xlsx'
+        path = str(position_file(OUTPUT_DIR, 'UCITS_Balanced', VALUATION_DATE))
         if os.path.exists(path):
             df = pd.read_excel(path)
             for col in STANDARD_COLS:

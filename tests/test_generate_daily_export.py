@@ -8,10 +8,13 @@ Run with: python3 -m pytest tests/test_generate_daily_export.py -v
 import pytest
 import pandas as pd
 from pathlib import Path
+import sys
 
 ROOT_DIR   = Path(__file__).parent.parent
-EXPORT_DIR = ROOT_DIR / 'data' / 'daily_exports'
 DATA_DIR   = ROOT_DIR / 'data'
+sys.path.insert(0, str(ROOT_DIR / 'src'))
+
+from fund_risk_workflow.data.paths import daily_export_file
 
 FUNDS = [
     'AIFM_HedgeFund',
@@ -32,26 +35,31 @@ STANDARD_COLS = [
 
 class TestDailyExportFiles:
 
+    def _get_export_path(self, fund, date):
+        """Get full path to export file using path helper."""
+        return daily_export_file(str(DATA_DIR), fund, date)
+
     def test_export_directory_exists(self):
-        assert EXPORT_DIR.exists()
+        export_dir = DATA_DIR / 'daily_exports'
+        assert export_dir.exists()
 
     def test_all_files_created(self):
         for fund in FUNDS:
             for date in DATES:
-                path = EXPORT_DIR / f'{fund}_{date}.xlsx'
+                path = self._get_export_path(fund, date)
                 assert path.exists(), f'missing: {path.name}'
 
     def test_files_readable_with_pandas(self):
         for fund in FUNDS:
             for date in DATES:
-                path = EXPORT_DIR / f'{fund}_{date}.xlsx'
+                path = self._get_export_path(fund, date)
                 if path.exists():
                     df = pd.read_excel(path)
                     assert len(df) > 0
 
     def test_all_standard_columns_present(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
+            path = self._get_export_path(fund, '2026-03-31')
             if path.exists():
                 df = pd.read_excel(path)
                 for col in STANDARD_COLS:
@@ -61,7 +69,7 @@ class TestDailyExportFiles:
     def test_single_date_per_file(self):
         for fund in FUNDS:
             for date in DATES:
-                path = EXPORT_DIR / f'{fund}_{date}.xlsx'
+                path = self._get_export_path(fund, date)
                 if path.exists():
                     df = pd.read_excel(path)
                     assert df['date'].astype(str).nunique() == 1
@@ -69,7 +77,7 @@ class TestDailyExportFiles:
 
     def test_single_fund_per_file(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
+            path = self._get_export_path(fund, '2026-03-31')
             if path.exists():
                 df = pd.read_excel(path)
                 assert df['fund_id'].nunique() == 1
@@ -77,7 +85,7 @@ class TestDailyExportFiles:
 
     def test_weights_sum_to_100(self):
         for fund in FUNDS:
-            path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
+            path = self._get_export_path(fund, '2026-03-31')
             if path.exists():
                 df    = pd.read_excel(path)
                 total = df['weight_pct'].sum()
@@ -85,7 +93,7 @@ class TestDailyExportFiles:
                     f'{fund}: weights sum to {total:.2f}'
 
     def test_real_estate_has_extra_columns(self):
-        path = EXPORT_DIR / 'AIFM_RealEstate_2026-03-31.xlsx'
+        path = self._get_export_path('AIFM_RealEstate', '2026-03-31')
         if path.exists():
             df = pd.read_excel(path)
             for col in ['ltv_pct', 'rental_yield_pct',
@@ -93,22 +101,25 @@ class TestDailyExportFiles:
                 assert col in df.columns
 
     def test_hedge_fund_has_short_positions(self):
-        path = EXPORT_DIR / 'AIFM_HedgeFund_2026-03-31.xlsx'
+        path = self._get_export_path('AIFM_HedgeFund', '2026-03-31')
         if path.exists():
             df = pd.read_excel(path)
             assert (df['market_value_eur'] < 0).any()
 
     def test_ucits_all_long_only(self):
-        path = EXPORT_DIR / 'UCITS_Balanced_2026-03-31.xlsx'
+        path = self._get_export_path('UCITS_Balanced', '2026-03-31')
         if path.exists():
             df = pd.read_excel(path)
             assert (df['market_value_eur'] >= 0).all()
 
     def test_daily_export_matches_full_history(self):
         """Filtering full history to single date = daily export."""
+        from fund_risk_workflow.data.paths import position_file
+        from fund_risk_workflow.config import VALUATION_DATE
+
         for fund in FUNDS:
-            full_path   = DATA_DIR / f'fund_positions_{fund}.xlsx'
-            export_path = EXPORT_DIR / f'{fund}_2026-03-31.xlsx'
+            full_path = position_file(str(DATA_DIR), fund, VALUATION_DATE)
+            export_path = self._get_export_path(fund, '2026-03-31')
             if full_path.exists() and export_path.exists():
                 full   = pd.read_excel(full_path)
                 full   = full[

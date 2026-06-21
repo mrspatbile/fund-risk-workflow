@@ -12,25 +12,31 @@ Usage
 
 import pandas as pd
 from pathlib import Path
+import sys
 
-ROOT_DIR   = Path(__file__).parent.parent.parent  # src/data/ -> project root
+ROOT_DIR   = Path(__file__).parent.parent.parent.parent  # src/fund_risk_workflow/data/ -> project root
+sys.path.insert(0, str(ROOT_DIR / 'src'))
+
+from fund_risk_workflow.data.paths import position_file, daily_export_file
+from fund_risk_workflow.config import VALUATION_DATE
+
 DATA_DIR   = ROOT_DIR / 'data'
 EXPORT_DIR = ROOT_DIR / 'data' / 'daily_exports'
 EXPORT_DIR.mkdir(exist_ok=True)
 
-FUNDS = {
-    'AIFM_HedgeFund'  : 'fund_positions_AIFM_HedgeFund.xlsx',
-    'AIFM_PrivateDebt': 'fund_positions_AIFM_PrivateDebt.xlsx',
-    'AIFM_RealEstate' : 'fund_positions_AIFM_RealEstate.xlsx',
-    'UCITS_Balanced'  : 'fund_positions_UCITS_Balanced.xlsx',
-}
+FUND_IDS = [
+    'AIFM_HedgeFund',
+    'AIFM_PrivateDebt',
+    'AIFM_RealEstate',
+    'UCITS_Balanced',
+]
 
 DATES = ['2026-03-30', '2026-03-31']  # Last two business days of available data
 
 
 if __name__ == '__main__':
-    for fund_id, filename in FUNDS.items():
-        filepath = DATA_DIR / filename
+    for fund_id in FUND_IDS:
+        filepath = position_file(str(DATA_DIR), fund_id, VALUATION_DATE)
         if not filepath.exists():
             print(f'Warning: {filepath} not found, skipping.')
             continue
@@ -48,7 +54,8 @@ if __name__ == '__main__':
             # (mimics fund administrator daily export files)
             daily = daily.rename(columns={'position_date': 'date'})
 
-            out_file = EXPORT_DIR / f'{fund_id}_{date}.xlsx'
+            out_file = daily_export_file(str(DATA_DIR), fund_id, date)
+            out_file.parent.mkdir(parents=True, exist_ok=True)
             daily.to_excel(out_file, index=False)
             print(f'Exported: {out_file.name} '
                   f'({len(daily)} positions)')

@@ -72,6 +72,8 @@ def run(force: bool = False) -> None:
             generate_hedge_fund, generate_private_debt,
             generate_real_estate, generate_ucits_balanced,
         )
+        from fund_risk_workflow.data.paths import position_file
+        from fund_risk_workflow.config import VALUATION_DATE
         import pandas as pd
         fund_generators = {
             'AIFM_HedgeFund'  : generate_hedge_fund,
@@ -82,8 +84,9 @@ def run(force: bool = False) -> None:
         for fund_name, generator in fund_generators.items():
             print(f'  {fund_name}...')
             df = generator()
-            path = str(ROOT_DIR / 'data' / f'fund_positions_{fund_name}.xlsx')
-            df.to_excel(path, index=False)
+            filepath = position_file(DATA_DIR, fund_name, VALUATION_DATE)
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            df.to_excel(filepath, index=False)
         print('Excel files regenerated.')
 
     # step 1: create schema if db missing
