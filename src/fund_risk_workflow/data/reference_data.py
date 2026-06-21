@@ -906,3 +906,223 @@ def build_lmt_parameters(fund_id: str, calibration_inputs: dict, calibration_con
         "lmt_thresholds": lmt_config,
         "investors_enriched": enriched_investors,
     }
+
+
+# ================================================================
+# Derivative Contract Reference Data
+# ================================================================
+
+def _validate_derivative_contract(contract: dict, isin: str) -> None:
+    """
+    Validate derivative contract structure and content.
+
+    Parameters
+    ----------
+    contract : dict
+        Derivative contract specification
+    isin : str
+        Expected contract identifier (ISIN or instrument code)
+
+    Raises
+    ------
+    ValueError
+        If validation fails
+    """
+    # Common required fields
+    required_common = {
+        'instrument_name', 'contract_type', 'underlying_ticker',
+        'underlying_asset_class', 'contract_multiplier',
+        'settlement_currency', 'listed_or_otc', 'exposure_method_hint'
+    }
+    missing_common = required_common - set(contract.keys())
+    if missing_common:
+        raise ValueError(
+            f"Derivative contract {isin}: missing required common fields: {missing_common}"
+        )
+
+    # Validate contract_type
+    valid_contract_types = {'future', 'option', 'forward'}
+    if contract['contract_type'] not in valid_contract_types:
+        raise ValueError(
+            f"Derivative contract {isin}: contract_type must be one of {valid_contract_types}, "
+            f"got '{contract['contract_type']}'"
+        )
+
+    # Validate listed_or_otc
+    valid_listed_otc = {'Listed', 'OTC'}
+    if contract['listed_or_otc'] not in valid_listed_otc:
+        raise ValueError(
+            f"Derivative contract {isin}: listed_or_otc must be one of {valid_listed_otc}, "
+            f"got '{contract['listed_or_otc']}'"
+        )
+
+    # Validate exposure_method_hint
+    valid_exposure_hints = {
+        'underlying_notional', 'delta_adjusted_underlying_notional',
+        'fx_notional', 'premium_value'
+    }
+    if contract['exposure_method_hint'] not in valid_exposure_hints:
+        raise ValueError(
+            f"Derivative contract {isin}: exposure_method_hint must be one of {valid_exposure_hints}, "
+            f"got '{contract['exposure_method_hint']}'"
+        )
+
+    # Contract-type-specific validation
+    if contract['contract_type'] == 'option':
+        required_option = {'option_type', 'strike', 'expiry_date'}
+        missing_option = required_option - set(contract.keys())
+        if missing_option or any(contract.get(f) is None for f in required_option):
+            raise ValueError(
+                f"Derivative contract {isin} (option): missing or null required fields: "
+                f"option_type, strike, expiry_date. "
+                f"Got: option_type={contract.get('option_type')}, "
+                f"strike={contract.get('strike')}, expiry_date={contract.get('expiry_date')}"
+            )
+        if contract['option_type'] not in {'call', 'put'}:
+            raise ValueError(
+                f"Derivative contract {isin} (option): option_type must be 'call' or 'put', "
+                f"got '{contract['option_type']}'"
+            )
+        if not isinstance(contract['strike'], (int, float)):
+            raise ValueError(
+                f"Derivative contract {isin} (option): strike must be numeric, "
+                f"got {type(contract['strike']).__name__}"
+            )
+
+    elif contract['contract_type'] == 'future':
+        if contract.get('underlying_ticker') is None:
+            raise ValueError(
+                f"Derivative contract {isin} (future): underlying_ticker is required, got None"
+            )
+        if contract.get('contract_multiplier') is None:
+            raise ValueError(
+                f"Derivative contract {isin} (future): contract_multiplier is required, got None"
+            )
+
+    elif contract['contract_type'] == 'forward':
+        if contract.get('underlying_ticker') is None:
+            raise ValueError(
+                f"Derivative contract {isin} (forward): underlying_ticker is required, got None"
+            )
+        if contract.get('settlement_currency') is None:
+            raise ValueError(
+                f"Derivative contract {isin} (forward): settlement_currency is required, got None"
+            )
+
+
+def load_derivative_contracts() -> dict:
+    """
+    Load all derivative contracts from reference data.
+
+    Reads all contracts from reference_data/derivatives/derivative_contracts.json
+    and validates each contract.
+
+    Works from any working directory.
+
+    Returns
+    -------
+    dict
+        All derivative contracts keyed by ISIN/instrument code.
+        Each contract includes all fields plus derived schema_version stripped.
+
+    Raises
+    ------
+    FileNotFoundError
+        If derivative_contracts.json not found
+    ValueError
+        If any contract fails validation
+
+    Examples
+    --------
+    >>> contracts = load_derivative_contracts()
+    >>> option = contracts['OPT_SPX_PUT_001']
+    >>> print(option['strike'])
+    """
+    module_dir = Path(__file__).parent
+    deriv_path = module_dir / '../../../reference_data/derivatives/derivative_contracts.json'
+
+    if not deriv_path.exists():
+        raise FileNotFoundError(
+            f"Derivative contracts file not found at {deriv_path}"
+        )
+
+    with open(deriv_path) as f:
+        data = json.load(f)
+
+    if 'schema_version' not in data:
+        raise ValueError("Derivative contracts file missing schema_version")
+    if 'contracts' not in data:
+        raise ValueError("Derivative contracts file missing contracts key")
+
+    contracts = data['contracts']
+    if not isinstance(contracts, dict):
+        raise ValueError(
+            f"Derivative contracts 'contracts' must be a dict, got {type(contracts).__name__}"
+        )
+
+    # Validate each contract
+    for isin, contract in contracts.items():
+        _validate_derivative_contract(contract, isin)
+
+    return contracts
+
+
+def load_derivative_contract(isin: str) -> dict:
+    """
+    Load a specific derivative contract by ISIN.
+
+    Reads from reference_data/derivatives/derivative_contracts.json and validates.
+
+    Works from any working directory.
+
+    Parameters
+    ----------
+    isin : str
+        Instrument identifier or code (e.g., 'OPT_SPX_PUT_001', 'FWD_EURUSD_001')
+
+    Returns
+    -------
+    dict
+        Derivative contract specification with all fields.
+
+    Raises
+    ------
+    FileNotFoundError
+        If derivative_contracts.json not found
+    KeyError
+        If ISIN not found in contracts
+    ValueError
+        If contract fails validation
+
+    Examples
+    --------
+    >>> contract = load_derivative_contract('OPT_SPX_PUT_001')
+    >>> print(f"Strike: {contract['strike']}, Expiry: {contract['expiry_date']}")
+    """
+    module_dir = Path(__file__).parent
+    deriv_path = module_dir / '../../../reference_data/derivatives/derivative_contracts.json'
+
+    if not deriv_path.exists():
+        raise FileNotFoundError(
+            f"Derivative contracts file not found at {deriv_path}"
+        )
+
+    with open(deriv_path) as f:
+        data = json.load(f)
+
+    if 'schema_version' not in data:
+        raise ValueError("Derivative contracts file missing schema_version")
+    if 'contracts' not in data:
+        raise ValueError("Derivative contracts file missing contracts key")
+
+    contracts = data['contracts']
+    if isin not in contracts:
+        raise KeyError(
+            f"Derivative contract '{isin}' not found in derivative_contracts.json. "
+            f"Available: {sorted(contracts.keys())}"
+        )
+
+    contract = contracts[isin]
+    _validate_derivative_contract(contract, isin)
+
+    return contract
