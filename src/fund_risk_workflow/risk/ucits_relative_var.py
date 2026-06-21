@@ -307,25 +307,18 @@ def compute_ucits_relative_var_point_in_time(engine, fund_id: str, var_result: d
                                               var_holding_period: int, relative_var_limit: float,
                                               bbg, valuation_date: str, rmp: dict) -> dict:
     """Compute relative VaR point-in-time."""
-    from fund_risk_workflow.data.reference_data import load_reference_portfolio
+    from fund_risk_workflow.data.benchmark_builder import build_benchmark_returns
 
     ref_portfolio_id = rmp['global_exposure_policy']['reference_portfolio_id']
-    ref_portfolio = load_reference_portfolio(ref_portfolio_id)
+    start_date = (pd.Timestamp(valuation_date) - pd.tseries.offsets.BDay(var_lookback)).strftime('%Y-%m-%d')
 
-    # Build reference portfolio returns
-    ref_ret_components = []
-    for component in ref_portfolio['components']:
-        ticker = component['proxy_ticker']
-        start_date = (pd.Timestamp(valuation_date) - pd.tseries.offsets.BDay(var_lookback)).strftime('%Y-%m-%d')
-        hist = bbg.bdh(ticker, 'PX_LAST', start_date, valuation_date)
-        ret = hist['PX_LAST'].pct_change().dropna()
-        weight = component['weight']
-        ref_ret_components.append((ret, weight))
-
-    ref_ret = pd.Series(0, index=ref_ret_components[0][0].index)
-    for ret, weight in ref_ret_components:
-        ref_ret = ref_ret.add(ret * weight, fill_value=0)
-    ref_ret = ref_ret.dropna().values
+    # Build reference portfolio returns using canonical builder
+    ref_ret = build_benchmark_returns(
+        ref_portfolio_id,
+        bbg,
+        start_date,
+        valuation_date,
+    ).values
 
     var_ref_1d = var_historical(ref_ret, confidence=var_confidence)
     relative_var = var_result['var_hist_pct'] / var_ref_1d

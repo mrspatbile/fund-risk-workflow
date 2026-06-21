@@ -23,7 +23,7 @@ def compute_daily_attribution(
     bbg,
     valuation_date: str,
     residual_threshold_pct: float = 0.20,
-    benchmark: str = 'spy',
+    reference_portfolio_id: str = 'sp500_reference',
 ) -> dict:
     """
     Compute daily P&L attribution by risk factor.
@@ -33,16 +33,17 @@ def compute_daily_attribution(
     engine : SQLAlchemy engine
         Database connection
     fund_id : str
-        Fund identifier (e.g., 'AIFM_HedgeFund')
+        Fund identifier (e.g., 'AIFM_HedgeFund', 'UCITS_Balanced')
     bbg : MockBloomberg or BloombergAPI
         Bloomberg data provider
     valuation_date : str
         Valuation date for end of period (YYYY-MM-DD)
     residual_threshold_pct : float, optional
         Threshold for flagging residual attribution (default 0.20 = 20%)
-    benchmark : str, optional
-        Benchmark type: 'spy' (equity only) or '60/40' (60% equity / 40% bonds).
-        Default is 'spy'.
+    reference_portfolio_id : str, optional
+        Reference portfolio identifier from reference_data/benchmarks/reference_portfolios/.
+        Default is 'sp500_reference' (single-index equity benchmark).
+        Use 'global_equity_60_eur_gov_40' for 60/40 balanced benchmarks.
 
     Returns
     -------
@@ -55,6 +56,7 @@ def compute_daily_attribution(
         attr_cumsum : pd.DataFrame
             Cumulative attribution (for plotting)
     """
+    from fund_risk_workflow.data.benchmark_builder import build_benchmark_returns
 
     # ── Daily P&L ────────────────────────────────────────────────────────────
     nav_history = query_nav_history(engine, fund_id)
@@ -66,23 +68,19 @@ def compute_daily_attribution(
     valuation_date_str = valuation_date
 
     # ── Market factors ───────────────────────────────────────────────────────
-    # Benchmark: 'spy' or '60/40'
-    if benchmark == '60/40':
-        spy_bm = bbg.bdh('SPY US Equity', 'PX_LAST', start_date, valuation_date_str)
-        agg_bm = bbg.bdh('AGG US Equity', 'PX_LAST', start_date, valuation_date_str)
-        spy_bm['r_equity'] = spy_bm['PX_LAST'].pct_change()
-        agg_bm['r_bonds'] = agg_bm['PX_LAST'].pct_change()
-        r_market = 0.60 * spy_bm['r_equity'] + 0.40 * agg_bm['r_bonds']
-    else:
-        # Default: SPY only (hedge fund style)
-        spy_bm = bbg.bdh('SPY US Equity', 'PX_LAST', start_date, valuation_date_str)
-        r_market = spy_bm['PX_LAST'].pct_change()
+    # Use canonical benchmark builder
+    r_market = build_benchmark_returns(
+        reference_portfolio_id,
+        bbg,
+        start_date,
+        valuation_date_str,
+    )
 
     # Rates: simulated parallel yield shift
     np.random.seed(42)
     rate_series = pd.Series(
-        np.random.normal(0, 0.0005, len(spy_bm)),
-        index=spy_bm.index,
+        np.random.normal(0, 0.0005, len(r_market)),
+        index=r_market.index,
         name='dy',
     )
 
@@ -91,7 +89,7 @@ def compute_daily_attribution(
     usd['r_fx_USD'] = usd['PX_LAST'].pct_change()
 
     # Combined market moves
-    market_moves = pd.DataFrame(index=spy_bm.index)
+    market_moves = pd.DataFrame(index=r_market.index)
     market_moves['r_market'] = r_market
     market_moves['dy'] = rate_series
     market_moves['r_fx_USD'] = usd['r_fx_USD']
