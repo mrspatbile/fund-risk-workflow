@@ -147,3 +147,28 @@ pip install -e .
 python3 -m fund_risk_workflow.data.setup_db
 ```
 
+### Cleaning regenerated outputs
+
+Use the cleanup script to remove regenerated output folders when you want to rerun the workflow from generated source files.
+
+The script removes:
+
+- `data/positions/`
+- `data/reports/`
+- `data/daily_exports/`
+
+It does not remove:
+
+- `data/risk_management.db`
+- `data/yf_cache/`
+
+This means the database is preserved. If you delete positions and want the database to reflect regenerated position files, rerun the position generation and database setup workflow afterwards.
+
+```bash
+# Dry-run: shows what would be deleted
+python3 scripts/clean_data_outputs.py
+
+# Confirm deletion
+python3 scripts/clean_data_outputs.py --confirm
+```
+

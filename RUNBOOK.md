@@ -64,6 +64,29 @@ python3 -c "from fund_risk_workflow.data.database import get_engine; from fund_r
 python3 -m fund_risk_workflow.pipeline.validate
 ```
 
+#### 6. Cleaning generated outputs
+
+To remove regenerated data outputs (positions, reports, daily exports) without touching the database or cache:
+
+Dry-run (shows what would be deleted):
+```bash
+python3 scripts/clean_data_outputs.py
+```
+
+Confirm deletion:
+```bash
+python3 scripts/clean_data_outputs.py --confirm
+```
+
+This removes:
+- `data/positions/`
+- `data/reports/`
+- `data/daily_exports/`
+
+Protected (never deleted):
+- `data/risk_management.db`
+- `data/yf_cache/`
+
 
 ## Notebook execution sequence
 
@@ -128,12 +151,14 @@ from fund_risk_workflow.data.database import get_engine
 from fund_risk_workflow.reporting.annex_iv import export_annex_iv_excel
 
 ENGINE = get_engine()
-quarter = '26Q1'
+quarter = '2026-03-31'
 
 export_annex_iv_excel(ENGINE, quarter=quarter)
 ```
 
-Output: `data/annex_iv_report_<quarter>.xlsx`
+Output:
+- `data/reports/annex_iv/2026Q1/all_funds.xlsx`
+- `data/reports/annex_iv/2026Q1/AIFM_HedgeFund.xlsx` (single fund)
 
 ## Board risk report
 
@@ -145,10 +170,10 @@ notebooks/reports/board_risk_report.ipynb
 
 The output is a self-contained PDF covering the AIFM-level risk view.
 
-Expected output pattern:
+Output location:
 
 ```text
-data/board_risk_report_<date>.pdf
+data/reports/board_risk/<valuation_date>/board_risk_<valuation_date>.pdf
 ```
 
 
