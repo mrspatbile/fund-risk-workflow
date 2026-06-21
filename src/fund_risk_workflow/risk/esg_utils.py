@@ -35,6 +35,8 @@ from fund_risk_workflow.data.database import (
     PEValuationReport, PEPortfolioCompany, PEFundInvestment,
     InfraValuationReport, InfraAsset, InfraFundInvestment,
 )
+from fund_risk_workflow.computation.derivatives import compute_derivative_exposures_portfolio
+from fund_risk_workflow.data.reference_data import load_derivative_contracts
 from sqlalchemy.orm import Session
 
 # from PRM - policy risk management
@@ -89,6 +91,7 @@ def build_esg_df(
 
     for _, pos in risk_df.iterrows():
         row = {
+            'isin'            : pos['isin'],
             'instrument_name' : pos['instrument_name'],
             'asset_class'     : pos['asset_class'],
             'sub_asset_class' : pos.get('sub_asset_class', ''),
@@ -107,17 +110,8 @@ def build_esg_df(
                 row[f.lower()] = pos.get(f.lower())
 
         # ESG exposure: delta-adjusted for derivatives, full notional otherwise
-        if (pos['asset_class'] == 'Derivative' and
-                ticker and pd.notna(ticker)):
-            bbg_d         = bbg.bdp(ticker,
-                                    ['DELTA', 'OPT_UNDL_PX', 'CONTRACT_SIZE'])
-            delta         = abs(bbg_d.loc[ticker, 'DELTA'])
-            undl_px       = bbg_d.loc[ticker, 'OPT_UNDL_PX']
-            contract_size = bbg_d.loc[ticker, 'CONTRACT_SIZE']
-            quantity      = abs(pos['quantity'])
-            fx_rate       = pos.get('fx_rate', 1.0)
-            row['esg_exposure_eur'] = (delta * quantity *
-                                       contract_size * undl_px * fx_rate)
+        if pos['asset_class'] == 'Derivative':
+            row['esg_exposure_eur'] = None  # Will be filled by helper
         elif pos['asset_class'] == 'FX':
             row['esg_exposure_eur'] = 0.0
         elif pos['asset_class'] == 'Cash':
@@ -126,6 +120,39 @@ def build_esg_df(
             row['esg_exposure_eur'] = abs(pos['market_value_eur'])
 
         esg_rows.append(row)
+
+    # Compute derivative exposures using canonical helper
+    derivatives = [r for r in esg_rows if r['esg_exposure_eur'] is None]
+    if len(derivatives) > 0:
+        try:
+            # Filter risk_df to derivatives and add Bloomberg ticker from ISIN mapping
+            deriv_risk_df = risk_df[risk_df['asset_class'] == 'Derivative'].copy()
+            deriv_risk_df['bloomberg_ticker'] = deriv_risk_df['isin'].map(ticker_map)
+
+            # Load contract reference data and call helper
+            deriv_contracts = load_derivative_contracts()
+            helper_result = compute_derivative_exposures_portfolio(
+                deriv_risk_df, bbg, deriv_contracts, currency_bbg_map=None
+            )
+
+            # Map helper exposures back to esg_rows
+            for _, exp_row in helper_result['by_position'].iterrows():
+                isin = exp_row['isin']
+                esg_row = next((r for r in esg_rows if r.get('isin') == isin), None)
+                if esg_row:
+                    # Use absolute value of delta-adjusted notional for ESG weighting
+                    esg_row['esg_exposure_eur'] = abs(exp_row['delta_adjusted_notional_eur'])
+
+        except ValueError as e:
+            raise ValueError(
+                f"ESG exposure computation failed for derivatives. "
+                f"Error: {str(e)}"
+            ) from e
+
+    # Fill any remaining None values (should not happen if helper succeeds)
+    for r in esg_rows:
+        if r.get('esg_exposure_eur') is None:
+            r['esg_exposure_eur'] = 0.0
 
     return pd.DataFrame(esg_rows)
 

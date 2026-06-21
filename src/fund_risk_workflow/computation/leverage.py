@@ -14,6 +14,8 @@ Functions
 """
 
 import pandas as pd
+from fund_risk_workflow.computation.derivatives import compute_derivative_exposures_portfolio
+from fund_risk_workflow.data.reference_data import load_derivative_contracts
 
 
 def compute_leverage(
@@ -56,35 +58,72 @@ def compute_leverage(
     deriv_gross_map:      dict = {}
     deriv_commitment_map: dict = {}
 
-    for idx, row in df[df['asset_class'] == 'Derivative'].iterrows():
-        use_bbg = (
-            bbg is not None
-            and deriv_bbg_map is not None
-            and row['instrument_name'] in deriv_bbg_map
-        )
-        if use_bbg:
-            ticker  = deriv_bbg_map[row['instrument_name']]
-            bd      = bbg.bdp(ticker, ['DELTA', 'OPT_UNDL_PX', 'CONTRACT_SIZE', 'CRNCY'])
-            delta   = bd.loc[ticker, 'DELTA']
-            undl_px = bd.loc[ticker, 'OPT_UNDL_PX']
-            csize   = bd.loc[ticker, 'CONTRACT_SIZE']
-            ccy     = bd.loc[ticker, 'CRNCY']
-            qty     = row['quantity']
-            fx_rate = 1.0
-            if ccy != 'EUR' and currency_bbg_map and ccy in currency_bbg_map:
-                fx_tkr  = currency_bbg_map[ccy]
-                fx_rate = 1 / bbg.bdp(fx_tkr, ['PX_LAST']).loc[fx_tkr, 'PX_LAST']
-            deriv_gross_map[idx]      = abs(qty) * csize * undl_px * fx_rate
-            deriv_commitment_map[idx] = (
-                delta * qty * csize * undl_px * fx_rate
-                if row.get('is_hedge', 0) != 1 else 0.0
+    deriv_df = df[df['asset_class'] == 'Derivative'].copy()
+
+    if len(deriv_df) > 0:
+        # Require Bloomberg and reference data for derivative notional computation
+        # Do NOT fall back to market value, as this materially understates exposure
+        # when contract multiplier or underlying notional is required
+        if bbg is None:
+            missing_derivs = deriv_df['isin'].tolist()
+            raise ValueError(
+                f"Derivative notional exposure computation requires Bloomberg data provider, "
+                f"but bbg is None. Cannot compute exposure for derivatives: {missing_derivs}. "
+                f"AIFMD leverage calculation cannot proceed without required market inputs."
             )
-        else:
-            deriv_gross_map[idx]      = abs(row['market_value_eur'])
-            deriv_commitment_map[idx] = (
-                row['market_value_eur']
-                if row.get('is_hedge', 0) != 1 else 0.0
+
+        if deriv_bbg_map is None:
+            missing_derivs = deriv_df[['isin', 'instrument_name']].to_dict('records')
+            raise ValueError(
+                f"Derivative notional exposure computation requires Bloomberg ticker mapping, "
+                f"but deriv_bbg_map is None. Cannot compute exposure for derivatives: {missing_derivs}. "
+                f"AIFMD leverage calculation cannot proceed without required market data sources."
             )
+
+        try:
+            deriv_contracts = load_derivative_contracts()
+
+            # Add bloomberg_ticker column from deriv_bbg_map for helper
+            deriv_df['bloomberg_ticker'] = deriv_df['instrument_name'].map(deriv_bbg_map)
+
+            # Check for unmapped derivatives
+            unmapped = deriv_df[deriv_df['bloomberg_ticker'].isna()]
+            if len(unmapped) > 0:
+                unmapped_list = unmapped[['isin', 'instrument_name']].to_dict('records')
+                raise ValueError(
+                    f"Derivative Bloomberg ticker mapping incomplete. "
+                    f"Cannot find Bloomberg tickers for derivatives: {unmapped_list}. "
+                    f"Check deriv_bbg_map and position data."
+                )
+
+            # Compute using helper
+            helper_result = compute_derivative_exposures_portfolio(
+                deriv_df, bbg, deriv_contracts, currency_bbg_map=currency_bbg_map
+            )
+
+            # Map helper outputs to leverage format
+            for _, pos_result in helper_result['by_position'].iterrows():
+                idx = deriv_df[deriv_df['isin'] == pos_result['isin']].index[0]
+                deriv_gross_map[idx] = pos_result['gross_notional_eur']
+
+                # Commitment: use delta-adjusted, then apply hedge netting
+                delta_adj = pos_result['delta_adjusted_notional_eur']
+                deriv_commitment_map[idx] = (
+                    delta_adj
+                    if deriv_df.loc[idx, 'is_hedge'] != 1 else 0.0
+                )
+
+        except ValueError:
+            # Re-raise validation errors from helper or mapping
+            raise
+        except Exception as e:
+            # Any other error from helper computation
+            deriv_list = deriv_df[['isin', 'instrument_name', 'bloomberg_ticker']].to_dict('records')
+            raise ValueError(
+                f"Derivative notional exposure computation failed for derivatives: {deriv_list}. "
+                f"Helper error: {str(e)}. "
+                f"AIFMD leverage calculation cannot use market_value_eur as fallback for notional exposure."
+            ) from e
 
     # ── gross (Art. 7) ─────────────────────────────────────────────────
     # Cash (uninvested) excluded; Borrowing handled separately below.
